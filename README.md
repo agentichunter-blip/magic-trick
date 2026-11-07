@@ -20,6 +20,8 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
+**No build required:** download the [art31 firmware release](https://github.com/agentichunter-blip/chromagic-preview-mod/releases/tag/v1.0.1-art31) and follow [the prebuilt installation guide](docs/install-release.md). It includes macOS/Linux and Windows commands. The source-build route follows below.
+
 These instructions are for a Chromatic already running **ChroMagic 1.0.1 with FPGA 18.38**. If starting from stock, first install upstream ChroMagic with [ChroMagician](https://github.com/cursedtoast2/ChroMagician), then verify the versions in the device's status menu. Selecting upstream ChroMagic in that app installs upstream firmware, not this mod. Upstream ChroMagician currently provides Windows and Linux installers; use a supported host for the initial installation or rollback. The source build and application-only flashing commands below can be run on macOS/Linux once the required base firmware is installed.
 
 Download/extract this repository or clone it, then open a terminal in its root directory (the folder containing this README). All relative paths below start there. These commands use the esptool 4.x bundled with ESP-IDF v5.3; see [Espressif's command reference](https://docs.espressif.com/projects/esptool/en/release-v4/esp32/esptool/basic-commands.html).

@@ -1,7 +1,7 @@
-# Release artifacts
+# Prebuilt releases
 
-This source tree does not configure a published release. The upstream 1.0.1 manifest was removed because its versions and hashes do not describe this mod.
+Download the MCU application and installation guide from [GitHub Releases](https://github.com/agentichunter-blip/chromagic-preview-mod/releases).
 
-Build `mcu/build/mcu_fw.bin` using the root README. It is an MCU application image, installed at `0x10000`, not a complete flash dump. No custom FPGA `.fs` is needed; the tested FPGA is upstream 18.38.
+For art31, use [the prebuilt installation guide](../docs/install-release.md). The firmware ZIP includes `mcu.bin`, `INSTALL.md`, checksums, source provenance and credits/licenses. The matching source is tagged `v1.0.1-art31`.
 
-Before publishing any future binary, provide its matching source, SHA-256 checksum, version, and installation instructions. Never include private flash dumps, saves, game libraries, downloaded media packs, or local build logs.
+The image is an MCU application written at `0x10000`, not a complete flash dump. The tested base is ChroMagic 1.0.1 with FPGA 18.38. No custom FPGA `.fs`, private flash dumps, saves, games, media, or local build logs are distributed.

@@ -16,4 +16,4 @@ The 24-test host suite also covers menu rendering/lifecycle, startup frame primi
 
 Sustained preview performance has not been benchmarked. Extended gameplay/save testing across hardware and libraries remains incomplete. Build and host-test results do not replace those checks.
 
-Build and test scripts do not flash hardware. A future binary release should identify its matching source revision, include SHA-256 checksums, and record tested MCU/FPGA versions. The repository currently distributes source, not an installable binary or personal media/library pack.
+Build and test scripts do not flash hardware. The art31 prebuilt release includes SHA-256 checksums, matching tagged source, and [installation instructions](install-release.md). Its packaged image was built from the tested source and passed image checksum/version checks; that exact packaged build has not been reflashed onto hardware. No personal media or library packs are distributed.
