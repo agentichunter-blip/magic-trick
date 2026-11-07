@@ -30,9 +30,19 @@ static esp_err_t Start(const char *Name) { assert(!Mounted && Mounts==Unmounts);
 static esp_err_t Enter(size_t Index,size_t *Count) { assert(Index<3); *Count=2; return ESP_OK; }
 static esp_err_t Parent(size_t *Count,size_t *Selected) { *Count=3; *Selected=1; return ESP_OK; }
 static size_t Restore(void) { return 2; }
+static unsigned CheatCalls, CheatCloses;
+static esp_err_t CheatMenu(CheatAction_t Action,size_t Index,CheatView_t *View) {
+    assert(!Mounted && !Worker.VideoCard && SleepLocks==1); ++CheatCalls;
+    *View=(CheatView_t){.Count=4,.Selected=Action==kCheatOpen?0:Index};
+    strcpy(View->Rows[0].Name,"Infinite lives"); return ESP_OK;
+}
+static void CloseCheats(void) { ++CheatCloses; }
+static bool UseStartIndex;
+static size_t StartedIndex;
+static esp_err_t StartIndex(size_t Index) { assert(!Mounted && Mounts==Unmounts); StartedIndex=Index; ++Starts; return ESP_OK; }
 const RomBrowserDataSource_t *RomBrowser_GetDataSource(void) {
-    static const RomBrowserDataSource_t S={.Open=Open,.NameAt=Name,.Close=Close,.Start=Start,
-        .Enter=Enter,.Parent=Parent,.Restore=Restore}; return &S;
+    static RomBrowserDataSource_t S={.Open=Open,.NameAt=Name,.Close=Close,.Start=Start,
+        .Enter=Enter,.Parent=Parent,.Restore=Restore,.Cheats=CheatMenu,.CloseCheats=CloseCheats}; S.StartIndex=UseStartIndex?StartIndex:NULL; return &S;
 }
 void RomBrowserUI_RegisterAsync(const RomBrowserAsync_t *Value) { Backend=*Value; }
 PCBackupModeState_t PCBackupMode_GetState(void) { return Mode; }
@@ -50,6 +60,16 @@ esp_err_t SDCard_MountPreview(sdmmc_card_t **Card) {
     return ESP_OK;
 }
 esp_err_t SDCard_Unmount(sdmmc_card_t *Card) { assert(Mounted); Mounted=false; ++Unmounts; return ESP_OK; }
+static unsigned BadgeReads;
+static bool BadgeFailure;
+static void (*DuringBadge)(void);
+esp_err_t Cheats_Badge(const char *Path,CheatBadge_t *Badge) {
+    assert(Mounted && SleepLocks==1 && Path); ++BadgeReads;
+    *Badge=(CheatBadge_t){.Available=true,.Enabled=true};
+    if(DuringBadge) DuringBadge();
+    return BadgeFailure?ESP_FAIL:ESP_OK;
+}
+static void ReplaceBadge(void) { Backend.RequestBadge("new.gb",99); }
 static void CancelDuringIO(void) { Backend.Cancel(); }
 static void LaunchDuringIO(void) { assert(Backend.Begin(kRomActionStart,1)==ESP_OK); }
 static void RequestNewToken(void) { Backend.RequestArt(NULL,99); }
@@ -133,5 +153,32 @@ int main(void) {
     assert(Backend.CopyVideo(14,pixels,&valid) && !valid && !Mounted);
     Backend.Cancel(); ProcessOne(); assert(!Worker.Pixels && Mounts==Unmounts && SleepLocks==0);
     assert(unlink(path)==0);
+    assert(Backend.Begin(kRomActionCheatsOpen,1)==ESP_OK); ProcessOne();
+    assert(Backend.Poll(&result) && result.Action==kRomActionCheatsOpen && result.Cheats.Count==4 && !strcmp(result.Cheats.Rows[0].Name,"Infinite lives"));
+    assert(Backend.Begin(kRomActionCheatsToggle,2)==ESP_OK); ProcessOne();
+    assert(Backend.Poll(&result) && result.Cheats.Selected==2 && CheatCalls==2);
+    Backend.Begin(kRomActionCheatsView,3); Backend.Cancel(); ProcessOne();
+    assert(!Backend.Poll(&result) && CheatCalls==2 && CheatCloses>0);
+    CheatBadge_t Badge;
+    unsigned BeforeBadgeMounts=Mounts;
+    Backend.RequestBadge("game.gb",20); Backend.RequestArt("/no-cover.cma",20); ProcessOne();
+    assert(Mounts==BeforeBadgeMounts+1 && Backend.CopyBadge(20,&Badge) && Badge.Available && Badge.Enabled);
+    assert(!Backend.CopyBadge(20,&Badge) && Backend.CopyArt(20,pixels,&valid) && !valid);
+    MountError=ESP_ERR_INVALID_STATE; Backend.RequestBadge("game.gb",21); ProcessOne();
+    assert(!Backend.CopyBadge(21,&Badge)); MountError=ESP_OK; ProcessOne();
+    assert(Backend.CopyBadge(21,&Badge) && Badge.Available);
+    DuringBadge=ReplaceBadge; Backend.RequestBadge("old.gb",22); ProcessOne();
+    assert(!Backend.CopyBadge(22,&Badge) && !Backend.CopyBadge(99,&Badge));
+    DuringBadge=NULL; ProcessOne(); assert(Backend.CopyBadge(99,&Badge));
+    BadgeFailure=true; Backend.RequestBadge("corrupt.gb",23); ProcessOne();
+    assert(Backend.CopyBadge(23,&Badge) && !Badge.Available && !Badge.Enabled); BadgeFailure=false;
+    DuringBadge=CancelDuringIO; Backend.RequestBadge("cancel.gb",24); ProcessOne();
+    assert(!Backend.CopyBadge(24,&Badge)); ProcessOne(); DuringBadge=NULL;
+    assert(!Mounted && Mounts==Unmounts && !SleepLocks);
+    UseStartIndex=true;
+    unsigned BeforeStarts=Starts;
+    assert(Backend.Begin(kRomActionStart,2)==ESP_OK); ProcessOne();
+    assert(Backend.Poll(&result) && result.Error==ESP_OK && Starts==BeforeStarts+1 && StartedIndex==2);
+    assert(!Mounted && !SleepLocks);
     puts("PASS: asynchronous jobs, owned launch identity, cancellation, stale art, SD contention, drain before launch and allocation failure");
 }

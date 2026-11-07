@@ -119,3 +119,33 @@ add_executable(video_preview_test video_preview_test.c "${FW_ROOT}/main/video_pr
 target_link_libraries(video_preview_test PRIVATE lvgl_host m)
 add_test(NAME video_preview_format COMMAND video_preview_test)
 add_test(NAME gameplay_converter COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/video_converter_test.py")
+
+add_executable(boot_resume_test boot_resume_test.c "${FW_ROOT}/main/boot_resume.c" "${FW_ROOT}/main/last_game.c")
+target_link_libraries(boot_resume_test PRIVATE lvgl_host m)
+add_test(NAME boot_resume COMMAND boot_resume_test)
+
+foreach(TARGET virtual_geometry_test virtual_transition_test virtual_load_test)
+  target_sources(${TARGET} PRIVATE "${FW_ROOT}/main/cheat_patch.c")
+endforeach()
+add_executable(cheats_test cheats_test.c "${FW_ROOT}/main/cheats.c" "${FW_ROOT}/main/cheat_patch.c")
+target_compile_definitions(cheats_test PRIVATE CHEAT_ROM_ROOT="${CMAKE_CURRENT_BINARY_DIR}/cheat-fixture/BACKUPS/" CHEAT_PACK_ROOT="${CMAKE_CURRENT_BINARY_DIR}/cheat-fixture/CHEATS/")
+target_link_libraries(cheats_test PRIVATE lvgl_host m)
+add_test(NAME cheat_patches_and_settings COMMAND cheats_test)
+add_test(NAME cheat_database_converter COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/cheat_converter_test.py")
+
+add_executable(button_input_test button_input_test.c "${FW_ROOT}/components/button/button.c")
+target_compile_options(button_input_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(button_input_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(button_input_test PRIVATE lvgl_host m)
+add_test(NAME physical_select_button COMMAND button_input_test)
+
+target_sources(osd_test PRIVATE "${FW_ROOT}/components/button/button.c")
+target_compile_options(osd_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(osd_test PRIVATE ${DEAD_STRIP})
+
+add_executable(recent_games_test recent_games_test.c "${FW_ROOT}/main/recent_games.c")
+target_link_libraries(recent_games_test PRIVATE lvgl_host m)
+add_test(NAME recent_game_history COMMAND recent_games_test)
+
+target_sources(boot_resume_test PRIVATE "${FW_ROOT}/components/common/rom_title.c")
+target_sources(recent_games_test PRIVATE "${FW_ROOT}/components/common/rom_title.c")

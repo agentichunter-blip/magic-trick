@@ -1,5 +1,30 @@
 #include "rom_title.h"
 #include <string.h>
+#include <strings.h>
+#include <ctype.h>
+
+bool RomTitle_IsDemo(const char *Name)
+{
+    if (!Name) return false;
+    const char *Base=strrchr(Name,'/');
+    if (Base) Name=Base+1;
+    for (const char *P=Name; *P; ++P) {
+        if (*P!='(' && *P!='[') continue;
+        const char *End=strchr(P+1,*P=='('?')':']');
+        if (!End) continue;
+        for (const char *Word=P+1; Word<End;) {
+            if (!isalnum((unsigned char)*Word)) { ++Word; continue; }
+            const char *Next=Word;
+            while (Next<End && isalnum((unsigned char)*Next)) ++Next;
+            size_t N=(size_t)(Next-Word);
+            if ((N==4 && !strncasecmp(Word,"demo",4)) ||
+                (N==5 && !strncasecmp(Word,"kiosk",5))) return true;
+            Word=Next;
+        }
+        P=End;
+    }
+    return false;
+}
 
 void RomTitle_Make(const char *Name, bool Directory, char *Output, size_t Size)
 {

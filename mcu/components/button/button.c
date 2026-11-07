@@ -8,6 +8,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 enum {
     kMinHold_ticks = 10,
@@ -46,6 +48,7 @@ static StaticQueue_t _PokedInputsQueue;
 static QueueHandle_t _PokedInputsHandle;
 static ButtonBits_t _PokedInputBuffer[kPokedInputsQLen];
 static ButtonBits_t _PrevButtons = kButtonBits_None;
+static uint32_t UpdateSequence;
 
 static void Button_PokeInputs(const ButtonBits_t Inputs);
 static int poke_button_command(int argc, char **argv);
@@ -72,6 +75,7 @@ void Button_Update(uint16_t NewButtons)
         }
 
         _PrevButtons = NewButtons;
+        ++UpdateSequence;
 
         (void) Mutex_Give(kMutexKey_Buttons);
     }
@@ -101,9 +105,22 @@ uint16_t Button_GetHeldBits(void)
     return Held;
 }
 
+uint32_t Button_GetSnapshot(uint16_t *HeldBits)
+{
+    uint32_t Sequence = 0;
+    if (HeldBits) *HeldBits = 0;
+    if (Mutex_Take(kMutexKey_Buttons) == kMutexResult_Ok)
+    {
+        Sequence = UpdateSequence;
+        if (HeldBits) *HeldBits = _PrevButtons;
+        (void)Mutex_Give(kMutexKey_Buttons);
+    }
+    return Sequence;
+}
+
 ButtonState_t Button_GetState(const Button_t b)
 {
-    if (((unsigned)b >= kNumButtons) || (b == kButton_Select))
+    if ((unsigned)b >= kNumButtons)
     {
         return kButtonState_None;
     }

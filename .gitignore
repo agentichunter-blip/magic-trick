@@ -27,3 +27,6 @@ dist/
 /backups/
 /local/
 /fpga/esp32t/src/Gameboy_MiSTer/releases/*.rbf
+
+# Generated per-library cheat packs
+*.cmc

@@ -40,6 +40,12 @@ int main(void) {
         for (unsigned t=30;t<6000;t+=30) total+=RomBrowserScroll_Update(&s,t,mask,0).Steps;
         assert(total * dir >= 180 && total * dir <= 190);
     }
+    assert(RomTitle_IsDemo("Game (World) (Demo).gb"));
+    assert(RomTitle_IsDemo("Game [KIOSK].gbc"));
+    assert(RomTitle_IsDemo("Game (Demo v1.2).gb"));
+    assert(!RomTitle_IsDemo("Demolition Man (World).gb"));
+    assert(!RomTitle_IsDemo("Game (Demographic).gb"));
+    assert(!RomTitle_IsDemo("/Demo (Kiosk)/Game (World).gb"));
     char title[256], letter[2];
     RomTitle_Make("  _Pokemon_Crystal.gbc",false,title,sizeof(title));
     assert(!strcmp(title,"POKEMON CRYSTAL"));

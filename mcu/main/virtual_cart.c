@@ -1,4 +1,7 @@
 #include "virtual_cart.h"
+#include "last_game.h"
+#include "recent_games.h"
+#include "cheats.h"
 #include "cart_backup.h"
 
 #include "cart_bulk.h"
@@ -405,7 +408,7 @@ static esp_err_t VirtualCommand(uint8_t Command,
         pInfo != NULL ? pInfo->ConfigurationHigh : 0, pResponse);
 }
 
-static esp_err_t UploadRom(FILE *pRom, const VirtualCartInfo_t *pInfo)
+static esp_err_t UploadRomPatched(FILE *pRom, const VirtualCartInfo_t *pInfo, const CheatPlan_t *Cheats)
 {
     uint32_t Sum = 0;
     const uint32_t Total = pInfo->MappedRomSize + pInfo->RamSize;
@@ -429,6 +432,8 @@ static esp_err_t UploadRom(FILE *pRom, const VirtualCartInfo_t *pInfo)
                 Sum += TransferBuffer[i];
             }
         }
+        if (Cheats && Offset < pInfo->RomSize)
+            ESP_RETURN_ON_ERROR(Cheats_Apply(Cheats, Offset, TransferBuffer, sizeof(TransferBuffer)), TAG, "cheat original bytes");
         ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + Offset,
                                                      TransferBuffer),
                             TAG, "ROM QSPI upload");
@@ -453,6 +458,11 @@ static esp_err_t UploadRom(FILE *pRom, const VirtualCartInfo_t *pInfo)
     }
     return ESP_OK;
 }
+
+#ifndef ESP_PLATFORM
+static esp_err_t UploadRom(FILE *Rom, const VirtualCartInfo_t *Info)
+{ return UploadRomPatched(Rom, Info, NULL); }
+#endif
 
 static esp_err_t MakeCompanionPath(const char *pRomPath,
                                    const char Extension[5],
@@ -1256,6 +1266,7 @@ static esp_err_t RunLoad(const char *pPath)
     uint32_t RtcState = 0;
     bool RtcPresent = false;
     bool RtcSupported = false;
+    CheatPlan_t Cheats = {0};
 
     Result = SDCard_Mount(&pCard);
     if (Result != ESP_OK) goto Cleanup;
@@ -1268,6 +1279,8 @@ static esp_err_t RunLoad(const char *pPath)
         goto Cleanup;
     }
     Result = DecodeHeader(pRom, &Info);
+    if (Result != ESP_OK) goto Cleanup;
+    Result = Cheats_Prepare(pPath, pRom, &Cheats);
     if (Result != ESP_OK) goto Cleanup;
 
     printf("VIRTUAL_CART_START path=%s title=\"%s\" mapper=\"%s\" rom=%lu save=%lu mbc1m=%u\n",
@@ -1291,7 +1304,7 @@ static esp_err_t RunLoad(const char *pPath)
     SetActive(false);
     ClearActiveSave();
 
-    Result = UploadRom(pRom, &Info);
+    Result = UploadRomPatched(pRom, &Info, &Cheats);
     if (Result != ESP_OK) goto Cleanup;
     if (fclose(pRom) != 0)
     {
@@ -1328,6 +1341,7 @@ static esp_err_t RunLoad(const char *pPath)
     SetActive(true);
 
 Cleanup:
+    Cheats_Free(&Cheats);
     if (pRom != NULL) (void)fclose(pRom);
     if (BulkOpen) CartBulk_End();
     if (Mounted)
@@ -1343,6 +1357,12 @@ Cleanup:
     if (Result == ESP_OK)
     {
         printf("VIRTUAL_CART=PASS title=\"%s\"\n", Info.Title);
+        const esp_err_t RememberResult = LastGame_Remember(pPath);
+        if (RememberResult != ESP_OK)
+            printf("LAST_GAME remember_error=%s\n", esp_err_to_name(RememberResult));
+        const esp_err_t RecentResult = RecentGames_Remember(pPath);
+        if (RecentResult != ESP_OK)
+            printf("RECENT_GAMES remember_error=%s\n", esp_err_to_name(RecentResult));
         if (RomBrowserUI_SetComplete())
         {
             const esp_err_t CloseResult = RomBrowser_CloseMenu();

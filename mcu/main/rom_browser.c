@@ -7,6 +7,8 @@
 #include "sd_card.h"
 #include "virtual_cart.h"
 #include "rom_title.h"
+#include "cheats.h"
+#include "recent_games.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -39,10 +41,13 @@ static void TraceCatalog(const char *Phase, esp_err_t Error)
 static const char *const RomDirectory = ROM_BROWSER_ROOT;
 enum { kPathSize = 320, kSavePathReserve = 5 };
 static char CurrentDirectory[kPathSize] = ROM_BROWSER_ROOT;
+static bool RecentView;
 
 typedef struct {
     char *pName;
+    char *pPath;
     bool Directory;
+    bool Recent;
 } RomEntry_t;
 
 typedef struct RomCatalog {
@@ -53,12 +58,12 @@ typedef struct RomCatalog {
 
 static RomCatalog_t Catalog;
 /* Bounded session-only location cache: no flash writes while browsing. */
-static struct { char Directory[kPathSize], Name[256]; } Locations[8];
+static struct { char Directory[kPathSize], Name[kPathSize]; bool Recent; } Locations[8];
 static unsigned NextLocation;
 
 static bool IsRomName(const char *pName)
 {
-    if (pName == NULL)
+    if (pName == NULL || RomTitle_IsDemo(pName))
     {
         return false;
     }
@@ -76,6 +81,7 @@ static bool IsRomName(const char *pName)
 static int CompareNames(const void *pLeft, const void *pRight)
 {
     const RomEntry_t *Left = pLeft, *Right = pRight;
+    if (Left->Recent != Right->Recent) return Left->Recent ? -1 : 1;
     if (Left->Directory != Right->Directory) return Left->Directory ? -1 : 1;
     return RomTitle_Compare(Left->pName, Right->pName, Left->Directory);
 }
@@ -85,6 +91,7 @@ static void CloseCatalog(void)
     for (size_t i = 0; i < Catalog.Count; ++i)
     {
         free(Catalog.pEntries[i].pName);
+        free(Catalog.pEntries[i].pPath);
     }
     free(Catalog.pEntries);
     Catalog.pEntries = NULL;
@@ -102,7 +109,7 @@ static esp_err_t AppendName(const char *pName, bool Directory)
         Catalog.pEntries = Expanded;
         Catalog.Capacity = Capacity;
     }
-    Catalog.pEntries[Catalog.Count].pName = strdup(pName);
+    Catalog.pEntries[Catalog.Count] = (RomEntry_t){.pName = strdup(pName)};
     if (Catalog.pEntries[Catalog.Count].pName == NULL)
     {
         return ESP_ERR_NO_MEM;
@@ -114,6 +121,44 @@ static esp_err_t AppendName(const char *pName, bool Directory)
 static bool AtRoot(void)
 {
     return strcmp(CurrentDirectory, RomDirectory) == 0;
+}
+
+static RecentSystem_t CurrentSystem(void)
+{
+    if (AtRoot()) return kRecentNone;
+    const char *Name=CurrentDirectory+strlen(RomDirectory)+1;
+    return !strcasecmp(Name,"GB") ? kRecentGB : !strcasecmp(Name,"GBC") ? kRecentGBC : kRecentNone;
+}
+
+/* At most 20 stat calls, on the existing worker-owned SD mount. */
+static esp_err_t AppendRecent(void)
+{
+    RecentSystem_t System=CurrentSystem();
+    if (!System) return ESP_OK;
+    RecentGames_t *Games=malloc(sizeof(*Games));
+    if (!Games) return ESP_ERR_NO_MEM;
+    esp_err_t Result=RecentGames_Read(System,Games);
+    if (Result!=ESP_OK) {
+        printf("RECENT_GAMES read_error=%s\n",esp_err_to_name(Result));
+        free(Games); return ESP_OK; /* History never prevents ordinary browsing. */
+    }
+    for (size_t I=0;I<Games->Count;++I) {
+        struct stat Stat;
+        const char *Path=Games->Paths[I];
+        if (!IsRomName(strrchr(Path,'/')+1)) continue;
+        if (strlen(Path)+kSavePathReserve>=kPathSize || stat(Path,&Stat) || !S_ISREG(Stat.st_mode)) continue;
+        if (!RecentView) {
+            Result=AppendName("Recent",true);
+            if (Result==ESP_OK) Catalog.pEntries[Catalog.Count-1].Recent=true;
+            break;
+        }
+        Result=AppendName(strrchr(Path,'/')+1,false);
+        if (Result!=ESP_OK) break;
+        Catalog.pEntries[Catalog.Count-1].pPath=strdup(Path);
+        if (!Catalog.pEntries[Catalog.Count-1].pPath) { Result=ESP_ERR_NO_MEM; break; }
+    }
+    free(Games);
+    return Result;
 }
 
 static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
@@ -134,6 +179,16 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
     }
 
     TraceCatalog("directory", ESP_OK);
+
+    if (RecentView) {
+        struct stat Stat;
+        if (ResumeLocation && (stat(CurrentDirectory,&Stat) || !S_ISDIR(Stat.st_mode))) {
+            RecentView=false; strcpy(CurrentDirectory,RomDirectory);
+        } else {
+            Result=AppendRecent();
+            goto Cleanup;
+        }
+    }
 
     DIR *pDirectory = opendir(CurrentDirectory);
     if (pDirectory == NULL && ResumeLocation && !AtRoot() &&
@@ -194,6 +249,7 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
     {
         Result = ESP_FAIL;
     }
+    if (Result==ESP_OK) Result=AppendRecent();
 
 Cleanup:
     TraceCatalog("unmount", Result);
@@ -210,7 +266,7 @@ Cleanup:
         return Result;
     }
 
-    if (Catalog.Count > 1)
+    if (Catalog.Count > 1 && !RecentView)
     {
         TraceCatalog("sort", ESP_OK);
         qsort(Catalog.pEntries, Catalog.Count, sizeof(*Catalog.pEntries),
@@ -239,6 +295,10 @@ static bool IsDirectory(size_t Index)
 static esp_err_t EnterDirectory(size_t Index, size_t *pCount)
 {
     if (!IsDirectory(Index) || pCount == NULL) return ESP_ERR_INVALID_ARG;
+    if (Catalog.pEntries[Index].Recent) {
+        RecentView=true;
+        return ReadCatalog(pCount,false);
+    }
     char Path[kPathSize];
     const int Length = snprintf(Path, sizeof(Path), "%s/%s", CurrentDirectory,
                                 NameAt(Index));
@@ -250,6 +310,11 @@ static esp_err_t EnterDirectory(size_t Index, size_t *pCount)
 static esp_err_t ParentDirectory(size_t *pCount, size_t *pSelected)
 {
     if (AtRoot() || pCount == NULL || pSelected == NULL) return ESP_ERR_INVALID_ARG;
+    if (RecentView) {
+        RecentView=false;
+        *pSelected=0;
+        return ReadCatalog(pCount,false);
+    }
     char *pSlash = strrchr(CurrentDirectory, '/');
     char Previous[kPathSize];
     strcpy(Previous, pSlash + 1);
@@ -289,34 +354,50 @@ static void Remember(size_t Index)
     if (Index >= Catalog.Count) return;
     unsigned Slot;
     for (Slot = 0; Slot < 8; ++Slot)
-        if (!strcmp(Locations[Slot].Directory, CurrentDirectory)) break;
+        if (Locations[Slot].Recent==RecentView && !strcmp(Locations[Slot].Directory, CurrentDirectory)) break;
     if (Slot == 8) Slot = NextLocation++ % 8;
     snprintf(Locations[Slot].Directory, kPathSize, "%s", CurrentDirectory);
-    snprintf(Locations[Slot].Name, sizeof(Locations[Slot].Name), "%s", NameAt(Index));
+    Locations[Slot].Recent=RecentView;
+    snprintf(Locations[Slot].Name, sizeof(Locations[Slot].Name), "%s", Catalog.pEntries[Index].pPath ? Catalog.pEntries[Index].pPath : NameAt(Index));
 }
 
 static size_t Restore(void)
 {
     for (unsigned Slot = 0; Slot < 8; ++Slot)
-        if (!strcmp(Locations[Slot].Directory, CurrentDirectory))
+        if (Locations[Slot].Recent==RecentView && !strcmp(Locations[Slot].Directory, CurrentDirectory))
             for (size_t I = 0; I < Catalog.Count; ++I)
-                if (!strcmp(Locations[Slot].Name, NameAt(I))) return I;
+                if (!strcmp(Locations[Slot].Name, Catalog.pEntries[I].pPath ? Catalog.pEntries[I].pPath : NameAt(I))) return I;
     return 0;
+}
+
+static bool RomPath(size_t Index, char *Path, size_t Size)
+{
+    if(Index>=Catalog.Count || IsDirectory(Index)) return false;
+    int Length=Catalog.pEntries[Index].pPath ? snprintf(Path,Size,"%s",Catalog.pEntries[Index].pPath) :
+        snprintf(Path,Size,"%s/%s",CurrentDirectory,NameAt(Index));
+    return Length>=0 && (size_t)Length<Size;
+}
+
+static esp_err_t StartIndex(size_t Index)
+{
+    char Path[kPathSize];
+    if (!RomPath(Index,Path,sizeof(Path))) return ESP_ERR_INVALID_ARG;
+    return VirtualCart_Start(Path);
 }
 
 static bool ArtPath(size_t Index, char *Path, size_t Size)
 {
-    if (Index >= Catalog.Count || IsDirectory(Index)) return false;
-    const int Length = snprintf(Path, Size, "/sdcard/CHROMAGIC/ART%s/%s.cma",
-        CurrentDirectory + strlen(RomDirectory), NameAt(Index));
+    char Rom[kPathSize];
+    if (!RomPath(Index,Rom,sizeof(Rom))) return false;
+    const int Length = snprintf(Path, Size, "/sdcard/CHROMAGIC/ART%s.cma", Rom+strlen(RomDirectory));
     return Length >= 0 && (size_t)Length < Size;
 }
 
 static bool VideoPath(size_t Index, char *Path, size_t Size)
 {
-    if (Index >= Catalog.Count || IsDirectory(Index)) return false;
-    const int Length = snprintf(Path, Size, "/sdcard/CHROMAGIC/VIDEO%s/%s.cmv",
-        CurrentDirectory + strlen(RomDirectory), NameAt(Index));
+    char Rom[kPathSize];
+    if (!RomPath(Index,Rom,sizeof(Rom))) return false;
+    const int Length = snprintf(Path, Size, "/sdcard/CHROMAGIC/VIDEO%s.cmv", Rom+strlen(RomDirectory));
     return Length >= 0 && (size_t)Length < Size;
 }
 
@@ -331,11 +412,23 @@ static RomPlatform_t FolderPlatform(size_t Index)
     return kRomPlatformUnknown;
 }
 
+static esp_err_t CheatMenu(CheatAction_t Action, size_t Index, CheatView_t *View)
+{
+    char Path[kPathSize];
+    if(Action == kCheatOpen) {
+        if(Index >= Catalog.Count || IsDirectory(Index)) return ESP_ERR_INVALID_ARG;
+        if(!RomPath(Index,Path,sizeof(Path))) return ESP_ERR_INVALID_SIZE;
+    }
+    return Cheats_Menu(Action,Action==kCheatOpen?Path:NULL,Action==kCheatOpen?0:Index,View);
+}
+
 static const RomBrowserDataSource_t Source = {
     .Open = OpenCatalog, .NameAt = NameAt, .Close = CloseCatalog, .Start = StartRom,
     .IsDirectory = IsDirectory, .Enter = EnterDirectory, .Parent = ParentDirectory,
     .AtRoot = AtRoot, .Remember = Remember, .Restore = Restore, .ArtPath = ArtPath,
     .FolderPlatform = FolderPlatform, .VideoPath = VideoPath,
+    .Cheats = CheatMenu, .CloseCheats = Cheats_Close, .RomPath = RomPath,
+    .StartIndex = StartIndex,
 };
 
 const RomBrowserDataSource_t *RomBrowser_GetDataSource(void) { return &Source; }

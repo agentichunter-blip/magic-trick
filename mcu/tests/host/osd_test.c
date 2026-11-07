@@ -14,10 +14,12 @@
 #include "mutex.h"
 
 static OSD_Widget_t BatteryWidget;
+static uint16_t HeldBits;
 MutexResult_t Mutex_Take(MutexKey_t Key) { (void)Key; return kMutexResult_Ok; }
 MutexResult_t Mutex_Give(MutexKey_t Key) { (void)Key; return kMutexResult_Ok; }
 static OSD_Result_t DrawScreen(OSD_Widget_t *Menu, lv_obj_t *Screen)
 {
+    Button_Update(HeldBits);
     const OSD_Result_t Result = Menu->fnDraw(Screen);
     assert(BatteryWidget.fnDraw(Screen) == kOSD_Result_Ok);
     return Result;
@@ -25,9 +27,7 @@ static OSD_Result_t DrawScreen(OSD_Widget_t *Menu, lv_obj_t *Screen)
 
 LV_IMG_DECLARE(menu_system);
 static uint64_t ClockMs;
-static uint16_t HeldBits;
 static bool MenuVisible = true;
-uint16_t Button_GetHeldBits(void) { return HeldBits; }
 int64_t esp_timer_get_time(void) { return (int64_t)ClockMs * 1000; }
 bool OSD_IsVisible(void) { return MenuVisible; }
 static const char *Names[] = {"Bomberman.gb", "Kirby.gb", "Links_Awakening_DX_An_Extra_Long_Backup_Name.gbc", "Mario.gb", "Pokemon_Crystal.gbc", "Pokemon_Gold.gbc", "Zelda_An_Extra_Long_Backup_Filename_For_Scrolling.gbc"};
@@ -35,7 +35,7 @@ static size_t Count = 7;
 static int Opens, Closes, Starts;
 static esp_err_t OpenResult, StartResult;
 static bool CompleteImmediately;
-static bool FolderFixture, SystemFixture;
+static bool FolderFixture, SystemFixture, RecentFixture;
 static size_t SystemIndex;
 static unsigned Depth;
 static PCBackupModeState_t PCMode;
@@ -43,12 +43,12 @@ PCBackupModeState_t PCBackupMode_GetState(void) { return PCMode; }
 static unsigned BackupStarts;
 static esp_err_t BackupStart(void) { ++BackupStarts; return ESP_OK; }
 static char StartedName[80];
-static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? 4 : 2) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
+static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : 2) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
 static const char *NameAt(size_t Index) {
     if (SystemFixture) {
         static const char *Ranges[]={"0-F","G-L","M-R","S-Z"};
         /* Reverse catalog order verifies that logo positions do not depend on sorting. */
-        return Depth ? Ranges[Index] : Index ? "GB" : "GBC";
+        return Depth ? (RecentFixture ? (Index ? Ranges[Index-1] : "Recent") : Ranges[Index]) : Index ? "GB" : "GBC";
     }
     if (FolderFixture) {
         assert(Depth < 2 && Index < 2);
@@ -72,6 +72,19 @@ static esp_err_t Start(const char *pName) {
     ++Starts; snprintf(StartedName, sizeof(StartedName), "%s", pName);
     if (CompleteImmediately) assert(RomBrowserUI_SetComplete());
     return StartResult;
+}
+static bool CheatEnabled[4];
+static esp_err_t CheatError;
+static esp_err_t CheatMenu(CheatAction_t Action,size_t Index,CheatView_t *View) {
+    if(CheatError) return CheatError;
+    if(Action==kCheatOpen) Index=0;
+    if(Action==kCheatToggle) CheatEnabled[Index]=!CheatEnabled[Index];
+    if(Action==kCheatDisableAll) memset(CheatEnabled,0,sizeof(CheatEnabled));
+    *View=(CheatView_t){.Count=4,.Selected=Index,.First=Index>1?1:0};
+    for(unsigned I=1;I<4;++I) View->Enabled+=CheatEnabled[I];
+    const char *Names[]={"Disable all","Infinite lives","Start with 99 lives","Infinite health"};
+    for(unsigned I=0;I<CHEAT_ROWS;++I) { unsigned J=View->First+I; strcpy(View->Rows[I].Name,Names[J]); View->Rows[I].Enabled=CheatEnabled[J]; }
+    return ESP_OK;
 }
 static lv_obj_t *Text(lv_obj_t *pObj, const char *Value) {
     if (lv_obj_check_type(pObj, &lv_label_class) && strcmp(lv_label_get_text(pObj), Value) == 0) return pObj;
@@ -129,6 +142,7 @@ static void Snapshot(const char *Name) {
     fclose(pFile);
 }
 static bool JobReady, ArtReady, ArtRequested, ArtMissing;
+static bool ArtMargin, VideoMargin, VideoEdgePixel;
 static unsigned ArtRequests;
 static uint32_t ArtToken;
 static unsigned AsyncBegins, AsyncCancels;
@@ -140,7 +154,9 @@ static esp_err_t BeginAsync(RomBrowserAction_t Action, size_t Index) {
 }
 static bool PollAsync(RomBrowserJobResult_t *Job) {
     if (!JobReady) return false;
-    JobReady=false; *Job=(RomBrowserJobResult_t){.Action=AsyncAction,.Count=7,.Selected=0,.Error=AsyncError}; return true;
+    JobReady=false; *Job=(RomBrowserJobResult_t){.Action=AsyncAction,.Count=7,.Selected=0,.Error=AsyncError};
+    if(AsyncAction>=kRomActionCheatsOpen && AsyncError==ESP_OK) Job->Error=CheatMenu((CheatAction_t)(AsyncAction-kRomActionCheatsOpen),AsyncIndex,&Job->Cheats);
+    return true;
 }
 static void CancelAsync(void) { ++AsyncCancels; JobReady=ArtReady=ArtRequested=false; }
 static bool ArtPath(size_t Index,char *Path,size_t Size) {
@@ -153,11 +169,27 @@ static void RequestArt(const char *Path,uint32_t Token) {
 static bool CopyArt(uint32_t Token,uint8_t *Pixels,bool *Valid) {
     if (!ArtReady || Token!=ArtToken) return false;
     for(unsigned Y=0;Y<PREVIEW_HEIGHT;++Y) for(unsigned X=0;X<PREVIEW_WIDTH;++X) {
-        const uint16_t Color=X<24?0xf800:X<48?0x07e0:0x001f;
+        const uint16_t Color=ArtMargin && X>=115 ? 0 : X<24?0xf800:X<48?0x07e0:0x001f;
         const unsigned Offset=(Y*PREVIEW_WIDTH+X)*2;
         Pixels[Offset]=(uint8_t)Color; Pixels[Offset+1]=(uint8_t)(Color>>8);
     }
     *Valid=!ArtMissing; ArtReady=false; return true;
+}
+static uint32_t BadgeToken;
+static bool BadgeRequested, BadgeReady;
+static CheatBadge_t BadgeValue;
+static void RequestBadge(const char *Path,uint32_t Token) { BadgeToken=Token; BadgeRequested=Path!=NULL; BadgeReady=false; }
+static bool CopyBadge(uint32_t Token,CheatBadge_t *Badge) {
+    if(!BadgeReady || Token!=BadgeToken) return false;
+    BadgeReady=false; *Badge=BadgeValue; return true;
+}
+static lv_obj_t *BadgeObject(lv_obj_t *Object) {
+    if(lv_obj_check_type(Object,&lv_img_class)) {
+        const lv_img_dsc_t *D=lv_img_get_src(Object);
+        if(D && D->header.cf==LV_IMG_CF_ALPHA_1BIT && D->header.w==16 && D->header.h==14) return lv_obj_get_parent(Object);
+    }
+    for(unsigned I=0;I<lv_obj_get_child_cnt(Object);++I) { lv_obj_t *B=BadgeObject(lv_obj_get_child(Object,I)); if(B) return B; }
+    return NULL;
 }
 static bool VideoRequested, VideoReady, VideoMissing;
 static unsigned VideoRequests;
@@ -168,7 +200,10 @@ static void RequestVideo(const char *Path,uint32_t Token) {
 }
 static bool CopyVideo(uint32_t Token,uint8_t *Pixels,bool *Valid) {
     if(!VideoReady || Token!=VideoToken) return false;
-    memset(Pixels,0xff,PREVIEW_BYTES); *Valid=!VideoMissing; VideoReady=false; return true;
+    memset(Pixels,0xff,PREVIEW_BYTES);
+    if(VideoMargin) for(unsigned Y=0;Y<92;++Y) memset(Pixels+(Y*128+115)*2,0,13*2);
+    if(VideoEdgePixel) Pixels[(91*128+127)*2]=1;
+    *Valid=!VideoMissing; VideoReady=false; return true;
 }
 static OSD_Result_t FirmwarePage(void *pArg) {
     return Firmware_Draw(((Tab_DrawCtx_t *)pArg)->pScreen);
@@ -201,7 +236,7 @@ int main(void) {
     lv_obj_set_style_bg_color(Screen, lv_color_hex(0x111111), 0);
     const RomBrowserDataSource_t Source = {
         .Open = Open, .NameAt = NameAt, .Close = Close, .Start = Start,
-        .IsDirectory = IsDirectory, .Enter = Enter, .Parent = Parent, .AtRoot = AtRoot, .FolderPlatform = FolderPlatform, .ArtPath = ArtPath, .VideoPath = ArtPath,
+        .IsDirectory = IsDirectory, .Enter = Enter, .Parent = Parent, .AtRoot = AtRoot, .FolderPlatform = FolderPlatform, .ArtPath = ArtPath, .VideoPath = ArtPath, .RomPath = ArtPath, .Cheats = CheatMenu,
     };
     RomBrowserUI_RegisterDataSource(&Source);
     OSD_Widget_t Menu = { .Name = "test" };
@@ -423,11 +458,17 @@ int main(void) {
     assert(!Text(Screen,"SYSTEMS")); /* back to the global tabs */
     Menu.fnOnButton(kButton_Right,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     assert(Text(Screen,"SYSTEMS") && Text(Screen,"<>:PICK A:OPEN B:TABS") && Starts==PickerStarts);
-    Menu.fnOnTransition(NULL); SystemFixture=false;
+    RecentFixture=true;
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    Snapshot("folders-recent-first");
+    assert(Depth==1 && Text(Screen,"RECENT") && Text(Screen,"0-F") && Text(Screen,"1/5"));
+    for(unsigned I=0;I<4;++I) { Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen); }
+    assert(Text(Screen,"5/5") && Text(Screen,"S-Z")); Snapshot("folders-recent-last-range");
+    Menu.fnOnTransition(NULL); SystemFixture=false; RecentFixture=false;
     /* Drive the production UI against delayed background jobs and art results. */
     FolderFixture=false; Count=7; HeldBits=0; ClockMs=0;
     const RomBrowserAsync_t Async={.Begin=BeginAsync,.Poll=PollAsync,.Cancel=CancelAsync,
-        .RequestArt=RequestArt,.CopyArt=CopyArt,.RequestVideo=RequestVideo,.CopyVideo=CopyVideo};
+        .RequestArt=RequestArt,.CopyArt=CopyArt,.RequestVideo=RequestVideo,.CopyVideo=CopyVideo,.RequestBadge=RequestBadge,.CopyBadge=CopyBadge};
     RomBrowserUI_RegisterAsync(&Async);
     DrawScreen(&Menu, Screen); assert(Text(Screen,"READING LIBRARY...") && AsyncBegins==1);
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); assert(AsyncBegins==1);
@@ -435,9 +476,34 @@ int main(void) {
     assert(lv_obj_has_flag(Text(Screen,"NO COVER"), LV_OBJ_FLAG_HIDDEN));
     assert(ClockMs==0 && ArtRequested && ArtRequests==1); /* initial selection: no timer wait */
     ArtReady=true; DrawScreen(&Menu, Screen); Snapshot("backups-color-cover");
+    lv_obj_t *Lamp=BadgeObject(Screen); assert(Lamp && BadgeRequested && !lv_obj_is_visible(Lamp));
+    lv_color_t Unbadged[128*92];
+    for(unsigned Y=0;Y<92;++Y) memcpy(Unbadged+Y*128,Frame+(44+Y)*160+16,128*sizeof(lv_color_t));
+    BadgeValue=(CheatBadge_t){true,false}; BadgeReady=true; DrawScreen(&Menu,Screen);
+    assert(lv_obj_is_visible(Lamp)); Snapshot("genie-available");
+    lv_area_t LampBounds; lv_obj_get_coords(Lamp,&LampBounds);
+    assert(LampBounds.x1==128 && LampBounds.x2==143 && LampBounds.y1==25 && LampBounds.y2==40);
+    assert(lv_obj_get_width(Text(Screen,"BOMBERMAN"))==104);
+    for(unsigned Y=0;Y<92;++Y) assert(!memcmp(Unbadged+Y*128,Frame+(44+Y)*160+16,128*sizeof(lv_color_t)));
+    assert(Frame[34*160+131].full!=lv_color_hex(0xffcd48).full);
+    BadgeValue.Enabled=true; BadgeReady=true; DrawScreen(&Menu,Screen);
+    assert(lv_obj_is_visible(Lamp)); Snapshot("genie-selected");
+    assert(Frame[34*160+131].full==lv_color_hex(0xffcd48).full);
+    for(unsigned Y=0;Y<92;++Y) assert(!memcmp(Unbadged+Y*128,Frame+(44+Y)*160+16,128*sizeof(lv_color_t)));
     assert(Frame[44*160+16].full==0xf800 && Frame[44*160+40].full==0x07e0 && Frame[44*160+64].full==0x001f);
+    /* A padded cover docks inside the lower-right border without changing
+     * any image content, and returns to the title for a full-width cover. */
+    ArtMargin=true; ArtReady=true; DrawScreen(&Menu,Screen); Snapshot("genie-cover-inside");
+    lv_obj_get_coords(Lamp,&LampBounds);
+    assert(LampBounds.x1==132 && LampBounds.x2==147 && LampBounds.y1==119 && LampBounds.y2==134);
+    assert(lv_obj_get_width(Text(Screen,"BOMBERMAN"))==120);
+    for(unsigned Y=0;Y<92;++Y) for(unsigned X=0;X<115;++X)
+        assert(Frame[(44+Y)*160+16+X].full==Unbadged[Y*128+X].full);
+    assert(Frame[128*160+135].full==lv_color_hex(0xffcd48).full);
+    ArtMargin=false; ArtReady=true; DrawScreen(&Menu,Screen);
     Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     assert(Text(Screen,"2/7") && ArtRequested && ArtRequests==2 && ClockMs==0);
+    assert(!lv_obj_is_visible(Lamp));
     Snapshot("backups-pending-cover");
     assert(lv_obj_has_flag(Text(Screen,"NO COVER"), LV_OBJ_FLAG_HIDDEN));
     assert(Frame[44*160+16].full==0xf800); /* taps retain unobscured media */
@@ -470,9 +536,19 @@ int main(void) {
     assert(ArtRequested && ArtRequests==BeforeFast+1 && lv_obj_is_visible(List));
     ArtReady=true; DrawScreen(&Menu, Screen); /* artwork must not dismiss the list early */
     assert(Text(Screen,"7/7") && lv_obj_is_visible(List));
+    ClockMs+=10000; DrawScreen(&Menu,Screen);
+    assert(lv_obj_is_visible(List) && lv_obj_get_style_opa(List,0)==LV_OPA_COVER);
+    assert(Text(Screen,"A:PREVIEW B:BACK") && !VideoRequested);
+    const unsigned BeforePreview=AsyncBegins;
+    Menu.fnOnButton(kButton_Select,kButtonState_Pressed,NULL); /* accept preview first */
+    assert(AsyncBegins==BeforePreview);
     Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
-    assert(AsyncAction==kRomActionStart && AsyncIndex==6); /* launch what was displayed */
+    DrawScreen(&Menu,Screen);
+    assert(AsyncBegins==BeforePreview && !lv_obj_is_visible(List) && Text(Screen,"7/7"));
+    Snapshot("backups-confirmed-preview");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    assert(AsyncAction==kRomActionStart && AsyncIndex==6); /* second A launches the displayed game */
     AsyncError=ESP_FAIL; JobReady=true; DrawScreen(&Menu, Screen);
     assert(Text(Screen,"COULD NOT LOAD\nESP_FAIL"));
     AsyncError=ESP_OK; Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
@@ -496,16 +572,20 @@ int main(void) {
     ArtMissing=true; ArtReady=true; DrawScreen(&Menu, Screen);
     assert(lv_obj_has_flag(Text(Screen,"NO COVER"),LV_OBJ_FLAG_HIDDEN));
     ArtMissing=false;
-    /* Slow/missing responses cannot hold the list open; the fade is input-driven. */
+    /* Slow/missing responses cannot dismiss the selector. A is required. */
     HeldBits=kButtonBits_Down; Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     ClockMs=5481; DrawScreen(&Menu, Screen);
     ClockMs=5482; HeldBits=0; DrawScreen(&Menu, Screen);
     assert(lv_obj_is_visible(List));
     ClockMs=5831; DrawScreen(&Menu, Screen); assert(lv_obj_get_style_opa(List,0)==LV_OPA_COVER);
     ClockMs=5906; DrawScreen(&Menu, Screen);
-    assert(lv_obj_get_style_opa(List,0)>0 && lv_obj_get_style_opa(List,0)<LV_OPA_COVER);
-    ClockMs=5981; DrawScreen(&Menu, Screen); assert(!lv_obj_is_visible(List));
+    assert(lv_obj_get_style_opa(List,0)==LV_OPA_COVER);
+    ClockMs=5981; DrawScreen(&Menu, Screen); assert(lv_obj_is_visible(List));
     ArtReady=true; DrawScreen(&Menu, Screen); assert(ArtRequests==BeforeRelease+3);
+    ClockMs=9000; DrawScreen(&Menu,Screen); assert(lv_obj_is_visible(List) && !VideoRequested);
+    Snapshot("backups-selector-pinned");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(!lv_obj_is_visible(List) && !VideoRequested);
     /* Cover dwell, video frame updates, stream failure fallback and cancellation. */
     Menu.fnOnTransition(NULL); HeldBits=0; ClockMs=10000;
     DrawScreen(&Menu, Screen); JobReady=true; DrawScreen(&Menu, Screen);
@@ -516,7 +596,23 @@ int main(void) {
     ClockMs=11499; DrawScreen(&Menu, Screen); assert(VideoRequests==BeforeVideo);
     ClockMs=11500; DrawScreen(&Menu, Screen); assert(VideoRequests==BeforeVideo+1);
     VideoReady=true; DrawScreen(&Menu, Screen); Snapshot("backups-video");
+    BadgeValue=(CheatBadge_t){true,true}; BadgeReady=true; DrawScreen(&Menu,Screen);
+    Lamp=BadgeObject(Screen); assert(Lamp && lv_obj_is_visible(Lamp)); Snapshot("genie-video");
+    for(unsigned Y=44;Y<136;++Y) for(unsigned X=16;X<144;++X) assert(Frame[Y*160+X].full==0xffff);
     assert(Frame[44*160+16].full==0xffff);
+    /* New playback may use padding; a later edge pixel forces a safe title
+     * dock immediately, and black margins returning cannot cause jitter. */
+    VideoMissing=true; VideoReady=true; DrawScreen(&Menu,Screen);
+    VideoMissing=false; VideoMargin=true; VideoReady=true; DrawScreen(&Menu,Screen);
+    Snapshot("genie-video-inside"); lv_obj_get_coords(Lamp,&LampBounds);
+    assert(LampBounds.x1==132 && LampBounds.y1==119);
+    for(unsigned Y=44;Y<136;++Y) for(unsigned X=16;X<131;++X) assert(Frame[Y*160+X].full==0xffff);
+    VideoEdgePixel=true; VideoReady=true; DrawScreen(&Menu,Screen); Snapshot("genie-video-edge");
+    lv_obj_get_coords(Lamp,&LampBounds); assert(LampBounds.x1==128 && LampBounds.y1==25);
+    assert(Frame[135*160+143].full==1);
+    VideoEdgePixel=false; VideoReady=true; DrawScreen(&Menu,Screen);
+    lv_obj_get_coords(Lamp,&LampBounds); assert(LampBounds.y1==25);
+    VideoMargin=false;
     VideoMissing=true; VideoReady=true; DrawScreen(&Menu, Screen); assert(ArtRequested);
     ArtReady=true; DrawScreen(&Menu, Screen); ClockMs+=2000; DrawScreen(&Menu, Screen);
     assert(VideoRequests==BeforeVideo+1); /* failed clips do not repeatedly retry */
@@ -544,11 +640,52 @@ int main(void) {
     Snapshot("backups-list-frozen-video");
     assert(Frame[44*160+16].full>0 && Frame[44*160+16].full<0xffff);
     HeldBits=0; DrawScreen(&Menu, Screen);
-    ClockMs+=425; DrawScreen(&Menu, Screen); assert(lv_obj_get_style_opa(List,0)<LV_OPA_COVER);
+    ClockMs+=425; DrawScreen(&Menu, Screen); assert(lv_obj_get_style_opa(List,0)==LV_OPA_COVER);
     Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
-    assert(!lv_obj_is_visible(List)); /* a tap dismisses an old hold's fading list */
+    assert(lv_obj_is_visible(List)); /* taps fine-tune the pinned selector */
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(!lv_obj_is_visible(List));
     Menu.fnOnTransition(NULL);
     lv_refr_now(NULL);
+    /* Select routes to cheats without launching; toggles are per option and B
+     * returns to the same game. Long descriptions use the existing marquee. */
+    RomBrowserUI_RegisterAsync(NULL);
+    DrawScreen(&Menu,Screen);
+    unsigned BeforeCheatStarts=Starts;
+    Button_ResetAll(); Button_Update(1u<<kButton_Select);
+    const ButtonState_t PhysicalSelect=Button_GetState(kButton_Select);
+    assert(PhysicalSelect==kButtonState_Pressed);
+    Menu.fnOnButton(kButton_Select,PhysicalSelect,NULL); DrawScreen(&Menu,Screen);
+    assert(Text(Screen,"GAME GENIE") && Text(Screen,"Disable all") && Starts==BeforeCheatStarts);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(CheatEnabled[1] && Text(Screen,"1 ON - NEXT LAUNCH")); Snapshot("cheats-enabled");
+    Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen); assert(Text(Screen,"GAME GENIE"));
+    CheatError=ESP_ERR_INVALID_STATE;
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(Text(Screen,"CONFLICTING CHEATS\nTURN OTHER OPTIONS OFF")); Snapshot("cheats-conflict");
+    CheatError=ESP_OK; Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(Text(Screen,"1 ON - NEXT LAUNCH"));
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(!CheatEnabled[1] && Text(Screen,"0 ON - NEXT LAUNCH"));
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    CheatError=ESP_ERR_NOT_FOUND;
+    Menu.fnOnButton(kButton_Select,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(Text(Screen,"NO GAME GENIE CHEATS\nFOR THIS GAME")); Snapshot("cheats-unavailable");
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    CheatError=ESP_OK; assert(Starts==BeforeCheatStarts);
+    Menu.fnOnTransition(NULL);
+    RomBrowserUI_RegisterAsync(&Async);
+    DrawScreen(&Menu,Screen); JobReady=true; DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_Select,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(AsyncAction==kRomActionCheatsOpen && Text(Screen,"READING CHEATS..."));
+    JobReady=true; DrawScreen(&Menu,Screen); assert(Text(Screen,"Disable all"));
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(AsyncAction==kRomActionCheatsView && AsyncIndex==1);
+    JobReady=true; DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    Menu.fnOnTransition(NULL);
     lv_mem_monitor_t BeforeCycles, AfterCycles;
     lv_mem_monitor(&BeforeCycles);
     for (unsigned Cycle=0; Cycle<100; ++Cycle) {
@@ -557,7 +694,7 @@ int main(void) {
         HeldBits=kButtonBits_Down; Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
         ClockMs+=350; DrawScreen(&Menu, Screen);
         HeldBits=0; DrawScreen(&Menu, Screen);
-        ClockMs+=425; DrawScreen(&Menu, Screen); /* close during an overlay fade */
+        ClockMs+=425; DrawScreen(&Menu, Screen); /* close with the selector pinned */
         lv_refr_now(NULL);
         Menu.fnOnTransition(NULL);
         lv_refr_now(NULL);

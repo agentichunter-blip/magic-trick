@@ -6,7 +6,7 @@ This project is a modification of existing work. The neutral name used for this 
 
 - **CursedToast** — creator of [ChroMagic](https://github.com/cursedtoast2/ChroMagic), the firmware this mod builds on. The starting point is ChroMagic 1.0.1, commit [`e611a1e`](https://github.com/cursedtoast2/ChroMagic/commit/e611a1ef36eb9aa93f706d836f5b0e46129d7137). Consult that repository for the original development history and contributor attribution.
 - **ModRetro** — original Chromatic firmware and FPGA design on which ChroMagic is based.
-- **This mod** — artwork and gameplay-preview browsing, related navigation/loading UI, media conversion tools, and associated fixes/tests described in the README. It is an independent modification, not an official ChroMagic or ModRetro release.
+- **This mod** — artwork and gameplay-preview browsing, Recent folders, last-game startup, the Game Genie selector/compiler, related navigation/loading UI, media conversion tools, and associated fixes/tests described in the README. It is an independent modification, not an official ChroMagic or ModRetro release.
 
 ## FPGA, emulation, and boot ROM work
 
@@ -24,6 +24,7 @@ Additional authors are identified in the source headers. Those notices are prese
 
 - **Espressif ESP-IDF** and **LVGL** provide the firmware framework and UI library. Build dependencies retain their own licenses and notices.
 - Included Game Boy / Game Boy Color wordmark sources and provenance are documented in [the system logo credits](mcu/tools/platform-logos/README.md). Nintendo trademarks remain Nintendo's.
+- **libretro-database contributors** provide the optional external cheat database used by the pack compiler. See [cheat preparation and attribution](docs/cheats.md). No database or generated cheat pack is bundled.
 - No third-party cover or gameplay-video pack is included in this repository.
 
 ## Licenses and provenance

@@ -5,7 +5,7 @@ idf_component_register(
         "main.c" "gfx.c" "fpga_tx.c" "fpga_rx.c" "fpga_common.c" "pwrmgr.c"
         "sd_card.c" "sd_publish.c" "cart_link.c" "cart_bulk.c" "cart_mapper.c" "cart_rtc.c"
         "cart_backup.c" "virtual_cart.c" "rom_browser.c" "pc_backup.c" "pc_sd.c"
-        "rom_browser_worker.c" "box_art.c" "video_preview.c"
+        "rom_browser_worker.c" "box_art.c" "video_preview.c" "last_game.c" "recent_games.c" "boot_resume.c" "cheats.c" "cheat_patch.c"
     INCLUDE_DIRS "."
     REQUIRES
         images esp_driver_uart esp_driver_spi esp_driver_gpio esp_driver_sdmmc

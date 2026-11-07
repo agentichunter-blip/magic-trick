@@ -43,6 +43,7 @@
 #include "rom_browser.h"
 #include "rom_browser_worker.h"
 #include "virtual_cart.h"
+#include "boot_resume.h"
 
 enum {
     kLVGL_TickPeriod_us = 1000u, // 1 millisecond
@@ -329,6 +330,10 @@ void app_main(void)
     ret=spi_bus_add_device(VSPI_HOST, &devcfg, &spi);
     ESP_ERROR_CHECK(ret);
     ESP_ERROR_CHECK(CartBulk_Init(spi));
+    /* Cartridge maintenance resets the game core. Do it before menu setup and
+     * the two-second startup delay, not after a physical game has started. */
+    printf("BOOT_RESUME early_check_ms=%lld\n", esp_timer_get_time()/1000);
+    const BootResumeCartridge_t BootCartridge = BootResume_CheckCartridge();
     PCBackup_TransportReady();
 
     ESP_LOGI(TAG, "Initialize LVGL library");
@@ -395,4 +400,5 @@ void app_main(void)
 
     vTaskDelay( pdMS_TO_TICKS(2000) );
     xTaskCreate(PwrMgr_Task, "pwr_mgr_task", kSleepTask_StackDepth, NULL, kSleepTask_Priority, NULL);
+    BootResume_Run(&BootCartridge);
 }

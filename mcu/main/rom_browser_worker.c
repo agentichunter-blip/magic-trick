@@ -1,5 +1,6 @@
 #include "rom_browser_worker.h"
 #include "rom_browser.h"
+#include "cheats.h"
 #include "box_art.h"
 #include "video_preview.h"
 #include "esp_timer.h"
@@ -48,7 +49,10 @@ static struct {
     bool Pending, Done, ArtPending, ArtReady, ArtValid, Copying;
     char ArtPath[320], VideoPath[320];
     bool WantVideo, VideoPending, VideoReady, VideoValid;
-    uint32_t VideoToken;
+    uint32_t VideoToken, BadgeToken;
+    bool BadgePending, BadgeReady;
+    char BadgePath[320];
+    CheatBadge_t Badge;
     /* Worker-task-only stream state. */
     VideoPreview_t Video;
     sdmmc_card_t *VideoCard;
@@ -73,6 +77,7 @@ static esp_err_t Begin(RomBrowserAction_t Action, size_t Index)
     Worker.Job = Job;
     Worker.Pending = true;
     Worker.Done = Worker.ArtPending = Worker.ArtReady = false;
+    Worker.BadgePending = Worker.BadgeReady = false;
     Worker.WantVideo = Worker.VideoPending = Worker.VideoReady = false;
     portEXIT_CRITICAL(&Lock);
     xTaskNotifyGive(Worker.Task);
@@ -88,6 +93,24 @@ static bool Poll(RomBrowserJobResult_t *Result)
     if (Done) { *Result = Worker.Result; Worker.Done = false; }
     portEXIT_CRITICAL(&Lock);
     return Done;
+}
+
+static void RequestBadge(const char *Path,uint32_t Token)
+{
+    portENTER_CRITICAL(&Lock);
+    Worker.BadgePending=Path && strlen(Path)<sizeof(Worker.BadgePath);
+    Worker.BadgeReady=false; Worker.BadgeToken=Token;
+    if(Worker.BadgePending) strcpy(Worker.BadgePath,Path);
+    portEXIT_CRITICAL(&Lock);
+    xTaskNotifyGive(Worker.Task);
+}
+static bool CopyBadge(uint32_t Token,CheatBadge_t *Badge)
+{
+    portENTER_CRITICAL(&Lock);
+    bool Ready=Worker.BadgeReady && Worker.BadgeToken==Token;
+    if(Ready) { *Badge=Worker.Badge; Worker.BadgeReady=false; }
+    portEXIT_CRITICAL(&Lock);
+    return Ready;
 }
 
 static void RequestArt(const char *Path, uint32_t Token)
@@ -242,9 +265,18 @@ static void RunJob(const Job_t *Job)
         case kRomActionStart:
             /* The prior artwork read and unmount have completed on this task. */
             free(Worker.Pixels); Worker.Pixels = NULL;
-            Result.Error = S->Start(Job->Name);
+            Result.Error = S->StartIndex ? S->StartIndex(Job->Index) : S->Start(Job->Name);
+            break;
+        case kRomActionCheatsOpen:
+        case kRomActionCheatsView:
+        case kRomActionCheatsToggle:
+        case kRomActionCheatsDisableAll:
+            free(Worker.Pixels); Worker.Pixels = NULL;
+            Result.Error = S->Cheats ? S->Cheats(
+                (CheatAction_t)(Job->Action-kRomActionCheatsOpen), Job->Index, &Result.Cheats) : ESP_ERR_NOT_SUPPORTED;
             break;
         case kRomActionClose:
+            if (S->CloseCheats) S->CloseCheats();
             S->Close();
             free(Worker.Pixels); Worker.Pixels = NULL;
             break;
@@ -261,13 +293,15 @@ static void RunJob(const Job_t *Job)
 static void ProcessOne(void)
 {
     Job_t Job;
-    char Path[320];
-    uint32_t Generation, Token;
+    char Path[320], BadgePath[320];
+    uint32_t Generation, Token, BadgeToken;
     portENTER_CRITICAL(&Lock);
     const bool HaveJob = Worker.Pending && !Worker.Copying;
     const bool HaveArt = !Worker.Pending && Worker.ArtPending && !Worker.Copying;
+    const bool HaveBadge = !Worker.Pending && Worker.BadgePending;
     Job = Worker.Job;
-    Generation = Worker.Generation; Token = Worker.ArtToken;
+    Generation = Worker.Generation; Token = Worker.ArtToken; BadgeToken = Worker.BadgeToken;
+    if(HaveBadge) { strcpy(BadgePath,Worker.BadgePath); Worker.BadgePending=false; }
     if (HaveJob) Worker.Pending = false;
     if (HaveArt) { strcpy(Path, Worker.ArtPath); Worker.ArtPending = false; }
     portEXIT_CRITICAL(&Lock);
@@ -279,7 +313,7 @@ static void ProcessOne(void)
         PwrMgr_AllowSleep();
         return;
     }
-    if (!HaveArt) {
+    if (!HaveArt && !HaveBadge) {
         PwrMgr_InhibitSleep(); PumpVideo(); PwrMgr_AllowSleep();
         return;
     }
@@ -287,30 +321,39 @@ static void ProcessOne(void)
     PwrMgr_InhibitSleep();
     CloseVideo();
     bool Valid = false;
+    CheatBadge_t Badge={0};
     esp_err_t Result = ESP_FAIL;
     if (PCBackupMode_GetState() != kPCBackupModeState_On && Current(Generation))
     {
-        if (!Worker.Pixels) Worker.Pixels = AllocatePixels();
-        if (Worker.Pixels)
+        if (HaveArt && !Worker.Pixels) Worker.Pixels = AllocatePixels();
+        if ((HaveArt && Worker.Pixels) || HaveBadge)
         {
             sdmmc_card_t *Card = NULL;
             Result = SDCard_MountPreview(&Card);
             if (Result == ESP_OK)
             {
-                FILE *File = fopen(Path, "rb");
-                if (File) { Valid = PanelArt_Read(File, Worker.Pixels); if (fclose(File)) Valid = false; }
-                if (SDCard_Unmount(Card) != ESP_OK) Valid = false;
+                if(HaveArt && Worker.Pixels) {
+                    FILE *File = fopen(Path, "rb");
+                    if (File) { Valid = PanelArt_Read(File, Worker.Pixels); if (fclose(File)) Valid = false; }
+                }
+                if(HaveBadge && Current(Generation) && Cheats_Badge(BadgePath,&Badge)!=ESP_OK) Badge=(CheatBadge_t){0};
+                if (SDCard_Unmount(Card) != ESP_OK) { Valid = false; Badge=(CheatBadge_t){0}; }
             }
         }
     }
-    TraceMedia("cover",Valid,Result,Path);
+    if(HaveArt) TraceMedia("cover",Valid,Result,Path);
     portENTER_CRITICAL(&Lock);
-    if (Worker.Generation == Generation && Worker.ArtToken == Token)
+    if (HaveArt && Worker.Generation == Generation && Worker.ArtToken == Token)
     {
         /* A busy foreground SD owner wins; retry without blocking the UI. */
         Worker.ArtPending = Result == ESP_ERR_INVALID_STATE;
         Worker.ArtValid = Valid;
         Worker.ArtReady = !Worker.ArtPending;
+    }
+    if(HaveBadge && Worker.Generation==Generation && Worker.BadgeToken==BadgeToken) {
+        Worker.BadgePending=Result==ESP_ERR_INVALID_STATE;
+        Worker.BadgeReady=!Worker.BadgePending;
+        Worker.Badge=Badge;
     }
     portEXIT_CRITICAL(&Lock);
     PwrMgr_AllowSleep();
@@ -333,7 +376,7 @@ esp_err_t RomBrowserWorker_Init(void)
     static const RomBrowserAsync_t Backend = {
         .Begin = Begin, .Poll = Poll, .Cancel = Cancel,
         .RequestArt = RequestArt, .CopyArt = CopyArt,
-        .RequestVideo = RequestVideo, .CopyVideo = CopyVideo,
+        .RequestVideo = RequestVideo, .CopyVideo = CopyVideo, .RequestBadge = RequestBadge, .CopyBadge = CopyBadge,
     };
     RomBrowserUI_RegisterAsync(&Backend);
     return ESP_OK;

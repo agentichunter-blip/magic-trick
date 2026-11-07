@@ -10,6 +10,7 @@ LV_FONT_DECLARE(chromatic_progress);
 #include "freertos/FreeRTOS.h"
 #include "lvgl.h"
 #include "platform_logos.h"
+#include "genie_lamp.h"
 #include "tab_shared.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,30 +20,35 @@ LV_FONT_DECLARE(chromatic_progress);
 #error "Box art requires native unswapped RGB565; update the converter for other formats."
 #endif
 
-enum { kCoverDwellMs = 1500,
-       kListHoldMs = 350, kListFadeMs = 150, kOverlayRows = 5, kFolderRows = 4,
+enum { kCoverDwellMs = 1500, kBadgeMarginX = 132, kBadgeMarginY = 119,
+       kBadgeTitleX = 128, kBadgeTitleY = 25, kBadgePaddingStart = 115,
+       kOverlayRows = 5, kFolderRows = 4,
        kVisibleRows = 6, kRowHeight = 13, kListX = 92,
        kListWidth = 52, kCoverWidth = BOX_ART_WIDTH, kCoverHeight = BOX_ART_HEIGHT };
-typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked } State_t;
+typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked, kCheats, kCheatBusy } State_t;
 typedef struct {
     lv_obj_t *Rows[kVisibleRows], *Selection, *Status, *Hint, *Position, *List;
     lv_obj_t *Cover, *Image, *Placeholder, *Headline, *Title;
     lv_obj_t *Systems, *SystemTiles[2], *Arrows[kVisibleRows];
     lv_obj_t *Loading, *LoadingText, *Percent, *ProgressBar;
+    lv_obj_t *Badge, *BadgeLamp, *HeaderLamp;
+    CheatBadge_t BadgeState;
     lv_img_dsc_t Art;
     uint8_t *Pixels;
     RomBrowserDataSource_t Source;
     RomBrowserAsync_t Async;
+    CheatView_t Cheats;
+    char CheatError[64];
     RomBrowserScroll_t Scroll;
     State_t State;
     size_t Count, Selected;
     size_t PendingSystem;
     unsigned Pressed;
-    uint64_t ChangedAt, OverlayUntil, CoverAt, ListUntil;
+    uint64_t ChangedAt, OverlayUntil, CoverAt;
     uint32_t ArtToken;
     bool CatalogOpen, TrackingLoad, RenderValid, RenderedBlocked;
     bool ArtRequested, ArtValid, ArtResolved, Fast, Marquee, VideoRequested, VideoPlaying;
-    bool SystemFocus, SystemPending;
+    bool SystemFocus, SystemPending, BadgeMargin, ListPinned;
     uint8_t Progress, ListOpacity;
     char CurrentName[256], Error[40];
 } Context_t;
@@ -75,14 +81,28 @@ static void Hide(lv_obj_t *Object, bool Hidden) {
 static void ResetScroll(void) {
     RomBrowserScroll_Reset(&C.Scroll, Held());
     C.Pressed = 0; C.OverlayUntil = 0; C.Fast = false;
-    C.ListUntil = 0; C.ListOpacity = 0;
+    C.ListPinned = false; C.ListOpacity = 0;
     C.SystemPending = false;
+}
+static bool HasBadgeMargin(void) {
+    if (!C.Pixels) return false;
+    /* Preview converters center media on pure black. Check the whole strip,
+     * not just a dark corner of a picture. Never alter or rescale the pixels. */
+    for (unsigned Y=0; Y<PREVIEW_HEIGHT; ++Y)
+        for (unsigned X=kBadgePaddingStart; X<PREVIEW_WIDTH; ++X) {
+            const unsigned Offset=(Y*PREVIEW_WIDTH+X)*2;
+            if (C.Pixels[Offset] || C.Pixels[Offset+1]) return false;
+        }
+    return true;
 }
 static void ForgetArt(void) {
     ++C.ArtToken;
     C.ArtRequested = C.ArtValid = C.ArtResolved = false;
     C.VideoRequested = C.VideoPlaying = false;
     C.CoverAt = 0;
+    C.BadgeState=(CheatBadge_t){0}; C.BadgeMargin=false;
+    if(C.Badge) Hide(C.Badge,true);
+    if(C.Async.RequestBadge) C.Async.RequestBadge(NULL,C.ArtToken);
     if (C.Async.RequestVideo) C.Async.RequestVideo(NULL, C.ArtToken);
     if (C.Image) Hide(C.Image, true);
     if (C.Async.RequestArt) C.Async.RequestArt(NULL, C.ArtToken);
@@ -109,6 +129,43 @@ static void SetCatalog(esp_err_t Error, size_t Count, size_t Selected) {
         Error == ESP_ERR_TIMEOUT ? "SD CARD NOT RESPONDING" : "COULD NOT READ SD CARD");
     ResetScroll(); C.SystemFocus = true; SelectionChanged();
 }
+static void CheatResult(esp_err_t Error, const CheatView_t *View) {
+    C.State=kCheats; C.RenderValid=false;
+    if(Error==ESP_OK) { C.Cheats=*View; C.CheatError[0]=0; }
+    else snprintf(C.CheatError,sizeof(C.CheatError),"%s",
+        Error==ESP_ERR_NOT_FOUND ? "NO GAME GENIE CHEATS\nFOR THIS GAME" :
+        Error==ESP_ERR_INVALID_STATE ? "CONFLICTING CHEATS\nTURN OTHER OPTIONS OFF" :
+        Error==ESP_ERR_INVALID_CRC ? "CHEAT PACK DOES NOT\nMATCH THIS GAME" :
+        Error==ESP_ERR_INVALID_SIZE ? "TOO MANY PATCHES OR\nINVALID CHEAT PACK" : "COULD NOT READ OR\nSAVE CHEAT OPTIONS");
+}
+static void BeginCheats(RomBrowserAction_t Action,size_t Index) {
+    C.CheatError[0]=0; C.RenderValid=false;
+    if(Action==kRomActionCheatsOpen) {
+        ResetScroll(); ForgetArt(); C.Cheats=(CheatView_t){0};
+        lv_img_cache_invalidate_src(&C.Art);
+        free(C.Pixels); C.Pixels=NULL; C.Art=(lv_img_dsc_t){0};
+    }
+    C.State=kCheatBusy;
+    if(C.Async.Begin) {
+        esp_err_t Error=C.Async.Begin(Action,Index);
+        if(Error!=ESP_OK) CheatResult(Error,NULL);
+    } else {
+        CheatView_t View;
+        esp_err_t Error=C.Source.Cheats ? C.Source.Cheats((CheatAction_t)(Action-kRomActionCheatsOpen),Index,&View) : ESP_ERR_NOT_SUPPORTED;
+        CheatResult(Error,&View);
+    }
+}
+static void TickCheats(void) {
+    if(C.CheatError[0] || !C.Cheats.Count) return;
+    RomBrowserScrollStep_t Step=RomBrowserScroll_Update(&C.Scroll,Now(),Held(),C.Pressed);
+    C.Pressed=0;
+    if(!Step.Steps) return;
+    int Next=(int)C.Cheats.Selected+Step.Steps;
+    if(Step.Wrap) { if(Next<0) Next=C.Cheats.Count-1; else if(Next>=C.Cheats.Count) Next=0; }
+    if(Next<0) Next=0;
+    if(Next>=C.Cheats.Count) Next=C.Cheats.Count-1;
+    if(Next!=C.Cheats.Selected) BeginCheats(kRomActionCheatsView,(size_t)Next);
+}
 static void Begin(RomBrowserAction_t Action) {
     ResetScroll(); ForgetArt(); C.RenderValid = false;
     if (Action == kRomActionStart) {
@@ -130,7 +187,7 @@ static void Begin(RomBrowserAction_t Action) {
     esp_err_t Error;
     if (Action == kRomActionStart) {
         C.State = kLoading;
-        Error = C.Source.Start(C.Source.NameAt(C.Selected));
+        Error = C.Source.StartIndex ? C.Source.StartIndex(C.Selected) : C.Source.Start(C.Source.NameAt(C.Selected));
         if (Error != ESP_OK) RomBrowserUI_SetError(Error);
         return;
     }
@@ -189,6 +246,11 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
     lv_obj_set_style_text_color(C.Title,lv_color_black(),0);
     lv_obj_set_style_anim_speed(C.Title,24,0);
     lv_label_set_long_mode(C.Title,LV_LABEL_LONG_CLIP);
+    C.HeaderLamp=lv_img_create(C.Headline);
+    lv_img_set_src(C.HeaderLamp,&GenieLampLogo); lv_obj_set_pos(C.HeaderLamp,0,1);
+    lv_obj_set_style_img_recolor(C.HeaderLamp,lv_color_hex(0xffcd48),0);
+    lv_obj_set_style_img_recolor_opa(C.HeaderLamp,LV_OPA_COVER,0);
+    Hide(C.HeaderLamp,true);
     Hide(C.Headline,true);
     C.Status = Label(Screen, 18, 48, 124);
     lv_obj_set_height(C.Status, 76);
@@ -216,6 +278,18 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
     lv_img_set_pivot(C.Image, 0, 0);
     lv_img_set_zoom(C.Image, LV_IMG_ZOOM_NONE);
     lv_img_set_antialias(C.Image, false);
+    C.Badge=lv_obj_create(Screen); lv_obj_remove_style_all(C.Badge);
+    lv_obj_clear_flag(C.Badge,LV_OBJ_FLAG_SCROLLABLE);
+    /* Both docks stay inside the frame. Only use the lower dock when the
+     * full-height black media margin leaves room for the lamp plus a gap. */
+    lv_obj_set_pos(C.Badge,kBadgeTitleX,kBadgeTitleY); lv_obj_set_size(C.Badge,16,16);
+    lv_obj_set_style_bg_color(C.Badge,lv_color_black(),0);
+    lv_obj_set_style_bg_opa(C.Badge,LV_OPA_COVER,0);
+    C.BadgeLamp=lv_img_create(C.Badge); lv_obj_set_pos(C.BadgeLamp,0,1);
+    lv_img_set_src(C.BadgeLamp,&GenieLampOutline);
+    lv_obj_set_style_img_recolor(C.BadgeLamp,lv_color_hex(0xffcd48),0);
+    lv_obj_set_style_img_recolor_opa(C.BadgeLamp,LV_OPA_COVER,0);
+    Hide(C.Badge,true);
     /* Reuse the folder rows in a single overlay, above the media. */
     C.List = lv_obj_create(Screen); lv_obj_remove_style_all(C.List);
     lv_obj_clear_flag(C.List, LV_OBJ_FLAG_SCROLLABLE);
@@ -275,7 +349,6 @@ static void TickSelection(uint64_t Time) {
         return;
     }
     const unsigned Buttons = Held();
-    const bool Pressed = C.Pressed != 0;
     const bool WasFast = C.Scroll.Rate >= 12;
     const RomBrowserScrollStep_t Step = RomBrowserScroll_Update(&C.Scroll, Time, Buttons, C.Pressed);
     C.Pressed = 0;
@@ -286,15 +359,11 @@ static void TickSelection(uint64_t Time) {
         const bool KeepFrame = C.ArtValid && !Directory(C.Selected);
         ForgetArt(); C.ArtValid = KeepFrame;
     }
-    /* Taps only select a game. Reveal the list when held input reaches the
-     * scroll engine's first repeat (350 ms), including at a list endpoint.
-     * A fresh press also dismisses any previous hold's lingering overlay. */
-    if (Pressed) C.ListUntil = 0;
-    if (C.Scroll.Direction && C.Scroll.Rate)
-        C.ListUntil = Time + kListHoldMs + kListFadeMs;
-    const uint64_t Remaining = C.ListUntil > Time ? C.ListUntil - Time : 0;
-    const uint8_t Opacity = Remaining >= kListFadeMs ? LV_OPA_COVER :
-        (uint8_t)(Remaining * LV_OPA_COVER / kListFadeMs);
+    /* A held scroll opens the selector. Releasing or tapping to fine-tune
+     * keeps it open; A explicitly accepts the displayed game for preview. */
+    if (C.Scroll.Direction && C.Scroll.Rate && !Directory(C.Selected))
+        C.ListPinned = true;
+    const uint8_t Opacity = C.ListPinned ? LV_OPA_COVER : 0;
     if (Opacity != C.ListOpacity) {
         /* Give the unobscured cover its full dwell after the list disappears. */
         if (!Opacity && C.ArtResolved) C.CoverAt = Time;
@@ -316,16 +385,20 @@ static void TickSelection(uint64_t Time) {
     if (!C.ArtRequested && !FastScrolling && !Directory(C.Selected)) {
         char Path[320];
         C.ArtRequested = true;
+        if(C.Async.RequestBadge && C.Source.RomPath && C.Source.RomPath(C.Selected,Path,sizeof(Path)))
+            C.Async.RequestBadge(Path,C.ArtToken);
         if (!C.Pixels && C.Async.RequestArt && C.Async.CopyArt && C.Source.ArtPath)
             C.Pixels = malloc(PREVIEW_BYTES);
         if (C.Pixels && C.Async.RequestArt && C.Async.CopyArt && C.Source.ArtPath &&
             C.Source.ArtPath(C.Selected, Path, sizeof(Path))) C.Async.RequestArt(Path, C.ArtToken);
         else { C.ArtResolved = true; C.ArtValid = false; C.RenderValid = false; }
     }
+    if(C.Async.CopyBadge && C.Async.CopyBadge(C.ArtToken,&C.BadgeState)) C.RenderValid=false;
     bool Valid;
     if (C.Pixels && C.Async.CopyArt && C.Async.CopyArt(C.ArtToken, C.Pixels, &Valid)) {
         lv_img_cache_invalidate_src(&C.Art);
         C.ArtValid = Valid;
+        C.BadgeMargin = Valid && HasBadgeMargin();
         C.ArtResolved = true;
         C.CoverAt = Time;
         if (Valid) {
@@ -349,6 +422,11 @@ static void TickSelection(uint64_t Time) {
     }
     if (C.Pixels && C.Async.CopyVideo && C.Async.CopyVideo(C.ArtToken,C.Pixels,&Valid)) {
         if (Valid) {
+            /* Once a clip needs the title dock, keep it there for the rest of
+             * playback so dark frames cannot make the lamp bounce around. */
+            const bool Margin=(!C.VideoPlaying || C.BadgeMargin) && HasBadgeMargin();
+            if (Margin!=C.BadgeMargin) C.RenderValid=false;
+            C.BadgeMargin=Margin;
             if (!C.VideoPlaying || !C.ArtValid) C.RenderValid=false;
             C.VideoPlaying=true; C.ArtValid=true;
             C.Art=(lv_img_dsc_t){.header={.cf=LV_IMG_CF_TRUE_COLOR,.w=PREVIEW_WIDTH,.h=PREVIEW_HEIGHT},
@@ -383,11 +461,13 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     if (!Blocked && C.Async.Poll) {
         RomBrowserJobResult_t Job;
         if (C.Async.Poll(&Job)) {
-            if (Job.Action == kRomActionStart) { if (Job.Error != ESP_OK) RomBrowserUI_SetError(Job.Error); }
+            if (Job.Action >= kRomActionCheatsOpen) CheatResult(Job.Error,&Job.Cheats);
+            else if (Job.Action == kRomActionStart) { if (Job.Error != ESP_OK) RomBrowserUI_SetError(Job.Error); }
             else SetCatalog(Job.Error, Job.Count, Job.Selected);
         }
     }
     if (!Blocked && C.State == kSelecting) TickSelection(Now());
+    if (!Blocked && C.State == kCheats) TickCheats();
     portENTER_CRITICAL(&ContextLock);
     const State_t State = Blocked ? kBlocked : C.State;
     const bool Dirty = !C.RenderValid || C.RenderedBlocked != Blocked;
@@ -396,6 +476,55 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     char Error[40]; memcpy(Error, C.Error, sizeof(Error));
     portEXIT_CRITICAL(&ContextLock);
     if (!Dirty) return kOSD_Result_Ok;
+    if(State==kCheats || State==kCheatBusy) {
+        Hide(C.Headline,false); Hide(C.Systems,true); Hide(C.Loading,true); Hide(C.Cover,true); Hide(C.Badge,true);
+        lv_obj_set_pos(C.Headline,16,25); lv_obj_set_size(C.Headline,128,18);
+        lv_obj_set_style_bg_color(C.Headline,lv_color_black(),0);
+        lv_obj_set_pos(C.Title,28,4); lv_obj_set_width(C.Title,100);
+        lv_obj_set_style_text_color(C.Title,lv_color_hex(0xffcd48),0);
+        Hide(C.HeaderLamp,false);
+        lv_label_set_text_static(C.Title,"GAME GENIE");
+        lv_label_set_long_mode(C.Title,LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_letter_space(C.Title,-1,0);
+        const bool Busy=State==kCheatBusy, Error=C.CheatError[0]!=0;
+        const bool List=!Error && C.Cheats.Count;
+        Hide(C.Status,List); Hide(C.List,!List); Hide(C.Selection,!List);
+        Hide(C.Hint,false); Hide(C.Position,false);
+        lv_obj_set_pos(C.Position,16,116); lv_obj_set_width(C.Position,128);
+        lv_obj_set_pos(C.Hint,16,128); lv_obj_set_width(C.Hint,128);
+        lv_obj_set_style_text_align(C.Hint,LV_TEXT_ALIGN_CENTER,0);
+        lv_label_set_text_static(C.Hint,Busy?"PLEASE WAIT":"A:TOGGLE B:BACK");
+        if(Error) lv_label_set_text(C.Status,C.CheatError);
+        else if(!List) lv_label_set_text_static(C.Status,"READING CHEATS...");
+        lv_label_set_text_fmt(C.Position,"%u ON - NEXT LAUNCH",C.Cheats.Enabled);
+        lv_obj_set_pos(C.List,16,44); lv_obj_set_size(C.List,128,68);
+        lv_obj_set_style_bg_opa(C.List,LV_OPA_COVER,0); lv_obj_set_style_opa(C.List,LV_OPA_COVER,0);
+        lv_obj_set_size(C.Selection,128,20);
+        for(unsigned I=0;I<kVisibleRows;++I) {
+            const bool Show=List && I<CHEAT_ROWS && C.Cheats.First+I<C.Cheats.Count;
+            Hide(C.Rows[I],!Show); Hide(C.Arrows[I],!Show);
+            if(!Show) continue;
+            bool Selected=C.Cheats.First+I==C.Cheats.Selected;
+            lv_obj_set_pos(C.Rows[I],4,6+I*22); lv_obj_set_size(C.Rows[I],92,10);
+            lv_obj_remove_local_style_prop(C.Rows[I],LV_STYLE_TEXT_FONT,0);
+            lv_obj_set_style_anim_speed(C.Rows[I],20,0);
+            lv_label_set_long_mode(C.Rows[I],Selected?LV_LABEL_LONG_SCROLL_CIRCULAR:LV_LABEL_LONG_DOT);
+            if(strcmp(lv_label_get_text(C.Rows[I]),C.Cheats.Rows[I].Name)) lv_label_set_text(C.Rows[I],C.Cheats.Rows[I].Name);
+            lv_obj_set_pos(C.Arrows[I],101,6+I*22); lv_obj_set_width(C.Arrows[I],26);
+            lv_label_set_text_static(C.Arrows[I],C.Cheats.First+I==0?"ALL":C.Cheats.Rows[I].Enabled?"ON":"OFF");
+            lv_obj_set_style_text_color(C.Rows[I],Selected?lv_color_black():lv_color_white(),0);
+            lv_obj_set_style_text_color(C.Arrows[I],Selected?lv_color_black():Draw->AccentColor,0);
+            if(Selected) lv_obj_set_pos(C.Selection,0,2+I*22);
+        }
+        return kOSD_Result_Ok;
+    }
+    Hide(C.HeaderLamp,true);
+    lv_obj_set_pos(C.Headline,16,27); lv_obj_set_size(C.Headline,128,12);
+    lv_obj_set_style_bg_color(C.Headline,Draw->AccentColor,0);
+    lv_obj_set_pos(C.Title,4,2);
+    lv_obj_set_style_text_color(C.Title,lv_color_black(),0);
+    lv_obj_set_pos(C.Position,16,128);
+    for(unsigned I=0;I<kVisibleRows;++I) { lv_obj_set_width(C.Arrows[I],8); lv_label_set_text_static(C.Arrows[I],">"); }
     const bool Selecting = State == kSelecting;
     const bool Game = Selecting && !Directory(C.Selected);
     size_t Systems[2];
@@ -407,7 +536,8 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     Hide(C.Headline,!GameHeading && !Folders && !Picker);
     Hide(C.Systems,!Picker);
     Hide(C.Loading,!Loading);
-    Hide(C.Position,Game || Picker); Hide(C.Hint,Game);
+    Hide(C.Position,Game || Picker); Hide(C.Hint,Game && !Overlay);
+    if (Overlay) lv_obj_move_foreground(C.Hint);
     if (GameHeading || Folders || Picker) {
         lv_obj_set_style_text_letter_space(C.Title,Folders?-1:0,0);
         char Title[256];
@@ -437,6 +567,14 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     lv_obj_set_style_opa(C.List, Game ? C.ListOpacity : LV_OPA_COVER, 0);
     lv_obj_set_size(C.Selection,Game?120:128,Game?14:18);
     Hide(C.Cover,!Game);
+    const bool ShowBadge=Game && !Overlay && !C.Fast && C.BadgeState.Available;
+    const bool TitleBadge=ShowBadge && !C.BadgeMargin;
+    Hide(C.Badge,!ShowBadge);
+    lv_obj_set_pos(C.Badge,TitleBadge?kBadgeTitleX:kBadgeMarginX,
+                   TitleBadge?kBadgeTitleY:kBadgeMarginY);
+    lv_obj_set_width(C.Headline,TitleBadge?108:128);
+    lv_obj_set_width(C.Title,TitleBadge?104:120);
+    lv_img_set_src(C.BadgeLamp,C.BadgeState.Enabled?&GenieLampFilled:&GenieLampOutline);
     if (Selecting) {
         if (Picker) {
             for(unsigned I=0;I<2;++I) {
@@ -462,7 +600,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
             lv_obj_set_pos(C.Arrows[Row],116,6+Row*20);
             char Name[256]; DisplayName(Index, Name);
             const bool Selected = Index == C.Selected;
-            lv_label_set_long_mode(C.Rows[Row], Selected && C.Marquee && !Game
+            lv_label_set_long_mode(C.Rows[Row], Selected && C.Marquee && (!Game || C.ListPinned)
                 ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_DOT);
             lv_label_set_text(C.Rows[Row], Name);
             lv_obj_set_style_text_color(C.Rows[Row], Selected ? lv_color_black() : lv_color_white(), 0);
@@ -473,7 +611,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
         Hide(C.Placeholder, Overlay || C.Fast || C.ArtValid ||
             (!Directory(C.Selected) && !C.ArtResolved));
         lv_label_set_text_static(C.Placeholder, Directory(C.Selected) ? "FOLDER" : "NO COVER");
-        lv_label_set_text_static(C.Hint,Picker ? (C.SystemFocus?"<>:PICK A:OPEN B:TABS":"<>:TABS A:CHOOSE") : AtRoot()?"A:OPEN":"A:OPEN B:BACK");
+        lv_label_set_text_static(C.Hint,Game ? "A:PREVIEW B:BACK" : Picker ? (C.SystemFocus?"<>:PICK A:OPEN B:TABS":"<>:TABS A:CHOOSE") : AtRoot()?"A:OPEN":"A:OPEN B:BACK");
         lv_label_set_text_fmt(C.Position, "%u/%u", (unsigned)C.Selected + 1, (unsigned)C.Count);
     } else {
         for (size_t I = 0; I < kVisibleRows; ++I) Hide(C.Rows[I], true);
@@ -496,6 +634,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     return kOSD_Result_Ok;
 }
 bool RomBrowserUI_HandleHorizontal(Button_t Button, ButtonState_t State) {
+    if(C.State==kCheats || C.State==kCheatBusy) return true;
     size_t Systems[2];
     if (!C.SystemFocus || !SystemPicker(Systems) || PCBackupMode_GetState()==kPCBackupModeState_On) return false;
     if (Button!=kButton_Left && Button!=kButton_Right) return false;
@@ -507,6 +646,21 @@ bool RomBrowserUI_HandleHorizontal(Button_t Button, ButtonState_t State) {
 OSD_Result_t RomBrowserUI_OnButton(Button_t Button, ButtonState_t State, void *Arg) {
     (void)Arg;
     if (State != kButtonState_Pressed || PCBackupMode_GetState() == kPCBackupModeState_On) return kOSD_Result_Ok;
+    if(C.State==kCheatBusy) return kOSD_Result_Ok;
+    if(C.State==kCheats) {
+        if(Button==kButton_B) {
+            ResetScroll();
+            if(C.CheatError[0] && C.Cheats.Count) { C.CheatError[0]=0; C.RenderValid=false; }
+            else { C.State=kSelecting; SelectionChanged(); }
+        } else if(!C.CheatError[0]) {
+            if(Button==kButton_Up || Button==kButton_Down) C.Pressed|=Button==kButton_Up?kScrollUp:kScrollDown;
+            if(Button==kButton_A && C.Cheats.Count) { ResetScroll(); BeginCheats(C.Cheats.Selected?kRomActionCheatsToggle:kRomActionCheatsDisableAll,C.Cheats.Selected); }
+        }
+        return kOSD_Result_Ok;
+    }
+    if(C.State==kSelecting && Button==kButton_Select && !C.ListPinned && C.Count && !Directory(C.Selected) && C.Source.Cheats) {
+        BeginCheats(kRomActionCheatsOpen,C.Selected); return kOSD_Result_Ok;
+    }
     size_t Systems[2];
     if (SystemPicker(Systems)) {
         if (Button==kButton_B || Button==kButton_Up) {
@@ -527,7 +681,12 @@ OSD_Result_t RomBrowserUI_OnButton(Button_t Button, ButtonState_t State, void *A
             C.Pressed |= Button == kButton_Up ? kScrollUp : kScrollDown;
         else if (Button == kButton_A) {
             /* Selection advances only in Draw. A freezes the last displayed item. */
+            const bool Preview = C.ListPinned && !Directory(C.Selected);
             ResetScroll();
+            if (Preview) {
+                C.CoverAt=Now(); C.RenderValid=false;
+                return kOSD_Result_Ok;
+            }
             if (Directory(C.Selected) && C.Source.Enter) Begin(kRomActionEnter);
             else {
                 RomTitle_Make(C.Source.NameAt(C.Selected), false, C.CurrentName, sizeof(C.CurrentName));
@@ -551,12 +710,13 @@ OSD_Result_t RomBrowserUI_OnTransition(void *Arg) {
     if (C.Async.Cancel) C.Async.Cancel();
     else if (C.CatalogOpen && C.Source.Close) C.Source.Close();
     C.CatalogOpen = false; C.Count = C.Selected = 0;
-    lv_obj_t **Objects[] = {&C.Status, &C.Hint, &C.Position, &C.List, &C.Cover, &C.Headline, &C.Loading, &C.Systems};
+    lv_obj_t **Objects[] = {&C.Status, &C.Hint, &C.Position, &C.List, &C.Cover, &C.Headline, &C.Loading, &C.Systems, &C.Badge};
     for (size_t I = 0; I < ARRAY_SIZE(Objects); ++I) {
         if (*Objects[I]) lv_obj_del(*Objects[I]);
         *Objects[I] = NULL;
     }
     C.Image = C.Placeholder = C.Title = NULL;
+    C.Badge = C.BadgeLamp = C.HeaderLamp = NULL;
     for (unsigned I=0;I<2;++I) C.SystemTiles[I]=NULL;
     C.LoadingText = C.Percent = C.ProgressBar = NULL;
     C.Selection = NULL;

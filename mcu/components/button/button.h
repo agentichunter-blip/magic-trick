@@ -46,6 +46,8 @@ const char* Button_GetStateStr(const ButtonState_t s);
 void Button_ResetAll(void);
 /* Current levels; unlike Button_GetState this does not consume press events. */
 uint16_t Button_GetHeldBits(void);
+/* Atomic levels + receive sequence, for detecting fresh startup telemetry. */
+uint32_t Button_GetSnapshot(uint16_t *HeldBits);
 void Button_RegisterOnButtonPokeCb(fnOnButtonPokeCb_t Handler);
 uint16_t Button_GetPokedInputs(void);
 void Button_RegisterCommands(void);

@@ -2,6 +2,7 @@
 
 #include "esp_err.h"
 #include "osd_shared.h"
+#include "cheat_types.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -14,6 +15,7 @@ typedef struct RomBrowserDataSource {
     const char *(*NameAt)(size_t Index);
     void (*Close)(void);
     esp_err_t (*Start)(const char *pName);
+    esp_err_t (*StartIndex)(size_t Index);
     bool (*IsDirectory)(size_t Index);
     esp_err_t (*Enter)(size_t Index, size_t *pCount);
     esp_err_t (*Parent)(size_t *pCount, size_t *pSelected);
@@ -21,17 +23,22 @@ typedef struct RomBrowserDataSource {
     void (*Remember)(size_t Index);
     size_t (*Restore)(void);
     bool (*VideoPath)(size_t Index, char *Path, size_t Size);
+    bool (*RomPath)(size_t Index, char *Path, size_t Size);
     bool (*ArtPath)(size_t Index, char *Path, size_t Size);
     RomPlatform_t (*FolderPlatform)(size_t Index);
+    esp_err_t (*Cheats)(CheatAction_t Action, size_t Index, CheatView_t *View);
+    void (*CloseCheats)(void);
 } RomBrowserDataSource_t;
 
 typedef enum {
-    kRomActionOpen, kRomActionEnter, kRomActionParent, kRomActionStart, kRomActionClose
+    kRomActionOpen, kRomActionEnter, kRomActionParent, kRomActionStart, kRomActionClose,
+    kRomActionCheatsOpen, kRomActionCheatsView, kRomActionCheatsToggle, kRomActionCheatsDisableAll
 } RomBrowserAction_t;
 typedef struct {
     RomBrowserAction_t Action;
     esp_err_t Error;
     size_t Count, Selected;
+    CheatView_t Cheats;
 } RomBrowserJobResult_t;
 /* Optional asynchronous backend. All LVGL operations stay on the UI task. */
 typedef struct {
@@ -42,6 +49,8 @@ typedef struct {
     bool (*CopyArt)(uint32_t Token, uint8_t *Pixels, bool *Valid);
     void (*RequestVideo)(const char *Path, uint32_t Token);
     bool (*CopyVideo)(uint32_t Token, uint8_t *Pixels, bool *Valid);
+    void (*RequestBadge)(const char *RomPath, uint32_t Token);
+    bool (*CopyBadge)(uint32_t Token, CheatBadge_t *Badge);
 } RomBrowserAsync_t;
 void RomBrowserUI_RegisterAsync(const RomBrowserAsync_t *Backend);
 /* Horizontal input belongs to the system picker while it has focus. */

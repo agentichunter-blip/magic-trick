@@ -20,3 +20,4 @@ esp_err_t FPGA_Tx_CartRequest(const uint8_t Request[8]);
 esp_err_t FPGA_Tx_QueueCartRequest(const uint8_t Request[8]);
 esp_err_t FPGA_Tx_CartStreamAck(uint8_t Sequence);
 esp_err_t FPGA_Tx_PulseButtons(uint16_t Buttons);
+esp_err_t FPGA_Tx_RequestButtons(void);

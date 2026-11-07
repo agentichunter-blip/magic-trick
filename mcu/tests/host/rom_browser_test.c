@@ -6,8 +6,12 @@
 #include "rom_browser.h"
 #include "rom_browser_ui.h"
 #include "sd_card.h"
+#include "recent_games.h"
 
 static RomBrowserDataSource_t Source;
+static RecentGames_t History[2];
+static char CheatPath[320];
+esp_err_t RecentGames_Read(RecentSystem_t System,RecentGames_t *Games) { assert(System==kRecentGB || System==kRecentGBC); *Games=History[System-1]; return ESP_OK; }
 static bool Mounted;
 static unsigned Mounts, Unmounts, Starts;
 static esp_err_t MountResult;
@@ -189,12 +193,64 @@ int main(void) {
     assert(Source.Parent(&Count, &Selected) == ESP_OK);
     assert(Source.FolderPlatform(0) == kRomPlatformGB);
     Source.Close();
+    /* Recent is first, newest-first across real folders, and keeps full paths
+     * even when two games have identical filenames. */
+    FileAt(ROM_BROWSER_ROOT "/gb/0-F/Nested/Game.gb");
+    FileAt(ROM_BROWSER_ROOT "/GBC/M-R/Color.gbc");
+    FileAt(ROM_BROWSER_ROOT "/gb/0-F/Game (Demo).gb");
+    History[0].Count=4;
+    strcpy(History[0].Paths[0],ROM_BROWSER_ROOT "/gb/0-F/Nested/Game.gb");
+    strcpy(History[0].Paths[1],ROM_BROWSER_ROOT "/gb/0-F/Game.gb");
+    strcpy(History[0].Paths[2],ROM_BROWSER_ROOT "/gb/Missing.gb");
+    strcpy(History[0].Paths[3],ROM_BROWSER_ROOT "/gb/0-F/Game (Demo).gb");
+    History[1].Count=1; strcpy(History[1].Paths[0],ROM_BROWSER_ROOT "/GBC/M-R/Color.gbc");
+    assert(Source.Open(&Count)==ESP_OK && Count==2);
+    assert(Source.Enter(0,&Count)==ESP_OK && Count==2);
+    Row(0,"Recent",true); Row(1,"0-F",true);
+    assert(Source.FolderPlatform(0)==kRomPlatformGB && !Source.RomPath(0,Art,sizeof(Art)));
+    assert(Source.Enter(0,&Count)==ESP_OK && Count==2);
+    Row(0,"Game.gb",false); Row(1,"Game.gb",false);
+    assert(Source.RomPath(0,Art,sizeof(Art)) && !strcmp(Art,History[0].Paths[0]));
+    assert(Source.RomPath(1,Art,sizeof(Art)) && !strcmp(Art,History[0].Paths[1]));
+    assert(Source.StartIndex(0)==ESP_OK && !strcmp(StartedPath,History[0].Paths[0]));
+    assert(Source.StartIndex(1)==ESP_OK && !strcmp(StartedPath,History[0].Paths[1]));
+    assert(Source.ArtPath(0,Art,sizeof(Art)) && !strcmp(Art,"/sdcard/CHROMAGIC/ART/gb/0-F/Nested/Game.gb.cma"));
+    assert(Source.VideoPath(1,Art,sizeof(Art)) && !strcmp(Art,"/sdcard/CHROMAGIC/VIDEO/gb/0-F/Game.gb.cmv"));
+    CheatView_t View;
+    assert(Source.Cheats(kCheatOpen,0,&View)==ESP_ERR_NOT_FOUND && !strcmp(CheatPath,History[0].Paths[0]));
+    Source.Remember(1); Source.Close();
+    assert(Source.Open(&Count)==ESP_OK && Count==2 && Source.Restore()==1);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Count==2 && Selected==0);
+    Row(0,"Recent",true);
+    assert(Source.Enter(1,&Count)==ESP_OK && Count==2); /* physical range still works */
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Selected==1);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Count==2);
+    assert(Source.Enter(1,&Count)==ESP_OK && Count==2);
+    Row(0,"Recent",true); assert(Source.FolderPlatform(0)==kRomPlatformGBC);
+    assert(Source.Enter(0,&Count)==ESP_OK && Count==1); Row(0,"Color.gbc",false);
+    assert(Source.StartIndex(0)==ESP_OK && !strcmp(StartedPath,History[1].Paths[0]));
+    assert(unlink(ROM_BROWSER_ROOT "/GBC/M-R/Color.gbc")==0);
+    Source.Close(); assert(Source.Open(&Count)==ESP_OK && Count==0);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Count==1); Row(0,"M-R",true);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK);
+    Source.Close();
+    assert(unlink(ROM_BROWSER_ROOT "/gb/0-F/Nested/Game.gb")==0);
+    assert(unlink(ROM_BROWSER_ROOT "/gb/0-F/Game (Demo).gb")==0);
+    memset(History,0,sizeof(History));
     assert(unlink(ROM_BROWSER_ROOT "/gb/0-F/Game.gb") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/gb/0-F/Nested") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/gb/0-F") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/gb") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/GBC/M-R") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/GBC") == 0);
+    /* Filter metadata-tagged demos/kiosks, without hiding similarly named full games. */
+    const char *Demos[]={"Game (Demo).gb","Game (Kiosk).gbc","Game [dEmO].gb","Game (Demo v2).gbc"};
+    for(unsigned I=0;I<4;++I) { char P[320]; snprintf(P,sizeof(P),"%s/%s",ROM_BROWSER_ROOT,Demos[I]); FileAt(P); }
+    FileAt(ROM_BROWSER_ROOT "/Demolition Man (World).gb");
+    assert(Source.Open(&Count)==ESP_OK && Count==1); Row(0,"Demolition Man (World).gb",false);
+    Source.Close();
+    for(unsigned I=0;I<4;++I) { char P[320]; snprintf(P,sizeof(P),"%s/%s",ROM_BROWSER_ROOT,Demos[I]); assert(unlink(P)==0); }
+    assert(unlink(ROM_BROWSER_ROOT "/Demolition Man (World).gb")==0);
     /* BIOS dumps must not become game entries; the filter is only a leading
      * tag on files, so similarly named games and directories stay accessible. */
     const char *BiosFiles[] = {
@@ -227,3 +283,7 @@ int main(void) {
     assert(Mounts == Unmounts && !Mounted);
     puts("PASS: real folder enumeration, full ROM paths, back selection, SD ownership and path limits");
 }
+
+#include "cheats.h"
+esp_err_t Cheats_Menu(CheatAction_t Action,const char *Path,size_t Selected,CheatView_t *View) { (void)Selected; (void)View; if(Action==kCheatOpen) snprintf(CheatPath,sizeof(CheatPath),"%s",Path); return ESP_ERR_NOT_FOUND; }
+void Cheats_Close(void) {}

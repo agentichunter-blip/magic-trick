@@ -268,6 +268,9 @@ static OSD_Result_t MenuMgr_OnButton(const Button_t Button, const ButtonState_t 
     switch (Button)
     {
         // Fall-through
+        case kButton_Select:
+            if (eID != kTabID_Backups) break;
+            /* fall through: Select opens the selected game's cheat options. */
         case kButton_B:
         case kButton_A:
         case kButton_Down:

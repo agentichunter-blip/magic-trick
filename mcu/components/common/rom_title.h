@@ -6,3 +6,5 @@
 void RomTitle_Make(const char *Name, bool Directory, char *Output, size_t Size);
 int RomTitle_Compare(const char *Left, const char *Right, bool Directory);
 const char *RomTitle_Group(const char *Title, bool Directory, char Letter[2]);
+/* Explicit metadata tags only; titles such as Demolition Man remain playable. */
+bool RomTitle_IsDemo(const char *Name);

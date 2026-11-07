@@ -51,7 +51,7 @@ typedef enum {
 typedef enum {
     kTxCmd_Reserved0        = 0x0,
     kTxCmd_Reserved1        = 0x1,
-    kTxCmd_Reserved2        = 0x2,
+    kTxCmd_RequestButtons   = 0x2,
     kTxCmd_Reserved3        = 0x3,
     kTxCmd_SysCtrl          = 0x4,
     kTxCmd_BacklightCtl     = 0x5,
@@ -247,6 +247,17 @@ esp_err_t FPGA_Tx_PulseButtons(uint16_t Buttons)
         vTaskDelay(1);
     }
     return ESP_OK;
+}
+
+esp_err_t FPGA_Tx_RequestButtons(void)
+{
+    /* Existing FPGA command: get real button levels even with the OSD closed. */
+    uint8_t TxBuffer[7] = {0};
+    uint16_t Value = 0;
+    const size_t Size = SetupTxBuffer(TxBuffer, kTxCmd_RequestButtons, sizeof(Value), &Value);
+    if (Size == 0 || uart_write_bytes(UART_NUM_1, TxBuffer, Size) != (int)Size)
+        return ESP_FAIL;
+    return uart_wait_tx_done(UART_NUM_1, pdMS_TO_TICKS(20));
 }
 
 void FPGA_Tx_WritePaletteStyle(void)
