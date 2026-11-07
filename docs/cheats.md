@@ -1,6 +1,6 @@
 # Game Genie selector
 
-This build provides preloaded, per-game Game Genie options for **SD games** without changing FPGA 18.38.
+This build supports per-game Game Genie packs prepared separately for **SD games** without changing FPGA 18.38.
 
 In BACKUPS, show a game’s preview and press **Select**. If the scrolling selector is open, press **A** first to reveal the preview. Use Up/Down to browse, **A** to toggle an option, and **B** to return to the same game. The first item disables all options for that game. Selected descriptions scroll when they are too long for a row. Holding Up/Down repeats and accelerates. The footer reports how many options are enabled and says **NEXT LAUNCH**.
 
@@ -47,11 +47,12 @@ CHROMAGIC/CHEATS/GB/S-Z/Super Mario Land (World).gb.cmc
 
 Firmware alone does not include the database. Existing games, artwork and previews need no changes.
 
-## Build packs for another library
+## Build packs for your library
 
-Use an empty staging destination. Obtain the database revision above and provide your own ROM collection:
+Use an empty staging destination outside this repository. Obtain the database revision above and provide your own ROM collection. The database path must contain `LICENSE` and `cht/`; the ROM root must contain `GB/` and/or `GBC/` subfolders. Create the output folder first, including when no games match:
 
 ```sh
+mkdir -p /path/to/staging/CHROMAGIC/CHEATS
 python3 mcu/tools/prepare_cheats.py \
   --rom-root /path/to/CHROMAGIC/BACKUPS \
   --database /path/to/libretro-database \
@@ -59,7 +60,7 @@ python3 mcu/tools/prepare_cheats.py \
   --report /path/to/staging/cheat-report.json
 ```
 
-The report lists exact source files, ROM and pack SHA-256 hashes, exclusions, and coverage. Retain the database attribution/license with redistributions. CRC32 is an integrity/identity check, not a cryptographic signature; install packs from a trusted source.
+The report lists exact source files, ROM and pack SHA-256 hashes, exclusions, and coverage. Keep this personal library report private; it is not needed on the SD card or in the public repository. Retain the database attribution/license with redistributions. CRC32 is an integrity/identity check, not a cryptographic signature; install packs from a trusted source.
 
 ## Implementation and validation
 

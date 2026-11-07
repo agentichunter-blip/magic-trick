@@ -44,13 +44,16 @@ Download/extract this repository or clone it, then open a terminal in its root d
 
    ```sh
    python -m esptool --chip esp32 image_info --version 2 mcu/build/mcu_fw.bin
+   ```
+
+   Check that `image_info` reports project `mcu_fw`, app version `0.13.4-art31`, ESP-IDF `v5.3`, and a valid checksum/validation hash. Only then run:
+
+   ```sh
    python -m esptool --chip esp32 --port "$PORT" --baud 460800 \
      --before default_reset --after hard_reset write_flash \
      --flash_mode dio --flash_freq 40m --flash_size 4MB \
      0x10000 mcu/build/mcu_fw.bin
    ```
-
-   Before running `write_flash`, check that `image_info` reports project `mcu_fw`, app version `0.13.4-art31`, ESP-IDF `v5.3`, and a valid checksum/validation hash.
 
 6. Wait for `Hash of data verified.` before disconnecting. Power-cycle the device and confirm MCU `v0.13.4-art31`, Chromatic `1.0.1-art31 (4.2)`, and FPGA `18.38`. Leave **C. MAGICIAN** off for on-device browsing and gameplay.
 7. Add optional [covers and gameplay previews](docs/media.md) to the SD card. Games remain in `CHROMAGIC/BACKUPS`. The browser works without media.
