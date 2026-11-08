@@ -1,0 +1,41 @@
+name: Magic Trick Installer
+on:
+  workflow_dispatch:
+  push:
+    paths: ['installer/**', '.github/workflows/installer.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: windows-x64}
+          - {os: ubuntu-22.04, name: linux-x64}
+          - {os: macos-15, name: macos-arm64}
+          - {os: macos-15-intel, name: macos-x64}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python app.py --self-test
+      - run: python -m PyInstaller --noconfirm --onedir --windowed --name Magic-Trick-Installer --collect-all esptool app.py
+      - name: Package
+        shell: bash
+        run: |
+          cp ../mcu/LICENSE dist/LICENSE.txt
+          cp ../NOTICE dist/NOTICE.txt
+          cp README.md dist/README.txt
+          python -c "import shutil; shutil.make_archive('Magic-Trick-${{ matrix.name }}', 'zip', 'dist')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Magic-Trick-${{ matrix.name }}
+          path: installer/Magic-Trick-*.zip

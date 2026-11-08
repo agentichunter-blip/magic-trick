@@ -30,3 +30,10 @@ dist/
 
 # Generated per-library cheat packs
 *.cmc
+
+installer/__pycache__/
+installer/tests/__pycache__/
+installer/build/
+installer/dist/
+installer/*.spec
+installer/*.zip
