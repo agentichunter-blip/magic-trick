@@ -26,12 +26,21 @@ class Safety(unittest.TestCase):
         with self.assertRaises(ValueError): core.validate_backup(b[:100])
         b=backup();b[0x10020]=0
         with self.assertRaises(ValueError):core.identify_backup(b)
+    def test_wrong_partition_layout(self):
+        for offset,size in [(0,0x100000),(0x10000,0x200000)]:
+            b=backup()
+            entry=struct.pack('<HBBII16sI',0x50AA,0,0,offset,size,b'factory',0)
+            b[0x8000:0x8040]=entry+b'\xeb\xeb'+b'\xff'*14+hashlib.md5(entry).digest()
+            with self.assertRaises(ValueError):core.validate_backup(b)
+    def test_unknown_backup_app(self):
+        b=backup();b[0x10050:0x10057]=b'bad_fw\0'
+        with self.assertRaises(ValueError):core.identify_backup(b)
     def test_programmer_detection(self):
         with patch.object(fpga,'run',side_effect=['1.1.1','1 2 0x33aa:0x0120','GW5A-25']):fpga.preflight(lambda s:None)
         with patch.object(fpga,'run',side_effect=['1.1.1','1 2 0x33aa:0x0120\n1 3 0x33aa:0x0120']):
             with self.assertRaises(ValueError):fpga.preflight(lambda s:None)
 class InstallationOrder(unittest.TestCase):
-    def perform(self, *, corrupt_backup=False, fpga_fail=False, corrupt_fpga=False, source=STOCK, read_fail=False):
+    def perform(self, *, corrupt_backup=False, fpga_fail=False, corrupt_fpga=False, source=STOCK, read_fail=False, mcu_fail=False, ports=None):
         events=[]
         with tempfile.TemporaryDirectory() as tmp:
             image=Path(tmp)/'mcu';image.write_bytes(b'mcu')
@@ -41,10 +50,11 @@ class InstallationOrder(unittest.TestCase):
                 if 'read_flash' in args: Path(args[-1]).write_bytes(b'partial' if corrupt_backup else backup())
                 if read_fail and args[0]=='verify_flash' and args[1]=='0x0': raise ValueError('backup verify failed')
                 events.append('write_mcu' if 'write_flash' in args else args[0])
+                if mcu_fail and 'write_flash' in args: raise ValueError('MCU write failed')
             def flash(*args):
                 events.append('write_fpga')
                 if fpga_fail: raise ValueError('USB disconnected')
-            with patch.object(core,'device_ports',return_value=['test']),patch.object(core,'validate_image'),patch.object(core,'version',side_effect=[source,TARGET]),patch.object(core,'run_tool',side_effect=tool),patch.object(fpga,'FPGA_HASH', 'bad' if corrupt_fpga else hashlib.sha256(b'fpga').hexdigest()),patch.object(fpga,'preflight'),patch.object(fpga,'flash',side_effect=flash),patch.object(core.time,'sleep'):
+            with patch.object(core,'device_ports',return_value=['test'] if ports is None else ports),patch.object(core,'validate_image'),patch.object(core,'version',side_effect=[ValueError('No console') if source is None else source,TARGET]),patch.object(core,'run_tool',side_effect=tool),patch.object(fpga,'FPGA_HASH', 'bad' if corrupt_fpga else hashlib.sha256(b'fpga').hexdigest()),patch.object(fpga,'preflight'),patch.object(fpga,'flash',side_effect=flash),patch.object(core.time,'sleep'):
                 error=None
                 try:core.install('test',image,folder,lambda s:None,f)
                 except ValueError as exc:error=exc
@@ -64,6 +74,13 @@ class InstallationOrder(unittest.TestCase):
         _,error,stage=self.perform(fpga_fail=True);self.assertIsNotNone(error);self.assertEqual(stage,'partial_install_fpga_failed')
     def test_unknown_source_rejected(self):
         events,error,_=self.perform(source={'mcu':'v9'});self.assertIsNotNone(error);self.assertEqual(events,[])
+    def test_older_stock_identified_from_backup(self):
+        _,error,stage=self.perform(source=None);self.assertIsNone(error);self.assertEqual(stage,'complete')
+    def test_multiple_devices_rejected(self):
+        events,error,_=self.perform(ports=['test','other']);self.assertIsNotNone(error);self.assertEqual(events,[])
+    def test_mcu_failure_never_writes_fpga(self):
+        events,error,stage=self.perform(mcu_fail=True)
+        self.assertIsNotNone(error);self.assertNotIn('write_fpga',events);self.assertEqual(stage,'mcu_write_started')
     def test_interrupted_pair_can_retry(self):
         _,error,stage=self.perform(source=dict(TARGET,fpga='18.37'));self.assertIsNone(error);self.assertEqual(stage,'complete')
 if __name__=='__main__':unittest.main()
