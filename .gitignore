@@ -37,3 +37,6 @@ installer/build/
 installer/dist/
 installer/*.spec
 installer/*.zip
+
+installer/programmer/
+installer/.tool-build/

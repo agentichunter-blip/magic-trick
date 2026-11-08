@@ -1,3 +1,13 @@
+# Desktop installer (recommended for testing)
+
+[Download Magic Trick Installer 0.2.0](https://github.com/agentichunter-blip/chromagic-preview-mod/releases/tag/installer-v0.2.0) for Mac, Windows or Linux. It installs both MCU and FPGA directly from supported stock firmware. No separate ChroMagic installation is needed. See the [installer guide](../installer/README.md) for supported firmware, USB setup and recovery limits.
+
+**Testing preview:** physical-device installation has not yet been tested. Keep your SD backup and private MCU backup. Packages are unsigned. If the FPGA phase fails, the installation is incomplete even if the MCU was verified. Keep `installation.json` and retry only when the console responds. Official stock restoration requires both stock firmware components through MRUpdater; restoring only the MCU does not restore the FPGA.
+
+The instructions below are the older **manual, MCU-only** route for users who already have the matching ChroMagic FPGA. They do not describe the all-in-one desktop app.
+
+---
+
 # Install the prebuilt art31 firmware
 
 This package contains the MCU application for ChroMagic `1.0.1-art31 (4.2)` / MCU `v0.13.4-art31`. No compilation or ESP-IDF installation is required. You need Python 3.12, esptool 4.13.0, a data-capable USB cable, and a Chromatic with an SD card.

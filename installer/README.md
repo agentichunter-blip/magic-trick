@@ -1,17 +1,22 @@
-# Magic Trick Installer — experimental preview
+# Magic Trick Installer 0.2.0 — testing preview
 
-Free desktop upgrade assistant for the Magic Trick artwork/gameplay-preview mod of ChroMagic. Requires an existing ChroMagic 1.0.1/art-series MCU 0.13.4 and FPGA 18.38, with a working `fwversion` console command. Older bases without that command are rejected. This is not a stock-to-ChroMagic installer.
+One app installs Magic Trick directly onto a stock ModRetro Chromatic or upgrades a compatible ChroMagic installation. Includes Python, esptool and openFPGALoader. Internet access is required to download the pinned MCU and FPGA images; both SHA-256 hashes are checked before installation. You do not need to install ChroMagic separately.
 
-Extract the entire archive. Windows: open Magic-Trick-Installer.exe in its folder. macOS: open the .app. Linux: run Magic-Trick-Installer from its folder (Ubuntu 22.04+ x64 target). Select the device port, confirm your SD backup, and choose a private backup destination. Linux serial access may require distribution-specific device permissions. Close other USB applications first.
+Extract the entire archive. Mac: open the .app. Windows: open Magic-Trick-Installer.exe in its folder. Linux: run Magic-Trick-Installer from its folder (Ubuntu 22.04+ x64). Connect one powered-on Chromatic with a data USB cable; close other device apps. Back up your SD card yourself, select the detected Chromatic, and choose a private backup folder.
 
-Downloads the pinned art31 MCU from GitHub, checks SHA-256, queries firmware versions, reads and verifies a full 4 MiB backup, validates the partition table, writes only the 1 MiB application at 0x10000, verifies flash and checks running versions. No ROMs, saves, media, FPGA or bootloader are distributed or written. Backups remain local and private.
+Windows may need the official MRUpdater USB driver setup before the programmer is accessible. Linux may need serial and USB device permissions. The app checks access before writing firmware. Mac tools are bundled and do not require Homebrew.
+
+The installer reads and verifies a full 4 MiB MCU backup, validates its partition table and application descriptor, writes/verifies the Magic Trick MCU application, then writes/verifies the ChroMagic FPGA. It checks running versions before reporting success. It leaves the bootloader, partition table and SD card unchanged. The backup does NOT include FPGA or SD contents. Keep your backup private.
+
+Supported source checks: stock 4.2, 4.5 and 4.6; compatible ChroMagic 1.0.1/art-series; and older consoles without fwversion when the backed-up app identifies as mcu_fw 0.13.0–0.13.8 with the expected layout. Unknown firmware/layouts are rejected. These are software checks, not a hardware compatibility certification.
+
+If interrupted, keep the backup and installation.json. An MCU-success/FPGA-failure result is a partial installation, never success. If the console still responds, retry the paired installer. If it no longer responds, stop and use the recovery documentation; do not erase flash or overwrite the only backup. Stock restoration requires matching stock MCU AND FPGA firmware (official MRUpdater); an MCU backup alone does not restore the FPGA.
 
 Recovery: https://github.com/agentichunter-blip/chromagic-preview-mod/blob/main/docs/install-release.md
-Keep backups. Never erase flash. If verification after flashing fails, power-cycle and inspect Status before retrying. Use upstream ChroMagician for stock/upstream restoration on supported hosts. The backup is not an SD or FPGA backup.
 
-These initial packages are unsigned and not Apple-notarized. OS security prompts may appear. No end-to-end installer flash has been tested on physical hardware; automated tests cover safety gates, not all USB/driver conditions. The art31 firmware remains experimental. The marketing name is Magic Trick; device Status still reports the original art31 identifiers.
+These packages are unsigned and not Apple-notarized. No end-to-end hardware installation has been tested yet. Intended for testing; wait for hardware validation if you need a proven installation path. Device Status reports MCU v0.13.4-art31, FPGA 18.38, Chromatic 1.0.1-art31 (4.2). No games, saves, artwork or previews are bundled.
 
-Source and credits: https://github.com/agentichunter-blip/chromagic-preview-mod
-Based on CursedToast's ChroMagic and ModRetro firmware. Independent, not affiliated with ModRetro or Nintendo. Installer source is GPL-3.0; see included LICENSE.txt. esptool and other bundled dependencies retain their respective licenses.
+Source: https://github.com/agentichunter-blip/chromagic-preview-mod
+Based on CursedToast's ChroMagic and ModRetro firmware. Independent community project. Installer source is GPL-3.0; bundled tools retain their own licenses, included under programmer/licenses. Programmer source archives are included for Mac; corresponding Linux/Windows sources are provided with the release. Firmware sources and full credits are in the repository.
 
-Optional support: https://ko-fi.com/ryansag
+Optional donations: https://ko-fi.com/ryansag
