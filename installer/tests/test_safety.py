@@ -22,3 +22,29 @@ class Safety(unittest.TestCase):
         with self.assertRaises(ValueError): core.validate_backup(data)
         with self.assertRaises(ValueError): core.validate_backup(data[:100])
 if __name__=='__main__': unittest.main()
+
+class InstallationOrder(unittest.TestCase):
+    def test_wrong_device_never_flashes(self):
+        from unittest.mock import patch
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            image=Path(tmp)/'image'; image.write_bytes(b'test')
+            with patch.object(core,'validate_image'), patch.object(core,'version',return_value={'fpga':'0'}), patch.object(core,'run_tool') as tool:
+                with self.assertRaises(ValueError): core.install('test',image,Path(tmp)/'backup',lambda s:None)
+                tool.assert_not_called()
+    def test_failed_backup_never_writes(self):
+        from unittest.mock import patch
+        import tempfile
+        from pathlib import Path
+        v={'mcu':'v0.13.4-art31','fpga':'18.38','chromatic':'1.0.1-art31 (4.2)'}
+        calls=[]
+        def fake(port,args):
+            calls.append(args)
+            if args[0]=='read_flash': Path(args[-1]).write_bytes(b'partial')
+        with tempfile.TemporaryDirectory() as tmp:
+            image=Path(tmp)/'image'; image.write_bytes(b'test')
+            with patch.object(core,'validate_image'),patch.object(core,'version',return_value=v),patch.object(core,'run_tool',side_effect=fake):
+                with self.assertRaises(ValueError): core.install('test',image,Path(tmp)/'backup',lambda s:None)
+                self.assertEqual(len(calls),1)
+                self.assertEqual(calls[0][0],'read_flash')
