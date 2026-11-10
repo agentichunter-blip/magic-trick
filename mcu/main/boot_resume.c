@@ -1,3 +1,7 @@
+#include "nvs.h"
+#include "core_switch.h"
+#include <string.h>
+#include <strings.h>
 #include "boot_resume.h"
 #include "last_game.h"
 #include "button.h"
@@ -9,6 +13,8 @@
 #include "pc_backup.h"
 #include "pwrmgr.h"
 #include "virtual_cart.h"
+#include "intro_video.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdio.h>
@@ -160,15 +166,101 @@ static void OpenMenu(void)
     }
 }
 
+/* Bit 9 (kButtonBits_MenuEn) reports the menu-closed state; bit 8
+ * (kButtonBits_MenuEnAlt) is the physical Menu button, also used to pulse. */
+static bool WaitMenu(bool Visible)
+{
+    for (unsigned Poll=0; Poll<20; ++Poll)
+    {
+        uint16_t Held;
+        if (FreshButtons(&Held) &&
+            (Visible ? !(Held & (kButtonBits_MenuEn | kButtonBits_MenuEnAlt))
+                     : (Held & kButtonBits_MenuEn) != 0)) return true;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    return false;
+}
+
+bool BootResume_PlayIntro(const BootResumeCartridge_t *Cartridge,
+                          uint16_t *Frame, void (*Present)(void))
+{
+    IntroVideo_t Video;
+    (void)Cartridge; /* plays with or without a cartridge; the menu overlay pauses it */
+    if (CoreSwitch_HasPending()) { printf("BOOT_INTRO skip=core_switch\n"); return false; }
+    if (PCBackup_IsEnabled()) { printf("BOOT_INTRO skip=pc_mode\n"); return false; }
+    if (!Frame || !Present || !IntroVideo_Open(&Video, IntroVideoData, IntroVideoSize)) { printf("BOOT_INTRO skip=data\n"); return false; }
+    uint16_t Held;
+    if (!FreshButtons(&Held)) { printf("BOOT_INTRO skip=buttons_unknown\n"); return false; }
+    if (Held & 0xffu) { printf("BOOT_INTRO skip=button_held\n"); return false; }
+    if (Held & kButtonBits_MenuEnAlt) { printf("BOOT_INTRO skip=button_held\n"); return false; }
+    /* The overlay may already be up at power-on; then leave it as found. */
+    const bool WasOpen = !(Held & kButtonBits_MenuEn);
+
+    PwrMgr_InhibitSleep();
+    /* Draw frame 0 before revealing the overlay so no stale pixels flash. */
+    if (!IntroVideo_Next(&Video, Frame)) { PwrMgr_AllowSleep(); return false; }
+    Present();
+    if (!WasOpen && (FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt) != ESP_OK || !WaitMenu(true))) {
+        printf("BOOT_INTRO skip=menu_unconfirmed\n");
+        if (WaitMenu(true)) { (void)FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt); (void)WaitMenu(false); }
+        PwrMgr_AllowSleep();
+        return false;
+    }
+    const int64_t Start = esp_timer_get_time();
+    const int64_t Period = 1000000 / Video.FPS;
+    unsigned Shown = 1;
+    bool Skipped = false;
+    while (IntroVideo_Next(&Video, Frame))
+    {
+        const int64_t Due = Start + (int64_t)Shown * Period;
+        const int64_t Now = esp_timer_get_time();
+        if (Due > Now) vTaskDelay(pdMS_TO_TICKS((Due - Now + 999) / 1000));
+        Present();
+        ++Shown;
+        if ((Shown % 4) == 0) (void)FPGA_Tx_RequestButtons();
+        (void)Button_GetSnapshot(&Held);
+        if ((Held & 0xffu) || PCBackup_IsEnabled()) { Skipped = true; break; }
+    }
+    if (!Skipped) vTaskDelay(pdMS_TO_TICKS(300)); /* rest on the final card */
+    const bool Restored = WasOpen ||
+        (FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt) == ESP_OK && WaitMenu(false));
+    Button_ResetAll();
+    printf("BOOT_INTRO played frames=%u/%u ms=%lld skipped=%d menu_was_open=%d restored=%d\n", Shown, Video.Frames,
+           (esp_timer_get_time() - Start) / 1000, Skipped, WasOpen, Restored);
+    PwrMgr_AllowSleep();
+    return true;
+}
+
 void BootResume_Run(const BootResumeCartridge_t *Cartridge)
 {
+    char Path[LAST_GAME_PATH_SIZE];
+    const esp_err_t PendingResult = CoreSwitch_TakePending(Path);
     if (Interrupted()) return;
     PwrMgr_InhibitSleep();
+    if (PendingResult == ESP_OK) {
+        const char *Extension = strrchr(Path, '.');
+        const bool GameGear = Extension && !strcasecmp(Extension, ".gg");
+        if (!CoreSwitch_IsTarget(GameGear)) {
+            printf("CORE_SWITCH resume=wrong_core; pending consumed\n");
+            goto Fallback;
+        }
+        /* Explicit selection outranks cartridge auto-resume. The pending record
+         * is already durably removed: a failed load cannot cause a reboot loop. */
+        printf("CORE_SWITCH resume=%s\n", Path);
+        const esp_err_t StartResult = VirtualCart_Start(Path);
+        if (StartResult != ESP_OK) goto Fallback;
+        while (VirtualCart_IsBusy()) vTaskDelay(pdMS_TO_TICKS(50));
+        if (!VirtualCart_IsActive()) goto Fallback;
+        goto Done;
+    }
+    if (PendingResult != ESP_ERR_NVS_NOT_FOUND) {
+        printf("CORE_SWITCH pending_error=%s\n", esp_err_to_name(PendingResult));
+        goto Fallback;
+    }
     bool Present = Cartridge ? Cartridge->Present : true;
     esp_err_t Result = Cartridge ? Cartridge->Result : ESP_ERR_INVALID_STATE;
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=cartridge_unknown\n"); goto Fallback; }
     if (Present) { printf("BOOT_RESUME skip=cartridge\n"); goto Done; }
-    char Path[LAST_GAME_PATH_SIZE];
     Result = LastGame_Read(Path);
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=no_last_game\n"); goto Fallback; }
 

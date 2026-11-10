@@ -1,4 +1,5 @@
 #include "pc_backup_mode.h"
+#include "wifi_files_ui.h"
 
 #include "esp_log.h"
 #include "lvgl.h"
@@ -46,6 +47,19 @@ OSD_Result_t PCBackupMode_Draw(void *pArg)
         lv_obj_set_align(Context.pState, LV_ALIGN_TOP_LEFT);
     }
 
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if(WifiFilesUI_IsBusy())
+    {
+        lv_obj_add_flag(Context.pToggle,LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_pos(Context.pState,77,44);lv_obj_set_width(Context.pState,65);
+        lv_obj_set_style_text_color(Context.pState,lv_color_white(),0);
+        lv_label_set_text_static(Context.pState,"TURN OFF WI-FI\nTO USE\nUSB TRANSFERS");
+        return kOSD_Result_Ok;
+    }
+    lv_obj_clear_flag(Context.pToggle,LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_width(Context.pState,LV_SIZE_CONTENT);
+    lv_obj_set_style_text_color(Context.pState,lv_color_black(),0);
+#endif
     const bool Enabled = Context.State == kPCBackupModeState_On;
     lv_img_set_src(Context.pToggle,
                    Enabled ? &img_toggle_on : &img_toggle_off);
@@ -92,6 +106,9 @@ OSD_Result_t PCBackupMode_OnButton(Button_t Button, ButtonState_t State,
                                    void *pArg)
 {
     (void)pArg;
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if(WifiFilesUI_IsBusy())return kOSD_Result_Ok;
+#endif
     if ((Button == kButton_A || Button == kButton_B) &&
         State == kButtonState_Pressed)
     {

@@ -152,9 +152,18 @@ static esp_err_t CartLink_TransactionRequest(
 
     const CartLinkOperation_t Operation =
         (CartLinkOperation_t)RequestTemplate[0];
+    /* Router association can delay the management UART task beyond 50 ms.
+     * Only maintenance control gets extra time; data-transfer deadlines stay
+     * unchanged. Keep this bounded below the FPGA maintenance watchdog. */
+    unsigned ControlTimeout_ms = kResponseTimeout_ms;
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if (Operation == kCartLinkOp_Ping || Operation == kCartLinkOp_Enter ||
+        Operation == kCartLinkOp_Exit)
+        ControlTimeout_ms = 500;
+#endif
     const unsigned Timeout_ms = Operation == kCartLinkOp_ReadRange &&
         (RequestTemplate[4] == 0x82 || RequestTemplate[4] == 0x83 || RequestTemplate[4] == 0x85)
-            ? 5000 : kResponseTimeout_ms;
+            ? 5000 : ControlTimeout_ms;
     const uint8_t Tag = NextTag++;
     uint8_t Request[8];
     memcpy(Request, RequestTemplate, sizeof(Request));
@@ -202,6 +211,11 @@ static esp_err_t CartLink_TransactionRequest(
             }
             if (pResponse->Tag == Tag && pResponse->Operation == Operation)
             {
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+                const unsigned Elapsed_ms = (xTaskGetTickCount() - Start) * portTICK_PERIOD_MS;
+                if (ControlTimeout_ms > kResponseTimeout_ms && Elapsed_ms >= kResponseTimeout_ms)
+                    printf("CARTLINK_DELAYED_REPLY op=%u elapsed_ms=%u\n", Operation, Elapsed_ms);
+#endif
                 Matched = true;
                 break;
             }

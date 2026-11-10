@@ -10,6 +10,7 @@ uint32_t Cheats_CRC32(uint32_t CRC,const void *Data,size_t Size) {
 }
 void Cheats_Free(CheatPlan_t *Plan) { free(Plan->Patches); *Plan=(CheatPlan_t){0}; }
 esp_err_t Cheats_Apply(const CheatPlan_t *Plan,uint32_t Offset,uint8_t *Data,size_t Size) {
+    if(Plan->GameGear) return ESP_ERR_NOT_SUPPORTED;
     /* Check all originals before writing: a bad block is never half-patched. */
     for(size_t I=0;I<Plan->Count;++I) { const CheatPatch_t *P=&Plan->Patches[I]; if(P->Offset>=Offset && P->Offset-Offset<Size && Data[P->Offset-Offset]!=P->Original) return ESP_ERR_INVALID_CRC; }
     for(size_t I=0;I<Plan->Count;++I) { const CheatPatch_t *P=&Plan->Patches[I]; if(P->Offset>=Offset && P->Offset-Offset<Size) Data[P->Offset-Offset]=P->Value; }

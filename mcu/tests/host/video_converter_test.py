@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory() as d:
  assert p.match(Path('Tetris (World) (Rev 1).gb'),[Path('Tetris (World).mp4')])[1]=='same-title variant'
  assert p.match(Path('Tetris (World) (Hack).gb'),[Path('Tetris (World).mp4')])[0] is None
  assert p.match(Path('Pokemon - Crystal Version (USA).gbc'),[Path('Pokemon - Crystal Version (USA, Europe).mp4'),Path('Pokemon - Crystal Version (USA, Europe) (Rev A).mp4')])[1]=='same-title region base revision'
+ assert p.match(Path('Sonic (USA).gg'),[Path('Sonic (USA).mp4')])[0] == Path('Sonic (USA).mp4')
  assert p.match(Path('Different.gb'),[Path('Tetris.mp4')])[0] is None
  cli=Path(__file__).resolve().parents[2]/'tools/convert_media.py'
  cli_art=d/'nested/cli.cma';cli_video=d/'nested/cli.cmv'

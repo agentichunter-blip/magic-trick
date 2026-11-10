@@ -1,3 +1,5 @@
+#include "native_state_control.h"
+#include "wifi_files.h"
 #include <stdio.h>
 
 #include "driver/gpio.h"
@@ -168,6 +170,14 @@ static void send_lines(spi_device_handle_t spi, int ypos, uint16_t *linedata)
     //mostly using DMA, so the CPU doesn't have much to do here. We're not going to wait for the transaction to
     //finish because we may as well spend the time calculating the next line. When that is done, we can call
     //send_line_finish, which will wait for the transfers to be done and check their status.
+}
+
+/* Boot intro: send buffy (the OSD frame) and wait until the DMA finishes,
+ * so the next decoded frame can safely overwrite it. */
+static void intro_present(void)
+{
+    send_lines(spi, 0, NULL);
+    if (CartBulk_DisplayTransferBegin()) CartBulk_DisplayTransferEnd();
 }
 
 static void register_update_callbacks(void)
@@ -371,9 +381,15 @@ void app_main(void)
 
     OSD_Initialize();
     OSD_Default_Init(scr);
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    WifiFiles_Init();
+#endif
     register_update_callbacks();
 
     Gfx_Start(scr);
+
+    /* Before the LVGL task starts drawing into buffy. */
+    const bool IntroPlayed = BootResume_PlayIntro(&BootCartridge, (uint16_t *)buffy, intro_present);
 
     xTaskCreatePinnedToCore(lvglTimerTask, "lvgl Timer", kTimerTask_StackDepth, NULL, 4, NULL, 1);
 
@@ -393,12 +409,13 @@ void app_main(void)
     ESP_ERROR_CHECK(CartBulk_RegisterConsoleCommand());
     ESP_ERROR_CHECK(CartBackup_RegisterConsoleCommand());
     ESP_ERROR_CHECK(VirtualCart_RegisterConsoleCommands());
+    ESP_ERROR_CHECK(NativeStateControl_Init());
     ESP_ERROR_CHECK(PCBackup_RegisterConsoleCommand());
     // All commands must be registered prior to starting the REPL
     ESP_ERROR_CHECK(esp_console_start_repl(pRepl));
     PCBackup_ConsoleReady();
 
-    vTaskDelay( pdMS_TO_TICKS(2000) );
+    if (!IntroPlayed) vTaskDelay( pdMS_TO_TICKS(2000) ); /* the intro already covered it */
     xTaskCreate(PwrMgr_Task, "pwr_mgr_task", kSleepTask_StackDepth, NULL, kSleepTask_Priority, NULL);
     BootResume_Run(&BootCartridge);
 }

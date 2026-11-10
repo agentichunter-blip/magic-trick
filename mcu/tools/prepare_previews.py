@@ -102,7 +102,7 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--jobs',type=int,default=4)
     args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
-    videos={s:sorted((args.videos/s).rglob('*.mp4')) for s in ['GB','GBC']}
+    videos={s:sorted((args.videos/s).rglob('*.mp4')) for s in ['GB','GBC','GG']}
     converted={};errors=[];done=0
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         jobs={pool.submit(convert_video,p,args.output/'converted'/s/(p.stem+'.cmv')):(s,p) for s,paths in videos.items() for p in paths}
@@ -115,7 +115,7 @@ def main():
     manifest={row['sd_rom']:row for row in csv.DictReader((args.library/'reports/library-manifest.csv').open())}
     report=[]
     for rom in sorted((args.library/'CHROMAGIC/BACKUPS').rglob('*')):
-        if not rom.is_file() or rom.suffix.lower() not in ('.gb','.gbc') or rom.name.startswith('._'):continue
+        if not rom.is_file() or rom.suffix.lower() not in ('.gb','.gbc','.gg') or rom.name.startswith('._'):continue
         rel=rom.relative_to(args.library/'CHROMAGIC/BACKUPS');system=rel.parts[0]
         video,reason=match(rom,videos.get(system,[]));entry={'rom':str(rel),'video_match':reason}
         if video and str(video) in converted:

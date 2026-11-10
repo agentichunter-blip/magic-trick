@@ -19,6 +19,8 @@ idf_component_register(SRCS
                         "system/player_num.c"
                         "system/cart_backup_ui.c"
                         "system/pc_backup_mode.c"
+                        "system/wifi_files_ui.c"
+                        "system/native_state_ui.c"
                         "system/rom_browser_ui.c"
                         "system/rom_browser_scroll.c"
                         "system/banner_font.c"

@@ -40,6 +40,8 @@ typedef enum ButtonBits {
 typedef void (*fnOnButtonPokeCb_t)(void);
 
 void Button_Update(const uint16_t NewButtons);
+/* Preserve physical levels while suppressing shortcut-consumed menu events. */
+void Button_UpdateRouted(uint16_t RawButtons, uint16_t RoutedButtons);
 ButtonState_t Button_GetState(const Button_t b);
 const char* Button_GetNameStr(const Button_t b);
 const char* Button_GetStateStr(const ButtonState_t s);

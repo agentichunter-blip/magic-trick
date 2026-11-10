@@ -4,6 +4,21 @@
 #include "../../main/virtual_cart.c"
 
 static bool Mounted, Bulk, Started;
+static bool GGCore, GGNoFrame, GGReset, GGShortReply;
+static unsigned Writes, Prepares, Starts, GGFailWrite;
+static FILE *ExpectedRom;
+static uint32_t ExpectedRomSize;
+
+static bool SwitchCapable;
+static unsigned Switches;
+bool CoreSwitch_IsSupported(void) { return SwitchCapable; }
+bool CoreSwitch_IsTarget(bool GG) { return SwitchCapable && GG==GGCore; }
+esp_err_t CoreSwitch_Request(const char *Path) {
+ assert(Path && !Mounted && !Bulk && !Active && !Started);++Switches;return ESP_ERR_TIMEOUT;
+}
+esp_err_t GGCheats_Install(const CheatPlan_t *Plan) {
+ assert(Plan && Bulk && Mounted && !Started && !Active);return ESP_OK;
+}
 static bool UseCheats, FailCheats, SawPatch;
 esp_err_t Cheats_Prepare(const char *Path,FILE *Rom,CheatPlan_t *Plan) {
     assert(Path && Rom && Mounted && !Bulk); *Plan=(CheatPlan_t){0};
@@ -26,15 +41,34 @@ esp_err_t SDCard_Mount(sdmmc_card_t **Out) { assert(!Mounted); Mounted=true; *Ou
 esp_err_t SDCard_Unmount(sdmmc_card_t *Value) { assert(Mounted && Value==&Card); Mounted=false; return UnmountResult; }
 esp_err_t CartBulk_Begin(void) { assert(Mounted && !Bulk); Bulk=true; return ESP_OK; }
 void CartBulk_End(void) { assert(Bulk); Bulk=false; }
-esp_err_t CartBulk_WritePSRAMBlock(uint32_t Address, const uint8_t *Data) { assert(Bulk); if(Address==kRomBase) { assert(Data[0x200]==(UseCheats?42:0)); SawPatch=UseCheats; } return ESP_OK; }
+esp_err_t CartBulk_WritePSRAMBlock(uint32_t Address, const uint8_t *Data) {
+ assert(Bulk);
+ if(GGCore) {
+  assert(Address==kRomBase+Writes*kCartBulkBlockSize && Address+kCartBulkBlockSize<=kSaveBase);
+  uint8_t expected[kCartBulkBlockSize];
+  assert(ExpectedRom && !fseek(ExpectedRom,(Address-kRomBase)%ExpectedRomSize,SEEK_SET));
+  assert(fread(expected,1,sizeof(expected),ExpectedRom)==sizeof(expected));
+  assert(!memcmp(expected,Data,sizeof(expected)));
+  ++Writes;
+  return GGFailWrite && Writes==GGFailWrite ? ESP_FAIL : ESP_OK;
+ }
+ ++Writes; if(Address==kRomBase) { assert(Data[0x200]==(UseCheats?42:0)); SawPatch=UseCheats; } return ESP_OK; }
 esp_err_t CartBulk_ReadVirtualBlock(uint16_t Sequence, uint8_t *Data) { (void)Sequence; (void)Data; assert(false); return ESP_FAIL; }
 esp_err_t CartLink_VirtualCommand(uint8_t Command, uint16_t Config, uint8_t High, CartLinkResponse_t *Out) {
     (void)Config; (void)High;
+    if(Command==kVirtualCommandPrepare) ++Prepares;
+    if(Command==kVirtualCommandStart) ++Starts;
     if(Command==kVirtualCommandPrepare || Command==kVirtualCommandStop) Started=false;
     if(Command==kVirtualCommandStart) Started=true;
     memset(Out,0,sizeof(*Out)); Out->Count=4;
     Out->Data[0]=Started ? 0xff : kVirtualStatusDisableSeen|kVirtualStatusResetAsserted;
     Out->Data[1]=Started ? kVirtualStatusPostExitFrame>>8 : 0;
+    if(GGCore) {
+        Out->Data[3]=0x47;Out->Data[2]=1;
+        Out->Data[0]=Started ? 0x3b : 0x18;
+        Out->Data[1]=Started ? (GGReset ? 0x20 : GGNoFrame ? 0 : 0x40) : 0;
+        if(GGShortReply) Out->Count=3;
+    }
     return ESP_OK;
 }
 void RomBrowserUI_SetProgress(uint32_t Value, uint32_t Total) { assert(Value<=Total); }
@@ -64,6 +98,12 @@ int main(void) {
     SetActive(false); ClearActiveSave();
     FailCheats=false; RecentError=ESP_FAIL; unsigned OldCompleted=Completed;
     assert(RunLoad(Path)==ESP_OK && Active && Completed==OldCompleted+1); /* history failure must not fail a game */
+    SetActive(false);ClearActiveSave();GGCore=true;SwitchCapable=true;
+    unsigned BeforeWrites=Writes,BeforePrepares=Prepares;
+    assert(RunLoad(Path)==ESP_ERR_TIMEOUT && Switches==1 && Writes==BeforeWrites && Prepares==BeforePrepares);
+    UnmountResult=ESP_FAIL;
+    assert(RunLoad(Path)==ESP_FAIL && Switches==1 && !Mounted && !Bulk);
     assert(!unlink(Path));
     puts("PASS: load success follows SD cleanup; cleanup errors retain the menu and stop the failed launch");
+    return 0;
 }

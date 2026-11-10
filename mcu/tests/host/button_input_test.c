@@ -8,7 +8,8 @@ int main(void) {
     Button_ResetAll();
     for(unsigned I=0;I<kNumButtons;++I) {
         Button_Update(0); Button_Update(1u<<I);
-        assert(Button_GetState((Button_t)I)==kButtonState_Pressed);
+        /* Menu telemetry flags are levels, not menu navigation events. */
+        assert(Button_GetState((Button_t)I)==(I<8?kButtonState_Pressed:kButtonState_None));
         assert(Button_GetState((Button_t)I)==kButtonState_None);
         Button_Update(1u<<I); assert(Button_GetState((Button_t)I)==kButtonState_None);
         uint16_t Held; Button_GetSnapshot(&Held); assert(Held==(1u<<I));

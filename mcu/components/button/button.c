@@ -55,7 +55,13 @@ static int poke_button_command(int argc, char **argv);
 
 void Button_Update(uint16_t NewButtons)
 {
+    Button_UpdateRouted(NewButtons, NewButtons);
+}
+
+void Button_UpdateRouted(uint16_t NewButtons, uint16_t RoutedButtons)
+{
     NewButtons = NewButtons & kButtonBitsMask;
+    RoutedButtons &= NewButtons;
 
     if (Mutex_Take(kMutexKey_Buttons) == kMutexResult_Ok)
     {
@@ -65,9 +71,17 @@ void Button_Update(uint16_t NewButtons)
 
             // Determine the button state based on previous and current state
             const uint16_t PrevState = _PrevButtons & mask;
-            const uint16_t CurrState = NewButtons & mask;
+            const uint16_t CurrState = RoutedButtons & mask;
 
-            if (!PrevState && CurrState)
+            /* Background shortcut/startup polling also reports gameplay keys.
+             * Keep levels for startup telemetry, but never queue hidden-menu
+             * actions (or replay an older queued action when it reopens). */
+            if ((NewButtons & (kButtonBits_MenuEn | kButtonBits_MenuEnAlt)) ||
+                ((NewButtons & mask) && !CurrState))
+            {
+                _Ctx[b].State = kButtonState_None;
+            }
+            else if (!PrevState && CurrState)
             {
                 // Button was not pressed, now pressed
                 _Ctx[b].State = kButtonState_Pressed;

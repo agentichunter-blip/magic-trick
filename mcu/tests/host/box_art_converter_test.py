@@ -49,6 +49,15 @@ class CoverTests(unittest.TestCase):
         self.assertNotEqual((art/'Game.gb.cma').read_bytes(),(art/'JP/Game.gb.cma').read_bytes())
         report=converter.library(roms,images,art,{'Missing.gb':'Game.gbc.png'})
         self.assertTrue(all(r['status']=='converted' for r in report))
+    def test_game_gear_nested_identity(self):
+        roms=self.root/'roms'; images=self.root/'images'; art=self.root/'art'
+        (roms/'GG/S-Z').mkdir(parents=True)
+        (roms/'GG/S-Z/Sonic.GG').touch()
+        self.cover('images/GG/S-Z/Sonic.GG.png')
+        report=converter.library(roms,images,art,{})
+        self.assertEqual(len(report),1)
+        self.assertEqual(report[0]['status'],'converted')
+        self.assertTrue((art/'GG/S-Z/Sonic.GG.cma').is_file())
     def test_ambiguous_and_invalid(self):
         roms=self.root/'roms'; images=self.root/'images'; art=self.root/'art'
         roms.mkdir(); images.mkdir(); (roms/'Game.gb').touch()

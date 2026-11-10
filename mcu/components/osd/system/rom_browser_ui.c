@@ -6,6 +6,7 @@
 LV_FONT_DECLARE(chromatic_banner);
 LV_FONT_DECLARE(chromatic_progress);
 #include "pc_backup_mode.h"
+#include "wifi_files_ui.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "lvgl.h"
@@ -28,7 +29,7 @@ typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked, 
 typedef struct {
     lv_obj_t *Rows[kVisibleRows], *Selection, *Status, *Hint, *Position, *List;
     lv_obj_t *Cover, *Image, *Placeholder, *Headline, *Title;
-    lv_obj_t *Systems, *SystemTiles[2], *SystemNames[2], *Arrows[kVisibleRows];
+    lv_obj_t *Systems, *SystemTiles[3], *SystemNames[3], *Arrows[kVisibleRows];
     lv_obj_t *Loading, *LoadingText, *Percent, *ProgressBar;
     lv_obj_t *Badge, *BadgeLamp, *HeaderLamp;
     CheatBadge_t BadgeState;
@@ -61,18 +62,20 @@ static unsigned Held(void) {
 }
 static bool AtRoot(void) { return !C.Source.AtRoot || C.Source.AtRoot(); }
 static bool Directory(size_t Index) { return C.Source.IsDirectory && C.Source.IsDirectory(Index); }
-static bool SystemPicker(size_t Indices[2]) {
-    if (C.State != kSelecting || C.Count != 2 || !AtRoot() || !C.Source.FolderPlatform) return false;
-    bool Found[2] = {false,false};
-    for (size_t I=0; I<2; ++I) {
+static bool SystemPicker(size_t Indices[3]) {
+    if (C.State != kSelecting || C.Count < 2 || C.Count > 3 || !AtRoot() || !C.Source.FolderPlatform) return false;
+    bool Found[3] = {false,false,false};
+    for (size_t I=0; I<C.Count; ++I) {
         const RomPlatform_t Platform = Directory(I) ? C.Source.FolderPlatform(I) : kRomPlatformUnknown;
-        if (Platform != kRomPlatformGB && Platform != kRomPlatformGBC) return false;
-        const unsigned Slot = Platform == kRomPlatformGBC;
-        if (Found[Slot]) return false;
+        if (Platform < kRomPlatformGB || Platform > kRomPlatformGG) return false;
+        const unsigned Slot = Platform - kRomPlatformGB;
+        if (Found[Slot] || Slot >= C.Count) return false;
         Found[Slot]=true; Indices[Slot]=I;
     }
     return true;
 }
+bool RomBrowserUI_HasPickerFocus(void)
+{ size_t Systems[3];return C.SystemFocus && SystemPicker(Systems); }
 static void Hide(lv_obj_t *Object, bool Hidden) {
     if (Hidden) lv_obj_add_flag(Object, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_clear_flag(Object, LV_OBJ_FLAG_HIDDEN);
@@ -305,19 +308,22 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
     lv_obj_clear_flag(C.Systems,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(C.Systems,lv_color_black(),0);
     lv_obj_set_style_bg_opa(C.Systems,LV_OPA_COVER,0);
-    for (unsigned I=0;I<2;++I) {
+    for (unsigned I=0;I<3;++I) {
         C.SystemTiles[I]=lv_obj_create(C.Systems); lv_obj_remove_style_all(C.SystemTiles[I]);
-        lv_obj_set_pos(C.SystemTiles[I],I*64,4); lv_obj_set_size(C.SystemTiles[I],64,72);
+        lv_obj_set_pos(C.SystemTiles[I],0,I*26); lv_obj_set_size(C.SystemTiles[I],128,24);
         lv_obj_clear_flag(C.SystemTiles[I],LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_opa(C.SystemTiles[I],LV_OPA_COVER,0);
         lv_obj_set_style_border_width(C.SystemTiles[I],2,0);
-        /* Plain-text system names (no third-party logos). */
-        C.SystemNames[I]=Label(C.SystemTiles[I],0,I?18:24,60);
+        lv_obj_set_style_border_post(C.SystemTiles[I],true,0);
+        /* Plain-text system names (no third-party logos) inside the 2 px
+         * border, which shows the selection in the accent colour. */
+        static const char *const Names[3]={"GAME BOY","GAME BOY COLOR","GAME GEAR"};
+        C.SystemNames[I]=Label(C.SystemTiles[I],0,6,124);
         lv_obj_set_style_text_font(C.SystemNames[I],&chromatic_banner,0);
         lv_obj_set_style_text_letter_space(C.SystemNames[I],-1,0);
-        lv_obj_set_style_text_line_space(C.SystemNames[I],4,0);
+        lv_label_set_long_mode(C.SystemNames[I],LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_align(C.SystemNames[I],LV_TEXT_ALIGN_CENTER,0);
-        lv_label_set_text_static(C.SystemNames[I],I?"GAME\nBOY\nCOLOR":"GAME\nBOY");
+        lv_label_set_text_static(C.SystemNames[I],Names[I]);
     }
     Hide(C.Systems,true);
     C.Loading = lv_obj_create(Screen); lv_obj_remove_style_all(C.Loading);
@@ -344,7 +350,7 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
     C.RenderValid = false;
 }
 static void TickSelection(uint64_t Time) {
-    size_t Systems[2];
+    size_t Systems[3];
     if (SystemPicker(Systems)) {
         if (C.SystemPending) {
             const size_t Selected=C.PendingSystem; C.SystemPending=false;
@@ -450,10 +456,17 @@ static void TickSelection(uint64_t Time) {
     if (Fast != C.Fast || Marquee != C.Marquee) C.RenderValid = false;
     C.Fast = Fast; C.Marquee = Marquee;
 }
+static bool FilesBusy(void)
+{
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if(WifiFilesUI_IsBusy())return true;
+#endif
+    return PCBackupMode_GetState()==kPCBackupModeState_On;
+}
 OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     if (!Arg || !((Tab_DrawCtx_t *)Arg)->pScreen) return kOSD_Result_Err_NullDataPtr;
     const Tab_DrawCtx_t *Draw = Arg;
-    const bool Blocked = PCBackupMode_GetState() == kPCBackupModeState_On;
+    const bool Blocked = FilesBusy();
     if (Blocked && !C.RenderedBlocked) {
         ResetScroll(); ForgetArt();
         if (C.Async.Cancel) C.Async.Cancel();
@@ -531,7 +544,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     for(unsigned I=0;I<kVisibleRows;++I) { lv_obj_set_width(C.Arrows[I],8); lv_label_set_text_static(C.Arrows[I],">"); }
     const bool Selecting = State == kSelecting;
     const bool Game = Selecting && !Directory(C.Selected);
-    size_t Systems[2];
+    size_t Systems[3];
     const bool Picker = Selecting && SystemPicker(Systems);
     const bool Folders = Selecting && !Game && !Picker;
     const bool Loading = State == kLoading;
@@ -546,10 +559,10 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
         lv_obj_set_style_text_letter_space(C.Title,Folders?-1:0,0);
         char Title[256];
         if (Game) DisplayName(C.Selected,Title);
-        else if (Picker) strcpy(Title,"SYSTEMS");
+        else if (Picker) strcpy(Title,"GAMES");
         else if (Folders) {
             const RomPlatform_t Platform=C.Source.FolderPlatform ? C.Source.FolderPlatform(C.Selected) : kRomPlatformUnknown;
-            strcpy(Title,Platform==kRomPlatformGB?"GAME BOY":Platform==kRomPlatformGBC?"GAME BOY COLOR":"FOLDERS");
+            strcpy(Title,Platform==kRomPlatformGB?"GAME BOY":Platform==kRomPlatformGBC?"GAME BOY COLOR":Platform==kRomPlatformGG?"GAME GEAR":"FOLDERS");
         } else snprintf(Title,sizeof(Title),"%s",C.CurrentName);
         /* Replacing identical text restarts LVGL's marquee every video frame. */
         const lv_label_long_mode_t Mode=GameHeading && (C.Marquee || !Game) ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_CLIP;
@@ -581,8 +594,9 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     lv_img_set_src(C.BadgeLamp,C.BadgeState.Enabled?&GenieLampFilled:&GenieLampOutline);
     if (Selecting) {
         if (Picker) {
-            for(unsigned I=0;I<2;++I) {
-                const bool Active=C.SystemFocus && C.Selected==Systems[I];
+            for(unsigned I=0;I<3;++I) {
+                Hide(C.SystemTiles[I],I>=C.Count);
+                const bool Active=I<C.Count &&C.SystemFocus && C.Selected==Systems[I];
                 lv_obj_set_style_border_color(C.SystemTiles[I],Active?Draw->AccentColor:lv_color_hex(0x444444),0);
                 lv_obj_set_style_bg_color(C.SystemTiles[I],Active?Draw->AccentColor:lv_color_hex(0x202020),0);
                 lv_obj_set_style_text_color(C.SystemNames[I],Active?lv_color_black():lv_color_white(),0);
@@ -616,7 +630,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
         Hide(C.Placeholder, Overlay || C.Fast || C.ArtValid ||
             (!Directory(C.Selected) && !C.ArtResolved));
         lv_label_set_text_static(C.Placeholder, Directory(C.Selected) ? "FOLDER" : "NO COVER");
-        lv_label_set_text_static(C.Hint,Game ? "A:PREVIEW B:BACK" : Picker ? (C.SystemFocus?"<>:PICK A:OPEN B:TABS":"<>:TABS A:CHOOSE") : AtRoot()?"A:OPEN":"A:OPEN B:BACK");
+        lv_label_set_text_static(C.Hint,Game ? "A:PREVIEW B:BACK" : Picker ? (C.SystemFocus?"UP/DN:CHOOSE A:OPEN":"<>:TABS A:CHOOSE") : AtRoot()?"A:OPEN":"A:OPEN B:BACK");
         lv_label_set_text_fmt(C.Position, "%u/%u", (unsigned)C.Selected + 1, (unsigned)C.Count);
     } else {
         for (size_t I = 0; I < kVisibleRows; ++I) Hide(C.Rows[I], true);
@@ -625,14 +639,20 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
             AtRoot() ? "A: REFRESH" : "A: REFRESH B: UP");
         switch (State) {
             case kCatalog: lv_label_set_text_static(C.Status, "READING LIBRARY..."); break;
-            case kEmpty: lv_label_set_text_static(C.Status, AtRoot() ? "NO BACKUPS\nON SD CARD" : "EMPTY FOLDER"); break;
+            case kEmpty: lv_label_set_text_static(C.Status, AtRoot() ? "NO GAMES\nON SD CARD" : "EMPTY FOLDER"); break;
             case kLoading:
                 lv_label_set_text_static(C.LoadingText, Progress == 100 ? "STARTING GAME" : "LOADING GAME");
                 lv_label_set_text_fmt(C.Percent, "%u%%", (unsigned)Progress);
                 lv_bar_set_value(C.ProgressBar, Progress, LV_ANIM_OFF);
                 break;
             case kError: lv_label_set_text(C.Status, Error); break;
-            case kBlocked: lv_label_set_text_static(C.Status, "DISABLE C. MAGICIAN\nIN SYSTEM SETTINGS"); break;
+            case kBlocked:
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+                if(WifiFilesUI_IsBusy())lv_label_set_text_static(C.Status,"WI-FI ACTIVE\nTURN WI-FI OFF TO PLAY");
+                else
+#endif
+                lv_label_set_text_static(C.Status,"DISABLE USB TRANSFERS\nIN SYSTEM SETTINGS");
+                break;
             default: break;
         }
     }
@@ -640,17 +660,21 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
 }
 bool RomBrowserUI_HandleHorizontal(Button_t Button, ButtonState_t State) {
     if(C.State==kCheats || C.State==kCheatBusy) return true;
-    size_t Systems[2];
-    if (!C.SystemFocus || !SystemPicker(Systems) || PCBackupMode_GetState()==kPCBackupModeState_On) return false;
+    size_t Systems[3];
+    if (!C.SystemFocus || !SystemPicker(Systems) || FilesBusy()) return false;
     if (Button!=kButton_Left && Button!=kButton_Right) return false;
     if (State==kButtonState_Pressed) {
-        C.PendingSystem=Systems[Button==kButton_Right]; C.SystemPending=true;
+        size_t Slot=0;
+        while (Slot+1<C.Count && Systems[Slot]!=C.Selected) ++Slot;
+        if (Button==kButton_Right && Slot+1<C.Count) ++Slot;
+        if (Button==kButton_Left && Slot) --Slot;
+        C.PendingSystem=Systems[Slot]; C.SystemPending=true;
     }
     return true;
 }
 OSD_Result_t RomBrowserUI_OnButton(Button_t Button, ButtonState_t State, void *Arg) {
     (void)Arg;
-    if (State != kButtonState_Pressed || PCBackupMode_GetState() == kPCBackupModeState_On) return kOSD_Result_Ok;
+    if (State != kButtonState_Pressed || FilesBusy()) return kOSD_Result_Ok;
     if(C.State==kCheatBusy) return kOSD_Result_Ok;
     if(C.State==kCheats) {
         if(Button==kButton_B) {
@@ -666,12 +690,24 @@ OSD_Result_t RomBrowserUI_OnButton(Button_t Button, ButtonState_t State, void *A
     if(C.State==kSelecting && Button==kButton_Select && !C.ListPinned && C.Count && !Directory(C.Selected) && C.Source.Cheats) {
         BeginCheats(kRomActionCheatsOpen,C.Selected); return kOSD_Result_Ok;
     }
-    size_t Systems[2];
+    size_t Systems[3];
     if (SystemPicker(Systems)) {
-        if (Button==kButton_B || Button==kButton_Up) {
+        if (C.SystemFocus && (Button==kButton_Up || Button==kButton_Down)) {
+            size_t Slot=0;
+            while (Slot+1<C.Count && Systems[Slot]!=C.Selected) ++Slot;
+            if (Button==kButton_Up && Slot==0) {
+                ResetScroll(); C.SystemFocus=false; C.RenderValid=false;
+                return kOSD_Result_Ok;
+            }
+            if (Button==kButton_Up) --Slot;
+            else if (Slot+1<C.Count) ++Slot;
+            C.PendingSystem=Systems[Slot]; C.SystemPending=true;
+            return kOSD_Result_Ok;
+        }
+        if (Button==kButton_B) {
             ResetScroll(); C.SystemFocus=false; C.RenderValid=false; return kOSD_Result_Ok;
         }
-        if (Button==kButton_Down || (Button==kButton_A && !C.SystemFocus)) {
+        if (!C.SystemFocus && (Button==kButton_Down || Button==kButton_A)) {
             ResetScroll(); C.SystemFocus=true; C.RenderValid=false; return kOSD_Result_Ok;
         }
     }
@@ -722,7 +758,7 @@ OSD_Result_t RomBrowserUI_OnTransition(void *Arg) {
     }
     C.Image = C.Placeholder = C.Title = NULL;
     C.Badge = C.BadgeLamp = C.HeaderLamp = NULL;
-    for (unsigned I=0;I<2;++I) C.SystemTiles[I]=C.SystemNames[I]=NULL;
+    for (unsigned I=0;I<3;++I) C.SystemTiles[I]=C.SystemNames[I]=NULL;
     C.LoadingText = C.Percent = C.ProgressBar = NULL;
     C.Selection = NULL;
     for (size_t I = 0; I < kVisibleRows; ++I) C.Rows[I] = C.Arrows[I] = NULL;

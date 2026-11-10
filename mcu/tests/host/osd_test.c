@@ -1,3 +1,5 @@
+#include "wifi_files_ui.h"
+#include "tab_list/tab_list.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,18 +39,19 @@ static esp_err_t OpenResult, StartResult;
 static bool CompleteImmediately;
 static bool FolderFixture, SystemFixture, RecentFixture;
 static size_t SystemIndex;
+static bool ThreeSystems;
 static unsigned Depth;
 static PCBackupModeState_t PCMode;
 PCBackupModeState_t PCBackupMode_GetState(void) { return PCMode; }
 static unsigned BackupStarts;
 static esp_err_t BackupStart(void) { ++BackupStarts; return ESP_OK; }
 static char StartedName[80];
-static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : 2) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
+static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
 static const char *NameAt(size_t Index) {
     if (SystemFixture) {
         static const char *Ranges[]={"0-F","G-L","M-R","S-Z"};
         /* Reverse catalog order verifies that logo positions do not depend on sorting. */
-        return Depth ? (RecentFixture ? (Index ? Ranges[Index-1] : "Recent") : Ranges[Index]) : Index ? "GB" : "GBC";
+        return Depth ? (RecentFixture ? (Index ? Ranges[Index-1] : "Recent") : Ranges[Index]) : Index==2 ? "GG" : Index ? "GB" : "GBC";
     }
     if (FolderFixture) {
         assert(Depth < 2 && Index < 2);
@@ -59,7 +62,7 @@ static const char *NameAt(size_t Index) {
 }
 static bool IsDirectory(size_t Index) { return SystemFixture || (FolderFixture && Index == (Depth == 0 ? 1 : 0)); }
 static RomPlatform_t FixturePlatform;
-static RomPlatform_t FolderPlatform(size_t Index) { if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
+static RomPlatform_t FolderPlatform(size_t Index) { if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
 static bool AtRoot(void) { return Depth == 0; }
 static esp_err_t Enter(size_t Index, size_t *pCount) {
     assert(IsDirectory(Index)); if (SystemFixture && !Depth) SystemIndex=Index; ++Depth; return Open(pCount);
@@ -104,14 +107,15 @@ static lv_obj_t *OverlayList(lv_obj_t *Object) {
     }
     return NULL;
 }
-/* Locate a visible system choice by its plain-text name. */
+/* Locate a visible system choice by its native image, not a redundant label. */
 static lv_obj_t *SystemTile(lv_obj_t *Object, unsigned Slot) {
     lv_obj_update_layout(Object);
+    /* Picker rows show plain-text system names; identify a row by its label. */
+    static const char *const Names[3]={"GAME BOY","GAME BOY COLOR","GAME GEAR"};
     if (lv_obj_check_type(Object,&lv_label_class) && lv_obj_is_visible(Object) &&
-        !strcmp(lv_label_get_text(Object),Slot?"GAME\nBOY\nCOLOR":"GAME\nBOY")) {
-        lv_obj_t *Tile=lv_obj_get_parent(Object);
-        if (lv_obj_get_x(Tile)==(int)Slot*64) return Tile;
-    }
+        lv_obj_get_parent(Object) && lv_obj_get_width(lv_obj_get_parent(Object))==128 && lv_obj_get_height(lv_obj_get_parent(Object))==24 &&
+        !strcmp(lv_label_get_text(Object),Names[Slot]))
+        return lv_obj_get_parent(Object);
     for (unsigned I=0;I<lv_obj_get_child_cnt(Object);++I) {
         lv_obj_t *Found=SystemTile(lv_obj_get_child(Object,I),Slot);
         if (Found) return Found;
@@ -221,6 +225,23 @@ static void CheckRows(lv_obj_t *Screen) {
     unsigned Count = 0; CheckRowHeights(Screen, &Count); assert(Count == 0); /* ROM selections use the full panel. */
 }
 
+static WifiFilesStatus WifiStatus;
+static bool WifiEnabled;
+static unsigned SetupCalls;
+static WifiScanStatus WifiScan;
+static char JoinedSSID[33], JoinedPassword[65];
+static bool WifiScanStart(void) { ++SetupCalls; return true; }
+static void WifiScanSnapshot(WifiScanStatus *Out) { *Out=WifiScan; }
+static bool WifiJoin(const char *Name,const char *Password)
+{ snprintf(JoinedSSID,sizeof(JoinedSSID),"%s",Name); snprintf(JoinedPassword,sizeof(JoinedPassword),"%s",Password); return strlen(Password)>=8; }
+static void WifiToggle(bool Enabled) { WifiEnabled = Enabled; }
+static void WifiSnapshot(WifiFilesStatus *Out) { *Out = WifiStatus; }
+#include "native_state_ui.h"
+static NativeStateView StateView;
+static unsigned StateSaves, StateLoads;
+static void StateRead(NativeStateView *V) { *V=StateView; }
+static bool StateRequest(bool Load) { if(Load)StateLoads++;else StateSaves++;return true; }
+static void StateShortcuts(bool Enabled) { StateView.Shortcuts=Enabled; }
 int main(void) {
     lv_init(); OSD_Common_Init(); Firmware_Initialize();
     assert(Battery_Init(&BatteryWidget) == kOSD_Result_Ok);
@@ -239,12 +260,14 @@ int main(void) {
     RomBrowserUI_RegisterDataSource(&Source);
     OSD_Widget_t Menu = { .Name = "test" };
     assert(MenuMgr_Initialize(&Menu, Screen) == kOSD_Result_Ok);
+    MenuTab_t *SystemTab=NULL;
     for (int i = 0; i < kNumTabIDs; ++i) {
         MenuTab_t *pTab = calloc(1, sizeof(*pTab));
         const MenuTab_t Template = { .pImageDesc = &menu_system };
         memcpy(pTab, &Template, sizeof(*pTab));
         pTab->Accent = lv_color_hex(0xff3399);
         if (i == kTabID_System) {
+            SystemTab=pTab;
             pTab->Widget.fnDraw = FirmwarePage;
             pTab->Widget.fnOnTransition = Firmware_OnTransition;
             pTab->Widget.fnOnButton = Firmware_OnButton;
@@ -266,7 +289,7 @@ int main(void) {
     PCMode = kPCBackupModeState_On;
     assert(DrawScreen(&Menu, Screen) == kOSD_Result_Ok);
     assert(Opens == 0 && Starts == 0);
-    assert(Text(Screen, "DISABLE C. MAGICIAN\nIN SYSTEM SETTINGS"));
+    assert(Text(Screen, "DISABLE USB TRANSFERS\nIN SYSTEM SETTINGS"));
     Menu.fnOnButton(kButton_A, kButtonState_Pressed, NULL);
     assert(Opens == 0 && Starts == 0);
     PCMode = kPCBackupModeState_Off;
@@ -347,7 +370,7 @@ int main(void) {
     assert(Text(Screen, "COULD NOT LOAD\nESP_FAIL"));
     StartResult = ESP_OK; Count = 0;
     Menu.fnOnButton(kButton_A, kButtonState_Pressed, NULL); DrawScreen(&Menu, Screen);
-    assert(Text(Screen, "NO BACKUPS\nON SD CARD"));
+    assert(Text(Screen, "NO GAMES\nON SD CARD"));
     OpenResult = ESP_FAIL;
     Menu.fnOnButton(kButton_A, kButtonState_Pressed, NULL); DrawScreen(&Menu, Screen);
     assert(Text(Screen, "COULD NOT READ SD CARD"));
@@ -363,10 +386,10 @@ int main(void) {
     PCMode = kPCBackupModeState_On;
     const int PreviousStarts = Starts;
     DrawScreen(&Menu, Screen);
-    assert(Text(Screen, "DISABLE C. MAGICIAN\nIN SYSTEM SETTINGS"));
+    assert(Text(Screen, "DISABLE USB TRANSFERS\nIN SYSTEM SETTINGS"));
     Menu.fnOnButton(kButton_A, kButtonState_Pressed, NULL); DrawScreen(&Menu, Screen);
     assert(Starts == PreviousStarts);
-    assert(Text(Screen, "DISABLE C. MAGICIAN\nIN SYSTEM SETTINGS"));
+    assert(Text(Screen, "DISABLE USB TRANSFERS\nIN SYSTEM SETTINGS"));
     Snapshot("backups-disable-magician");
     PCMode = kPCBackupModeState_Off;
     DrawScreen(&Menu, Screen);
@@ -426,16 +449,28 @@ int main(void) {
     /* Two system logos own Left/Right only while the picker is focused. */
     FolderFixture=false; SystemFixture=true; HeldBits=0;
     DrawScreen(&Menu, Screen);
-    assert(Text(Screen,"SYSTEMS") && SystemTile(Screen,0) && SystemTile(Screen,1));
+    assert(Text(Screen,"GAMES") && SystemTile(Screen,0) && SystemTile(Screen,1));
     const int PickerStarts=Starts;
     Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     Snapshot("systems-game-boy");
+    assert(kTabID_Backups == kTabID_First);
+    assert(RomBrowserUI_HasPickerFocus());
+    assert(Frame[8*160+24].full == lv_color_hex(0x666666).full);
+    assert(Frame[22*160+24].full == lv_color_hex(0x66ff66).full);
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
+    Snapshot("games-tab-focus");
+    assert(!RomBrowserUI_HasPickerFocus());
+    assert(Frame[8*160+24].full == lv_color_hex(0x66ff66).full);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
+    Snapshot("games-picker-focus");
+    assert(RomBrowserUI_HasPickerFocus());
+    assert(Frame[8*160+24].full == lv_color_hex(0x666666).full);
     assert(lv_obj_get_style_border_color(SystemTile(Screen,0),0).full==lv_color_hex(0x66ff66).full);
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     assert(Depth==1 && SystemIndex==1 && Text(Screen,"GAME BOY") && Text(Screen,"S-Z"));
     Snapshot("folders-game-boy");
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
-    assert(Depth==0 && Text(Screen,"SYSTEMS"));
+    assert(Depth==0 && Text(Screen,"GAMES"));
     Menu.fnOnButton(kButton_Right,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     Snapshot("systems-game-boy-color");
     assert(lv_obj_get_style_border_color(SystemTile(Screen,1),0).full==lv_color_hex(0x66ff66).full);
@@ -447,15 +482,27 @@ int main(void) {
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     assert(Text(Screen,"<>:TABS A:CHOOSE"));
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
-    assert(Depth==0 && Text(Screen,"<>:PICK A:OPEN B:TABS"));
+    assert(Depth==0 && Text(Screen,"UP/DN:CHOOSE A:OPEN"));
     Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
-    assert(Depth==0 && Text(Screen,"<>:PICK A:OPEN B:TABS"));
+    assert(Depth==0 && Text(Screen,"UP/DN:CHOOSE A:OPEN"));
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
     Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
-    assert(!Text(Screen,"SYSTEMS")); /* back to the global tabs */
+    assert(!Text(Screen,"GAMES")); /* back to the global tabs */
     Menu.fnOnButton(kButton_Right,kButtonState_Pressed,NULL); DrawScreen(&Menu, Screen);
-    assert(Text(Screen,"SYSTEMS") && Text(Screen,"<>:PICK A:OPEN B:TABS") && Starts==PickerStarts);
+    assert(Text(Screen,"GAMES") && Text(Screen,"UP/DN:CHOOSE A:OPEN") && Starts==PickerStarts);
+    ThreeSystems=true;
+    Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
+    assert(SystemTile(Screen,2));
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    Snapshot("systems-game-gear");
+    assert(lv_obj_get_style_border_color(SystemTile(Screen,2),0).full==lv_color_hex(0x66ff66).full);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(Depth==1 && SystemIndex==2 && Text(Screen,"GAME GEAR"));
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    ThreeSystems=false;
+    Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
     RecentFixture=true;
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
     Snapshot("folders-recent-first");
@@ -712,11 +759,11 @@ int main(void) {
     Snapshot("cart-backup-button");
     PCMode = kPCBackupModeState_On;
     CartBackupUI_Draw(Screen);
-    assert(Text(Screen, "DISABLE\nC. MAGICIAN\nIN SYSTEM\nSETTINGS"));
+    assert(Text(Screen, "DISABLE\nUSB TRANSFERS\nIN SYSTEM\nSETTINGS"));
     CartBackupUI_OnButton(kButton_A, kButtonState_Pressed, NULL);
     CartBackupUI_Draw(Screen);
     assert(BackupStarts == 0);
-    assert(Text(Screen, "DISABLE\nC. MAGICIAN\nIN SYSTEM\nSETTINGS"));
+    assert(Text(Screen, "DISABLE\nUSB TRANSFERS\nIN SYSTEM\nSETTINGS"));
     Snapshot("cart-backup-disable-magician");
     PCMode = kPCBackupModeState_Off;
     CartBackupUI_Draw(Screen);
@@ -725,6 +772,168 @@ int main(void) {
     assert(BackupStarts == 1);
     CartBackupUI_OnTransition(NULL);
     lv_obj_del(Background);
+    WifiFilesUI_Register(WifiToggle, WifiSnapshot);
+    WifiFilesUI_RegisterNetwork(WifiScanStart,WifiScanSnapshot,WifiJoin);
+    WifiFilesUI_Draw(Screen);Snapshot("wifi-files-inline-off");
+    WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+    WifiFilesUI_Draw(Screen);
+    lv_obj_t *WifiPanel = lv_obj_get_child(Screen, -1);
+    /* Reproduce the enclosing SYSTEM list raising its text on later frames. */
+    lv_obj_t *SystemText = lv_label_create(Screen);
+    lv_label_set_text_static(SystemText, "SYSTEM MENU UNDERLAY");
+    lv_obj_set_pos(SystemText, 18, 48);
+    lv_obj_move_foreground(SystemText);
+    WifiFilesUI_Draw(Screen);
+    assert(lv_obj_get_child(Screen, -1) == WifiPanel);
+    Snapshot("wifi-files-off");
+    lv_obj_del(SystemText);
+    WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);assert(WifiEnabled);
+    WifiStatus.Busy=WifiStatus.Ready=true;
+    Menu.fnOnButton(kButton_Select,kButtonState_Pressed,NULL);
+    WifiFilesUI_Draw(Screen);assert(SetupCalls==1);
+    WifiScan.Count=2;
+    strcpy(WifiScan.Entries[0].SSID,"Home network with long name");
+    WifiScan.Entries[0].Secure=WifiScan.Entries[0].Supported=true;
+    strcpy(WifiScan.Entries[1].SSID,"Guest");WifiScan.Entries[1].Supported=true;
+    WifiFilesUI_Draw(Screen);Snapshot("wifi-files-networks");
+    WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+    WifiFilesUI_Draw(Screen);Snapshot("wifi-files-keyboard");
+    WifiFilesUI_OnButton(kButton_Start,kButtonState_Pressed,NULL);
+    WifiFilesUI_Draw(Screen);assert(Text(Screen,"8+ characters"));
+    for(int I=0;I<8;I++)WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+    WifiFilesUI_OnButton(kButton_Select,kButtonState_Pressed,NULL);
+    WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+    WifiFilesUI_OnButton(kButton_Select,kButtonState_Pressed,NULL);
+    WifiFilesUI_OnButton(kButton_Right,kButtonState_Pressed,NULL);
+    WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+    WifiFilesUI_Draw(Screen);Snapshot("wifi-files-symbols");
+    WifiFilesUI_OnButton(kButton_Start,kButtonState_Pressed,NULL);
+    assert(!strcmp(JoinedPassword,"aaaaaaaaA!") && !strcmp(JoinedSSID,"Home network with long name"));
+    /* Reach every printable ASCII character using only device controls. */
+    bool Characters[127]={0};
+    for(unsigned Page=0;Page<3;Page++) {
+        WifiFilesUI_OnButton(kButton_Select,kButtonState_Pressed,NULL);WifiFilesUI_Draw(Screen);
+        WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+        for(unsigned I=0;I<Page;I++)WifiFilesUI_OnButton(kButton_Select,kButtonState_Pressed,NULL);
+        for(unsigned I=0;I<36;I++) {
+            WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);
+            WifiFilesUI_OnButton(kButton_Right,kButtonState_Pressed,NULL);
+        }
+        WifiFilesUI_OnButton(kButton_Start,kButtonState_Pressed,NULL);
+        if(Page<2)assert(strstr(JoinedPassword,"0123456789"));
+        for(unsigned I=0;JoinedPassword[I];I++)Characters[(unsigned char)JoinedPassword[I]]=true;
+    }
+    for(unsigned C=32;C<=126;C++)assert(Characters[C]);
+    WifiStatus.Network.Connected=true;strcpy(WifiStatus.Network.Address,"192.168.123.123");strcpy(WifiStatus.AccessCode,"012345");
+    WifiFilesUI_Draw(Screen);Snapshot("wifi-files-router");
+    assert(Text(Screen,"192.168.123.123") && Text(Screen,"Code 012345") && WifiFilesUI_IsConnected());
+    assert(WifiFilesUI_IsBusy());
+    assert(WifiFilesUI_HandlesButton(kButton_A));
+    assert(!WifiFilesUI_HandlesButton(kButton_Left));
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);
+    assert(WifiEnabled && !WifiFilesUI_IsOpen());
+    WifiFilesUI_Draw(Screen);Snapshot("wifi-files-inline-connected");
+    assert(!WifiFilesUI_HandlesButton(kButton_Up) && !WifiFilesUI_HandlesButton(kButton_Right));
+    /* Leaving Wi-Fi must not touch SD/art/preview/launch while its lease is held. */
+    WifiFilesUI_OnTransition(NULL);
+    unsigned BeforeWifiOpens=Opens,BeforeWifiStarts=Starts,BeforeWifiArts=ArtRequests;
+    DrawScreen(&Menu,Screen);
+    assert(Text(Screen,"WI-FI ACTIVE\nTURN WI-FI OFF TO PLAY"));
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
+    DrawScreen(&Menu,Screen);
+    assert(Opens==BeforeWifiOpens && Starts==BeforeWifiStarts && ArtRequests==BeforeWifiArts);
+    Snapshot("wifi-files-background-backups");
+    Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    assert(WifiEnabled && WifiFilesUI_IsConnected());
+    Snapshot("wifi-files-background-system");
+    Menu.fnOnTransition(NULL);
+    CartBackupUI_Draw(Screen);assert(Text(Screen,"TURN OFF\nWI-FI\nTO BACK UP"));
+    unsigned BeforeWifiBackups=BackupStarts;CartBackupUI_OnButton(kButton_A,kButtonState_Pressed,NULL);assert(BackupStarts==BeforeWifiBackups);
+    CartBackupUI_OnTransition(NULL);
+    WifiFilesUI_Draw(Screen);WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);WifiFilesUI_Draw(Screen);
+    WifiFilesUI_OnButton(kButton_Down,kButtonState_Pressed,NULL);
+    WifiFilesUI_OnButton(kButton_A,kButtonState_Pressed,NULL);assert(!WifiEnabled);
+    WifiFilesUI_OnTransition(NULL);
+    /* Use the actual SYSTEM list, including Serial, for full-layout coverage. */
+    Menu.fnOnTransition(NULL);
+    TabCollection_t SystemList={0};sys_dlist_init(&SystemList.WidgetList);
+    TabItem_t Items[6]={0};
+    const char *Names[]={"FIRMWARE","PLAYER #","CART BACKUP","USB TRANSFERS","WI-FI","SERIAL #"};
+    for(unsigned I=0;I<6;I++){Items[I].Widget.Name=Names[I];assert(Tab_AddItem(&SystemList,&Items[I],Screen)==kOSD_Result_Ok);}
+    Items[4].Widget.fnDraw=WifiFilesUI_Draw;Items[4].Widget.fnOnButton=WifiFilesUI_OnButton;Items[4].Widget.fnOnTransition=WifiFilesUI_OnTransition;
+    SystemList.pCurrent=&Items[4];SystemTab->Menu=&SystemList;
+    SystemTab->Widget.fnDraw=TabList_Draw;SystemTab->Widget.fnOnButton=Tab_OnButton;SystemTab->Widget.fnOnTransition=TabList_OnTransition;
+    DrawScreen(&Menu,Screen);Snapshot("wifi-system-full-list");
+    assert(lv_obj_get_y(Items[5].DataObj)+lv_obj_get_height(Items[5].DataObj)<130);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    assert(SystemList.pCurrent==&Items[5]);Snapshot("wifi-system-serial-selected");
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    assert(WifiFilesUI_IsOpen());Snapshot("wifi-system-connected-open");
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    assert(!WifiFilesUI_IsOpen() && WifiFilesUI_IsBusy());
+    Menu.fnOnTransition(NULL);
+    /* Exercise the shipped seven-row System layout and actual native panel. */
+    TabCollection_t StateList={0};sys_dlist_init(&StateList.WidgetList);
+    TabItem_t StateItems[7]={0};
+    const char *StateNames[]={"SAVE STATES","FIRMWARE","PLAYER #","CART BACKUP","USB TRANSFERS","WI-FI","SERIAL #"};
+    for(unsigned I=0;I<7;I++){StateItems[I].Widget.Name=StateNames[I];assert(Tab_AddItem(&StateList,&StateItems[I],Screen)==kOSD_Result_Ok);}
+    StateItems[0].Widget.fnDraw=NativeStateUI_Draw;StateItems[0].Widget.fnOnButton=NativeStateUI_OnButton;StateItems[0].Widget.fnOnTransition=NativeStateUI_OnTransition;
+    StateList.pCurrent=&StateItems[0];SystemTab->Menu=&StateList;
+    StateView=(NativeStateView){.Available=true,.Supported=true};
+    NativeStateUI_Register(StateRead,StateRequest,StateShortcuts);
+    DrawScreen(&Menu,Screen);Snapshot("state-system-list");
+    assert(lv_obj_get_y(StateItems[6].DataObj)+lv_obj_get_height(StateItems[6].DataObj)<=137);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    assert(NativeStateUI_IsOpen());Snapshot("state-empty");
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==0);
+    StateView.Valid=true;DrawScreen(&Menu,Screen);Snapshot("state-ready");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);Snapshot("state-confirm");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==0); /* Default Cancel. */
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==1);
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==1);
+    StateView.Phase=kStateUIWaiting;DrawScreen(&Menu,Screen);Snapshot("state-waiting");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);
+    assert(StateSaves==1 && NativeStateUI_IsOpen());
+    StateView.Phase=kStateUISaved;DrawScreen(&Menu,Screen);Snapshot("state-saved");
+    StateView.Phase=kStateUILoaded;DrawScreen(&Menu,Screen);Snapshot("state-restored");
+    StateView.Available=false;StateView.Phase=kStateUIError;strcpy(StateView.Message,"Power off to recover");DrawScreen(&Menu,Screen);Snapshot("state-error");
+    StateView.Available=true;StateView.Phase=kStateUIIdle;
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateView.Shortcuts);
+    DrawScreen(&Menu,Screen);Snapshot("state-shortcuts");
+    Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);assert(!NativeStateUI_IsOpen());
+    NativeStateUI_RequestOpen();Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==1 && !NativeStateUI_IsOpen());DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());
+    /* The panel stays expanded after shortcut feedback closes the menu.
+     * Gameplay presses must neither operate it nor queue actions for reopening. */
+    MenuVisible=false;
+    for(unsigned Flag=0x100;Flag<=0x200;Flag<<=1) {
+        for(unsigned Key=0;Key<8;++Key) {
+            Button_ResetAll();Button_Update(1u<<Key); /* Old queued UI event. */
+            uint16_t Raw=Flag|(1u<<Key),SnapshotBits=0;
+            /* The shortcut controller suppresses game bits, but physical
+             * levels must survive to distinguish a release tail from a press. */
+            Button_UpdateRouted(Raw,Flag);assert(Button_GetSnapshot(&SnapshotBits)>0 && SnapshotBits==Raw);
+            assert(Button_GetState((Button_t)Key)==kButtonState_None);
+            Menu.fnOnButton((Button_t)Key,kButtonState_Pressed,NULL);
+            Button_Update(1u<<Key); /* Menu opens with the key still held. */
+            assert(Button_GetState((Button_t)Key)==kButtonState_None);
+            Button_Update(0);Button_Update(1u<<Key);
+            assert(Button_GetState((Button_t)Key)==kButtonState_Pressed);
+        }
+    }
+    assert(StateSaves==1 && StateLoads==1 && StateView.Shortcuts && NativeStateUI_IsOpen());
+    assert(StateList.pCurrent==&StateItems[0]);
+    Button_ResetAll();MenuVisible=true;
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==2);
+    StateView.Supported=false;StateView.Valid=false;DrawScreen(&Menu,Screen);Snapshot("state-unsupported");
+    Menu.fnOnTransition(NULL);
     puts("PASS: menu routing, list scrolling, exact file selection, progress, immediate completion, errors, cleanup, firmware layout");
     return 0;
 }

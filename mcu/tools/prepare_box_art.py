@@ -46,7 +46,7 @@ def library(rom_root: Path, images: Path, art_root: Path, mapping: dict) -> list
         by_name.setdefault(image.stem.casefold(), []).append(image)
     result = []
     for rom in sorted(rom_root.rglob('*')):
-        if not rom.is_file() or rom.suffix.lower() not in {'.gb', '.gbc'}:
+        if not rom.is_file() or rom.suffix.lower() not in {'.gb', '.gbc', '.gg'}:
             continue
         relative = rom.relative_to(rom_root)
         key = relative.as_posix()

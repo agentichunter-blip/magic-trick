@@ -61,6 +61,8 @@ static bool SleepInhibited;
 static TaskHandle_t ModeTask;
 static bool ModeApplied;
 static bool AppliedEnabled;
+static bool WirelessOwned;
+static portMUX_TYPE WirelessLock = portMUX_INITIALIZER_UNLOCKED;
 static char LineBuffer[kLineBufferSize];
 static uint8_t FlashReadBuffer[kCartBulkBlockSize];
 
@@ -729,7 +731,7 @@ static int FlashCommand(int argc, char **argv)
         printf("PCFLASH FAIL error=ESP_ERR_INVALID_ARG\n");
         return 1;
     }
-    if (!PCBackup_IsEnabled() || Gate == NULL)
+    if (PCBackupMode_GetState() != kPCBackupModeState_On || Gate == NULL)
     {
         printf("PCFLASH FAIL error=ESP_ERR_INVALID_STATE\n");
         return 1;
@@ -772,7 +774,44 @@ uint32_t PCBackup_GetConsoleBaud(void)
 
 bool PCBackup_IsEnabled(void)
 {
-    return PCBackupMode_GetState() == kPCBackupModeState_On;
+    portENTER_CRITICAL(&WirelessLock);
+    const bool Wireless = WirelessOwned;
+    portEXIT_CRITICAL(&WirelessLock);
+    return Wireless || PCBackupMode_GetState() == kPCBackupModeState_On;
+}
+
+esp_err_t PCBackup_BeginWireless(void)
+{
+    if (!TransportReady || Gate == NULL || xSemaphoreTake(Gate, 0) != pdTRUE)
+        return ESP_ERR_INVALID_STATE;
+    if (PCBackup_IsEnabled() || VirtualCart_IsBusy())
+    {
+        xSemaphoreGive(Gate);
+        return ESP_ERR_INVALID_STATE;
+    }
+    portENTER_CRITICAL(&WirelessLock);
+    WirelessOwned = true;
+    portEXIT_CRITICAL(&WirelessLock);
+    /* Publish the launch guard before checking/stopping the virtual cartridge. */
+    const esp_err_t Result = EnableLocked();
+    if (Result != ESP_OK)
+    {
+        (void)PCBackup_EndWireless();
+        return Result;
+    }
+    FPGA_Tx_SendSysCtl();
+    return ESP_OK;
+}
+
+esp_err_t PCBackup_EndWireless(void)
+{
+    portENTER_CRITICAL(&WirelessLock);
+    WirelessOwned = false;
+    portEXIT_CRITICAL(&WirelessLock);
+    const esp_err_t Result = ApplyModeLocked();
+    xSemaphoreGive(Gate);
+    FPGA_Tx_SendSysCtl();
+    return Result;
 }
 
 void PCBackup_TransportReady(void)
@@ -822,7 +861,7 @@ static int SDCommand(int argc, char **argv)
     (void)argv;
     esp_err_t Result = ESP_ERR_INVALID_STATE;
     bool Ran = false;
-    if (argc == 1 && PCBackup_IsEnabled() && Gate != NULL &&
+    if (argc == 1 && PCBackupMode_GetState() == kPCBackupModeState_On && Gate != NULL &&
         xSemaphoreTake(Gate, portMAX_DELAY) == pdTRUE)
     {
         Result = VirtualCart_IsBusy() ? ESP_ERR_INVALID_STATE : ESP_OK;

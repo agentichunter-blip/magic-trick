@@ -75,7 +75,7 @@ static bool IsRomName(const char *pName)
     }
     const char *pDot = strrchr(pName, '.');
     return pDot != NULL &&
-           (strcasecmp(pDot, ".gb") == 0 || strcasecmp(pDot, ".gbc") == 0);
+           (strcasecmp(pDot, ".gb") == 0 || strcasecmp(pDot, ".gbc") == 0 || strcasecmp(pDot, ".gg") == 0);
 }
 
 static int CompareNames(const void *pLeft, const void *pRight)
@@ -409,6 +409,7 @@ static RomPlatform_t FolderPlatform(size_t Index)
     const size_t Length = strcspn(Name, "/");
     if (Length == 2 && strncasecmp(Name, "GB", 2) == 0) return kRomPlatformGB;
     if (Length == 3 && strncasecmp(Name, "GBC", 3) == 0) return kRomPlatformGBC;
+    if (Length == 2 && strncasecmp(Name, "GG", 2) == 0) return kRomPlatformGG;
     return kRomPlatformUnknown;
 }
 

@@ -1,5 +1,6 @@
 {
   "mcu": "776920033b8d455aff20af94b2aaefa174d4bab3",
   "fpga": "de55c977666f16ba2f894ac09cc27c6e29420105",
-  "fpga/esp32t/src/Gameboy_MiSTer": "e2711f74ffcd4815fb077747e999764cfbd4ec41"
+  "fpga/esp32t/src/Gameboy_MiSTer": "e2711f74ffcd4815fb077747e999764cfbd4ec41",
+  "fpga/cores/game-gear/vendor/SMS_MiSTer": "66f16d5c656fd8906d62570da4d258875bcee684"
 }

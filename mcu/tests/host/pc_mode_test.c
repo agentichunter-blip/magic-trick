@@ -47,6 +47,7 @@ esp_err_t uart_param_config(int n, const uart_config_t *c) { Baud = c->baud_rate
 esp_err_t uart_flush_input(int n) {
     assert(!"The idle REPL holds the UART RX mutex: flushing here deadlocks"); return ESP_FAIL;
 }
+bool WifiFilesUI_IsBusy(void) { return WirelessOwned; }
 static void Toggle(void) {
     InMenu = true; assert(PCBackupMode_OnButton(kButton_A, kButtonState_Pressed, NULL) == kOSD_Result_Ok); InMenu = false;
 }
@@ -67,6 +68,24 @@ int main(void) {
     Toggle(); Run(1); assert(SleepCount == 0);
     assert(Commits == 8);
     assert(SettingsQueued == Commits);
+    assert(PCBackup_BeginWireless() == ESP_OK);
+    assert(PCBackup_IsEnabled() && PhysicalActive && SleepCount == 1);
+    assert(PCBackupMode_GetState() == kPCBackupModeState_Off);
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    int BeforeCommits=Commits;Toggle();
+    assert(Commits==BeforeCommits && PCBackupMode_GetState()==kPCBackupModeState_Off);
+#endif
+    GateBusy = true; calls = EnterCalls; Run(2); assert(EnterCalls == calls);
+    assert(PCBackup_BeginWireless() == ESP_ERR_INVALID_STATE);
+    GateBusy = false;
+    assert(PCBackup_EndWireless() == ESP_OK);
+    assert(!PCBackup_IsEnabled() && !PhysicalActive && SleepCount == 0);
+    ModeResult = ESP_ERR_INVALID_STATE;
+    assert(PCBackup_BeginWireless() == ESP_ERR_INVALID_STATE);
+    assert(!PCBackup_IsEnabled() && !PhysicalActive && SleepCount == 0);
+    ModeResult = ESP_OK;
+    assert(PCBackup_BeginWireless() == ESP_OK);
+    assert(PCBackup_EndWireless() == ESP_OK);
     puts("PASS: idle RX, immediate toggles, persistent keepalive, transfer contention, rapid changes, retry");
     return 0;
 }

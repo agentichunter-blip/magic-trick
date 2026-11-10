@@ -21,10 +21,11 @@ esp_err_t nvs_commit(nvs_handle_t H) { assert(H==1); if(NvsFail) return ESP_FAIL
 void nvs_close(nvs_handle_t H) { assert(H==1); }
 static const char *Rom=CHEAT_ROM_ROOT "Game.gb", *Pack=CHEAT_PACK_ROOT "Game.gb.cmc";
 static void Write(const char *Path,const void *Data,size_t N) { FILE *F=fopen(Path,"wb"); assert(F && fwrite(Data,1,N,F)==N && !fclose(F)); }
+static bool GGPack;
 static void MakePack(void) {
-    uint8_t B[32+3*104+3*8]={0}; memcpy(B,"CMCH",4); Put(B+4,1); Put(B+8,sizeof(ROM)); Put(B+12,Cheats_CRC32(0,ROM,sizeof(ROM))); Put(B+16,3); Put(B+20,3);
+    uint8_t B[32+3*104+3*8]={0}; memcpy(B,"CMCH",4); Put(B+4,GGPack?2:1); Put(B+8,sizeof(ROM)); Put(B+12,Cheats_CRC32(0,ROM,sizeof(ROM))); Put(B+16,3); Put(B+20,3);
     const char *Names[]={"Infinite lives","Start with 99 lives","Infinite health"};
-    for(unsigned I=0;I<3;++I) { uint8_t *E=B+32+104*I; strcpy((char *)E,Names[I]); Put(E+96,I); E[100]=1; uint8_t *P=B+32+3*104+8*I; Put(P,I==2?0x2400:0x200); P[4]=0; P[5]=I+1; }
+    for(unsigned I=0;I<3;++I) { uint8_t *E=B+32+104*I; strcpy((char *)E,Names[I]); Put(E+96,I); E[100]=1; uint8_t *P=B+32+3*104+8*I; Put(P,I==2?0x2400:0x200); P[4]=0; P[5]=I+1;P[6]=GGPack?1:0; }
     Put(B+24,Cheats_CRC32(0,B+32,sizeof(B)-32)); Write(Pack,B,sizeof(B));
 }
 int main(void) {
@@ -68,5 +69,15 @@ int main(void) {
     assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_ERR_INVALID_SIZE);
     assert(Cheats_Badge(Rom,&Badge)==ESP_ERR_INVALID_SIZE && !Badge.Available);
     assert(!Mounted); unlink(Pack); unlink(Rom);
+    Rom=CHEAT_ROM_ROOT "Game.gg";Pack=CHEAT_PACK_ROOT "Game.gg.cmc";GGPack=true;Stored=false;
+    Write(Rom,ROM,sizeof(ROM));MakePack();
+    assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_OK);
+    assert(Cheats_Menu(kCheatToggle,NULL,1,&V)==ESP_OK);
+    F=fopen(Rom,"rb");assert(F);
+    assert(Cheats_Prepare(Rom,F,&P)==ESP_OK && P.GameGear && P.Count==1 && P.Patches[0].Compare);
+    memset(Data,0,sizeof(Data));assert(Cheats_Apply(&P,0,Data,sizeof(Data))==ESP_ERR_NOT_SUPPORTED && Data[0x200]==0);
+    Cheats_Free(&P);fclose(F);
+    GGPack=false;MakePack();assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_ERR_INVALID_ARG);
+    unlink(Pack);unlink(Rom);
     puts("PASS: exact ROM identity, grouped/conflicting patches, persistent toggles, disable all, failed commit, corrupt packs/settings, original ROM unchanged");
 }

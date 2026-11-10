@@ -52,4 +52,18 @@ class Cheats(unittest.TestCase):
             self.assertEqual(m.PATCH.unpack(blob[-8:]),(0x3d49,2,0x99,0))
             self.assertEqual((roms/'GB/0-F/Game (World).gb').read_bytes(),r)
 
+    def test_gamegear_runtime(self):
+        rom=bytearray(65536);rom[0x7ff0:0x7ff8]=b'TMR SEGA';rom[0x7fff]=0x60
+        rom[0xa17]=0xc8
+        # Unlike load-time patches, runtime codes retain the CPU window.
+        self.assertEqual(m.gg_codes(rom,'00A-17B-C49'),[(0x4a17,0xc8,0,1)])
+        self.assertEqual(m.decode('00A-177-C49',gamegear=True),(0x8a17,0,0xc8))
+        blob=m.encode(rom,[('Example',m.gg_codes(rom,'00A-177-C49'))],gamegear=True)
+        self.assertEqual(m.HEADER.unpack(blob[:32])[1],2)
+        self.assertEqual(m.PATCH.unpack(blob[-8:]),(0x8a17,0xc8,0,1))
+        for text in ['00A-173-C49','00A-177','FFA-177-C49+00A-177-C49']:
+            with self.assertRaises(ValueError):m.gg_codes(rom,text)
+        rom[0xa17]=0
+        with self.assertRaisesRegex(ValueError,'compare'):m.gg_codes(rom,'00A-177-C49')
+
 if __name__=='__main__': unittest.main()

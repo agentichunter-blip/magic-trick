@@ -63,6 +63,8 @@ typedef enum {
     kTxCmd_CartMaintenance  = 0xE,
     kTxCmd_CartStreamAck    = 0x10,
 
+    kTxCmd_CoreReload       = 0x11,
+    kTxCmd_GGCheat          = 0x12,
     kNumTxCmds,
 } TxIDs_t;
 
@@ -305,6 +307,26 @@ esp_err_t FPGA_Tx_CartStreamAck(uint8_t Sequence)
     return ESP_OK;
 }
 
+esp_err_t FPGA_Tx_GGCheat(const uint8_t Payload[6])
+{
+    if (!Payload) return ESP_ERR_INVALID_ARG;
+    uint8_t Copy[6], Buffer[10]; memcpy(Copy,Payload,sizeof(Copy));
+    const size_t Size=SetupTxBuffer(Buffer,kTxCmd_GGCheat,sizeof(Copy),Copy);
+    return Size==sizeof(Buffer) && uart_write_bytes(UART_NUM_1,Buffer,Size)==(int)Size ? ESP_OK : ESP_FAIL;
+}
+
+esp_err_t FPGA_Tx_CoreReload(uint8_t Operation, uint8_t Target, uint16_t Nonce)
+{
+    if ((Operation != 0xa1 && Operation != 0xa2) || Target > 1)
+        return ESP_ERR_INVALID_ARG;
+    uint8_t Payload[10] = {'C','O','R','E',Operation,Target,
+        Nonce >> 8, Nonce & 255, (uint8_t)~(Nonce >> 8), (uint8_t)~Nonce};
+    uint8_t Buffer[14];
+    const size_t Size = SetupTxBuffer(Buffer, kTxCmd_CoreReload, sizeof(Payload), Payload);
+    return Size == sizeof(Buffer) && uart_write_bytes(UART_NUM_1, Buffer, Size) == (int)Size
+        ? ESP_OK : ESP_FAIL;
+}
+
 static size_t SetupTxBuffer(uint8_t *const pBuffer, TxIDs_t eID, uint8_t Len, void* pData)
 {
     if ((pBuffer == NULL) || (Len > kSysMgmtConsts_MsgProtoV2Len) || (pData == NULL) || ((unsigned)eID >= kNumTxCmds))
@@ -314,7 +336,8 @@ static size_t SetupTxBuffer(uint8_t *const pBuffer, TxIDs_t eID, uint8_t Len, vo
 
     const bool UseV1 = FPGA_IsProtoV1() &&
                        eID != kTxCmd_CartMaintenance &&
-                       eID != kTxCmd_CartStreamAck;
+                       eID != kTxCmd_CartStreamAck &&
+                       eID != kTxCmd_CoreReload && eID != kTxCmd_GGCheat;
     pBuffer[0] = (uint8_t)(UseV1 ? kSysMgmtConsts_HeaderV1Marker : kSysMgmtConsts_HeaderV2Marker);
     pBuffer[1] = (uint8_t)eID;
 

@@ -142,7 +142,8 @@ OSD_Result_t TabList_Draw(void* arg)
 
     if (pList->pDividerObj != NULL)
     {
-        lv_line_set_points(pList->pDividerObj, DividerOffset, ARRAY_SIZE(DividerOffset));
+        static const lv_point_t TallDivider[]={{72,42},{72,125}};
+        lv_line_set_points(pList->pDividerObj, i>5?TallDivider:DividerOffset, ARRAY_SIZE(DividerOffset));
         lv_obj_move_foreground(pList->pDividerObj);
     }
 

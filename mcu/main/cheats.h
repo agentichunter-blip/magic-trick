@@ -3,8 +3,8 @@
 #include "esp_err.h"
 #include <stddef.h>
 #include <stdio.h>
-typedef struct { uint32_t Offset; uint8_t Original, Value; } CheatPatch_t;
-typedef struct { CheatPatch_t *Patches; size_t Count; } CheatPlan_t;
+typedef struct { uint32_t Offset; uint8_t Original, Value; bool Compare; } CheatPatch_t;
+typedef struct { CheatPatch_t *Patches; size_t Count; bool GameGear; } CheatPlan_t;
 /* Menu functions run only on the serialized browser worker. */
 esp_err_t Cheats_Menu(CheatAction_t Action, const char *RomPath, size_t Selected, CheatView_t *View);
 void Cheats_Close(void);

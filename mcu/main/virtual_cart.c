@@ -1,4 +1,8 @@
+#include "gg_cheats.h"
+#include "core_switch.h"
 #include "virtual_cart.h"
+#include "gg_rom.h"
+#include "state_save_branch.h"
 #include "last_game.h"
 #include "recent_games.h"
 #include "cheats.h"
@@ -67,6 +71,7 @@ enum {
     kSaveTaskStack = 6 * 1024,
     kSaveTaskPriority = 3,
     kSavePollPeriod_ms = 250,
+    kNativeAutosaveWait_ms = 5000,
     kRtcPersistPeriod_ms = 60 * 1000,
     kForcedSavePasses = 3,
     kRtcStateSize = 4,
@@ -82,6 +87,7 @@ typedef struct {
     uint8_t ConfigurationHigh;
     uint8_t MapperSelect;
     bool Mbc1m;
+    bool GameGear;
     char Title[17];
 } VirtualCartInfo_t;
 
@@ -89,6 +95,12 @@ static const char *TAG = "VirtualCart";
 static const char *RomDirectory = "/sdcard/CHROMAGIC/BACKUPS/";
 static portMUX_TYPE StateLock = portMUX_INITIALIZER_UNLOCKED;
 static bool Running;
+static bool AutosaveRunning;
+static bool NativeRequested;
+static void (*StateWaitCallback)(void);
+void VirtualCart_RegisterStateWait(void (*Callback)(void)) { StateWaitCallback=Callback; }
+static bool StateUncertain;
+static char StateCanonicalPath[kPathSize];
 static bool LoadRequested;
 static bool Active;
 static bool ActiveSavePending;
@@ -121,20 +133,75 @@ static bool SetRunning(bool Value)
 {
     bool Changed = false;
     portENTER_CRITICAL(&StateLock);
-    if (Running != Value && (!Value || !LoadRequested))
+    if (Running != Value && (!Value || (!LoadRequested && !StateUncertain && !NativeRequested)))
     {
         Running = Value;
+        if (!Value) AutosaveRunning = false;
         Changed = true;
     }
     portEXIT_CRITICAL(&StateLock);
     return Changed;
 }
 
+// Distinguish a short background save from Stop, a ROM load, or another snapshot.
+static bool BeginAutosave(void)
+{
+    portENTER_CRITICAL(&StateLock);
+    const bool Available = !Running && !LoadRequested && !StateUncertain && !NativeRequested;
+    if (Available) { Running = true; AutosaveRunning = true; }
+    portEXIT_CRITICAL(&StateLock);
+    return Available;
+}
+
+static esp_err_t BeginNativeOperation(void)
+{
+    const TickType_t Started = xTaskGetTickCount();
+    const char *Reason = NULL;
+    bool Wait = false;
+    portENTER_CRITICAL(&StateLock);
+    if (StateUncertain) Reason = "uncertain_restore";
+    else if (LoadRequested) Reason = "rom_change";
+    else if (NativeRequested) Reason = "native_request_pending";
+    else if (Running && !AutosaveRunning) Reason = "operation_busy";
+    else {
+        // Reserve the next operation so neither autosave nor a ROM change can
+        // overtake this request between cleanup and acquiring Running.
+        NativeRequested = true;
+        Wait = Running;
+    }
+    portEXIT_CRITICAL(&StateLock);
+    if (Reason) { printf("STATE_REJECT=%s\n", Reason); return ESP_ERR_INVALID_STATE; }
+    if (Wait) { printf("STATE_WAIT=autosave\n");if(StateWaitCallback)StateWaitCallback(); }
+    for (;;) {
+        esp_err_t Result = ESP_ERR_NOT_FINISHED;
+        const TickType_t Now = xTaskGetTickCount();
+        portENTER_CRITICAL(&StateLock);
+        if (StateUncertain || LoadRequested) {
+            NativeRequested = false;
+            Result = ESP_ERR_INVALID_STATE;
+        } else if (!Running) {
+            Running = true;
+            NativeRequested = false;
+            Result = ESP_OK;
+        } else if ((TickType_t)(Now - Started) >= pdMS_TO_TICKS(kNativeAutosaveWait_ms)) {
+            NativeRequested = false;
+            Result = ESP_ERR_TIMEOUT;
+        }
+        portEXIT_CRITICAL(&StateLock);
+        if (Result != ESP_ERR_NOT_FINISHED) {
+            if (Result == ESP_ERR_TIMEOUT) printf("STATE_REJECT=autosave_timeout\n");
+            if (Result == ESP_ERR_INVALID_STATE) printf("STATE_REJECT=state_changed_while_waiting\n");
+            return Result;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
 static bool SetLoadRequested(bool Value)
 {
     portENTER_CRITICAL(&StateLock);
-    const bool Changed = LoadRequested != Value;
-    LoadRequested = Value;
+    const bool Changed = LoadRequested != Value && (!Value || (!StateUncertain && !NativeRequested));
+    if (Changed) LoadRequested = Value;
     portEXIT_CRITICAL(&StateLock);
     return Changed;
 }
@@ -142,7 +209,7 @@ static bool SetLoadRequested(bool Value)
 static bool BeginRequestedLoad(void)
 {
     portENTER_CRITICAL(&StateLock);
-    const bool Available = LoadRequested && !Running;
+    const bool Available = LoadRequested && !Running && !StateUncertain && !NativeRequested;
     if (Available) Running = true;
     portEXIT_CRITICAL(&StateLock);
     return Available;
@@ -151,17 +218,19 @@ static bool BeginRequestedLoad(void)
 bool VirtualCart_IsBusy(void)
 {
     portENTER_CRITICAL(&StateLock);
-    const bool Busy = Running || LoadRequested;
+    const bool Busy = Running || LoadRequested || StateUncertain || NativeRequested;
     portEXIT_CRITICAL(&StateLock);
     return Busy;
 }
 
+static uint32_t NativeSession=1;
 static void SetActive(bool Value)
 {
     bool Changed;
     portENTER_CRITICAL(&StateLock);
     Changed = Active != Value;
     Active = Value;
+    if(++NativeSession==0)++NativeSession;
     portEXIT_CRITICAL(&StateLock);
 
     if (Changed)
@@ -203,7 +272,7 @@ static esp_err_t ResolvePath(const char *pInput, char Output[kPathSize])
     const char *pSlash = strrchr(Output, '/');
     const char *pDot = strrchr(Output, '.');
     if (pDot == NULL || (pSlash != NULL && pDot < pSlash) ||
-        (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0))
+        (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0 && strcasecmp(pDot, ".gg") != 0))
     {
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -410,6 +479,17 @@ static esp_err_t VirtualCommand(uint8_t Command,
 
 static esp_err_t UploadRomPatched(FILE *pRom, const VirtualCartInfo_t *pInfo, const CheatPlan_t *Cheats)
 {
+    if (pInfo->GameGear) {
+        /* Fill the entire bounded region, matching the simulator's mirroring.
+         * Rewind only at ROM boundaries; never upload GB cheats or save bytes. */
+        for (uint32_t offset=0;offset<kMaximumRomSize;offset+=sizeof(TransferBuffer)) {
+            if (offset % pInfo->RomSize == 0 && fseek(pRom,0,SEEK_SET)) return ESP_FAIL;
+            if (fread(TransferBuffer,1,sizeof(TransferBuffer),pRom)!=sizeof(TransferBuffer)) return ESP_FAIL;
+            ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase+offset,TransferBuffer), TAG,"GG ROM upload");
+            RomBrowserUI_SetProgress(offset+sizeof(TransferBuffer),kMaximumRomSize);
+        }
+        return ESP_OK;
+    }
     uint32_t Sum = 0;
     const uint32_t Total = pInfo->MappedRomSize + pInfo->RamSize;
     for (uint32_t Offset = 0; Offset < pInfo->MappedRomSize;
@@ -1142,6 +1222,7 @@ static esp_err_t PersistActiveDataForTransition(void)
 static void ClearActiveSave(void)
 {
     memset(&ActiveInfo, 0, sizeof(ActiveInfo));
+    StateCanonicalPath[0] = 0;
     ActiveSavePath[0] = '\0';
     ActiveRtcPath[0] = '\0';
     ActiveSavePending = false;
@@ -1171,7 +1252,8 @@ static esp_err_t PrepareAndWaitForReset(const VirtualCartInfo_t *pInfo,
         const uint16_t Status = (uint16_t)Response.Data[0] |
                                 ((uint16_t)Response.Data[1] << 8);
         if ((Status & Required) == Required &&
-            (Status & kVirtualStatusEnabled) == 0)
+            (Status & kVirtualStatusEnabled) == 0 &&
+            (!pInfo->GameGear || (Response.Data[3]==0x47 && Response.Data[2]==1 && !(Status & 0x4000))))
         {
             if (pRtcSupported != NULL)
             {
@@ -1189,6 +1271,20 @@ static esp_err_t StartAndWaitForFrame(const VirtualCartInfo_t *pInfo,
                                       uint32_t RtcState,
                                       bool *pRtcSupported)
 {
+    if (pInfo->GameGear) {
+        CartLinkResponse_t response={0};
+        ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStart,pInfo,&response),TAG,"GG start");
+        for (unsigned poll=0;poll<kVirtualBootPolls;poll++) {
+            ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStatus,NULL,&response),TAG,"GG status");
+            uint16_t flags=(uint16_t)response.Data[0] | ((uint16_t)response.Data[1]<<8);
+            if (response.Data[3]!=0x47 || response.Data[2]!=1) return ESP_ERR_NOT_SUPPORTED;
+            /* Bit 13 means reset/fault while enabled; bit 14 is a fresh frame.
+             * Reset is normal during start propagation. Never accept stale ready. */
+            if ((flags & 0x603b)==0x403b) return ESP_OK;
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        return ESP_ERR_TIMEOUT;
+    }
     const uint16_t Required = kVirtualStatusEnabled |
                               kVirtualStatusInitialized |
                               kVirtualStatusDisableSeen |
@@ -1260,6 +1356,7 @@ static esp_err_t RunLoad(const char *pPath)
     bool Mounted = false;
     bool BulkOpen = false;
     bool VirtualDisturbed = false;
+    bool SwitchRequested = false;
     VirtualCartInfo_t Info = {0};
     char SelectedSavePath[kPathSize] = {0};
     char SelectedRtcPath[kPathSize] = {0};
@@ -1278,9 +1375,17 @@ static esp_err_t RunLoad(const char *pPath)
         Result = ESP_ERR_NOT_FOUND;
         goto Cleanup;
     }
-    Result = DecodeHeader(pRom, &Info);
-    if (Result != ESP_OK) goto Cleanup;
-    Result = Cheats_Prepare(pPath, pRom, &Cheats);
+    const char *extension=strrchr(pPath,'.');
+    Info.GameGear=extension && !strcasecmp(extension,".gg");
+    if (Info.GameGear) {
+        Result=GGRom_Inspect(pRom,&Info.RomSize);
+        if(Result==ESP_OK) Result=Cheats_Prepare(pPath,pRom,&Cheats);
+        Info.MappedRomSize=kMaximumRomSize;
+        snprintf(Info.Title,sizeof(Info.Title),"GAME GEAR");
+    } else {
+        Result = DecodeHeader(pRom, &Info);
+        if (Result == ESP_OK) Result = Cheats_Prepare(pPath, pRom, &Cheats);
+    }
     if (Result != ESP_OK) goto Cleanup;
 
     printf("VIRTUAL_CART_START path=%s title=\"%s\" mapper=\"%s\" rom=%lu save=%lu mbc1m=%u\n",
@@ -1291,6 +1396,30 @@ static esp_err_t RunLoad(const char *pPath)
     Result = CartBulk_Begin();
     if (Result != ESP_OK) goto Cleanup;
     BulkOpen = true;
+    /* Reject mismatched images before preparing/resetting or writing memory.
+     * A legacy GB FPGA has zero in the high status byte. */
+    CartLinkResponse_t identity={0};
+    Result=VirtualCommand(kVirtualCommandStatus,NULL,&identity);
+    if (Result!=ESP_OK) goto Cleanup;
+    bool ggCore=identity.Data[3]==0x47 && identity.Data[2]==1;
+    if ((Info.GameGear && !ggCore) || (!Info.GameGear && identity.Data[3]!=0)) {
+        if (!CoreSwitch_IsSupported() || CoreSwitch_IsTarget(Info.GameGear)) {
+            Result=ESP_ERR_NOT_SUPPORTED;
+            goto Cleanup;
+        }
+        if (Active) {
+            Result = PersistActiveDataForTransition();
+            if (Result != ESP_OK) goto Cleanup;
+        }
+        CartLinkResponse_t Stopped = {0};
+        Result = VirtualCommand(kVirtualCommandStop, NULL, &Stopped);
+        if (Result != ESP_OK) goto Cleanup;
+        VirtualDisturbed = true;
+        SetActive(false);
+        ClearActiveSave();
+        SwitchRequested = true;
+        goto Cleanup;
+    }
 
     if (Active)
     {
@@ -1314,6 +1443,11 @@ static esp_err_t RunLoad(const char *pPath)
     }
     pRom = NULL;
 
+    if (Info.GameGear) {
+        if (CoreSwitch_IsTarget(true)) Result=GGCheats_Install(&Cheats);
+        else if(Cheats.Count) Result=ESP_ERR_NOT_SUPPORTED;
+        if(Result!=ESP_OK) goto Cleanup;
+    }
     Result = UploadSave(pPath, &Info, SelectedSavePath);
     if (Result != ESP_OK) goto Cleanup;
 
@@ -1352,6 +1486,8 @@ Cleanup:
             Result = UnmountResult;
         }
     }
+    if (SwitchRequested && Result == ESP_OK)
+        Result = CoreSwitch_Request(pPath);
     /* Completion clears the browser's error tracking. Publish it only after
      * cleanup succeeds, so an unmount failure is still reported to the UI. */
     if (Result == ESP_OK)
@@ -1481,7 +1617,7 @@ static void SaveTask(void *pArg)
     for (;;)
     {
         vTaskDelay(pdMS_TO_TICKS(kSavePollPeriod_ms));
-        if (!VirtualCart_IsActive() || !SetRunning(true))
+        if (!VirtualCart_IsActive() || !BeginAutosave())
         {
             continue;
         }
@@ -1548,11 +1684,174 @@ static void SaveTask(void *pArg)
     }
 }
 
+
+static esp_err_t ReadNativeStatus(uint32_t *status)
+{
+    CartLinkResponse_t response={0};
+    ESP_RETURN_ON_ERROR(VirtualCommand(12,NULL,&response),TAG,"native status");
+    *status=(uint32_t)response.Data[0] | (uint32_t)response.Data[1]<<8 |
+            (uint32_t)response.Data[2]<<16 | (uint32_t)response.Data[3]<<24;
+    return (*status>>16)==0x5353 ? ESP_OK : ESP_ERR_NOT_SUPPORTED;
+}
+
+static void PrintNativeDebug(const char *phase)
+{
+    CartLinkResponse_t response={0};
+    const esp_err_t err=VirtualCommand(13,NULL,&response);
+    const uint32_t data=(uint32_t)response.Data[0] | (uint32_t)response.Data[1]<<8 |
+        (uint32_t)response.Data[2]<<16 | (uint32_t)response.Data[3]<<24;
+    if(err!=ESP_OK || (data>>16)!=0x5344) {
+        printf("STATE_DEBUG phase=%s unavailable error=%s\n",phase,esp_err_to_name(err));
+        return;
+    }
+    unsigned frame=(data>>8)&15;
+    frame^=frame>>1;frame^=frame>>2;
+    printf("STATE_DEBUG phase=%s frame=%u maintenance=%u reset=%u sleep=%u pause=%u quiesced=%u cart_wait=%u halt=%u lcd=%u\n",
+        phase,frame,(unsigned)(data>>7)&1,(unsigned)(data>>6)&1,
+        (unsigned)(data>>5)&1,(unsigned)(data>>4)&1,(unsigned)(data>>3)&1,
+        (unsigned)(data>>2)&1,(unsigned)(data>>1)&1,(unsigned)data&1);
+}
+
+esp_err_t VirtualCart_NativeInfo(bool *Supported,bool *Valid,bool *Uncertain,uint32_t *Session)
+{
+    *Supported=*Valid=false;*Session=0;
+    portENTER_CRITICAL(&StateLock);*Uncertain=StateUncertain;portEXIT_CRITICAL(&StateLock);
+    if(!SetRunning(true))return ESP_ERR_NOT_FINISHED;
+    *Session=NativeSession;
+    *Supported=Active && !ActiveInfo.GameGear && !ActiveInfo.Mapper.HasRtc &&
+        (ActiveInfo.Mapper.Kind==kCartMapper_Mbc1 || ActiveInfo.Mapper.Kind==kCartMapper_Mbc5);
+    uint32_t status=0;esp_err_t result=ESP_OK;
+    if(*Supported) {
+        result=ReadNativeStatus(&status);
+        *Supported=result==ESP_OK && (status&8)!=0;
+        *Valid=*Supported && (status&7)==2;
+    }
+    (void)SetRunning(false);return result;
+}
+
+// Completion of snapshot transfer does not prove the external pause released.
+static esp_err_t ResumeNativeGameChecked(void)
+{
+    CartLinkResponse_t response={0};
+    ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandResume,NULL,&response),TAG,"native resume");
+    for(unsigned poll=0;poll<kVirtualPreparePolls;++poll) {
+        ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStatus,NULL,&response),TAG,"native resume status");
+        const uint16_t status=(uint16_t)response.Data[0] | (uint16_t)response.Data[1]<<8;
+        if(!(status & kVirtualStatusEnabled)) return ESP_ERR_INVALID_RESPONSE;
+        if(!(status & kVirtualStatusQuiesced)) return ESP_OK;
+        vTaskDelay(1);
+    }
+    return ESP_ERR_TIMEOUT;
+}
+
+// Local prototype: one volatile PSRAM slot. All control and persistence serialized.
+esp_err_t VirtualCart_StateCapture(bool load)
+{
+    return VirtualCart_StateCaptureForSession(load,0);
+}
+esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
+{
+    const esp_err_t acquire = BeginNativeOperation();
+    if (acquire != ESP_OK) return acquire;
+    if(Session && Session!=NativeSession) {
+        (void)SetRunning(false);
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t result=ESP_ERR_INVALID_STATE;
+    bool mounted=false,bulk=false,paused=false,submitted=false;
+    sdmmc_card_t *card=NULL;
+    uint32_t status=0;
+    CartLinkResponse_t response={0};
+    if(!Active || ActiveInfo.GameGear || ActiveInfo.Mapper.HasRtc ||
+       (ActiveInfo.Mapper.Kind!=kCartMapper_Mbc1 && ActiveInfo.Mapper.Kind!=kCartMapper_Mbc5)) {
+        printf("STATE_REJECT=unsupported_or_inactive\n");goto cleanup;
+    }
+    result=ReadNativeStatus(&status);
+    if(result!=ESP_OK) goto cleanup;
+    if((status&13)!=8 || (load && !(status&2))) {
+        printf("STATE_REJECT=snapshot_status value=%08lx\n", (unsigned long)status);
+        result=ESP_ERR_INVALID_STATE;goto cleanup;
+    }
+    const bool battery=ActiveInfo.Mapper.HasBattery && ActiveInfo.RamSize;
+    if(battery) {
+        result=SDCard_Mount(&card);if(result!=ESP_OK) goto cleanup;mounted=true;
+        result=CartBulk_Begin();if(result!=ESP_OK) goto cleanup;bulk=true;
+    }
+    result=PersistActiveDataForTransition();if(result!=ESP_OK) goto cleanup;
+    paused=true;
+    if(load && battery) {
+        // Force a complete current battery save even when its dirty flag is clear.
+        ActiveSavePending=true;
+        result=PersistActiveSave();if(result!=ESP_OK) goto cleanup;
+        char branch[kPathSize];
+        const char *canonical=StateCanonicalPath[0] ? StateCanonicalPath : ActiveSavePath;
+        if(StateSaveBranch_Create(canonical,ActiveSavePath,ActiveInfo.RamSize,branch,sizeof(branch))) {
+            result=ESP_FAIL;goto cleanup;
+        }
+        if(!StateCanonicalPath[0]) strcpy(StateCanonicalPath,ActiveSavePath);
+        strcpy(ActiveSavePath,branch); // Must precede the first RAM-changing command.
+        ActiveSavePending=true;
+        printf("STATE_BATTERY_BRANCH=%s\n",ActiveSavePath);
+    }
+    // Any lost acknowledgement may conceal a partial restore. Keep paused/isolated.
+    StateUncertain=true;submitted=true;
+    result=VirtualCommand(load?11:10,NULL,&response);
+    if(result!=ESP_OK) goto cleanup;
+    for(unsigned poll=0;poll<6000;++poll) {
+        result=ReadNativeStatus(&status);if(result!=ESP_OK) goto cleanup;
+        if(status&4) { result=ESP_FAIL;goto cleanup; }
+        if(!(status&1)) {
+            if(!(status&2)) { result=ESP_ERR_INVALID_RESPONSE;goto cleanup; }
+            StateUncertain=false;
+            result=ESP_OK;goto cleanup;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    result=ESP_ERR_TIMEOUT;
+cleanup:
+    if(paused && (!submitted || !StateUncertain)) {
+        PrintNativeDebug("transfer-complete");
+        const esp_err_t resume=ResumeNativeGameChecked();
+        PrintNativeDebug("resume-command");
+        if(resume!=ESP_OK) {
+            StateUncertain=true;
+            result=resume;
+        }
+    }
+    if(bulk) CartBulk_End();
+    if(mounted) {
+        esp_err_t unmount=SDCard_Unmount(card);
+        if(result==ESP_OK) result=unmount;
+    }
+    (void)SetRunning(false);
+    return result;
+}
+
+static int NativeSaveCommand(int argc,char **argv)
+{
+    (void)argc;(void)argv;
+    esp_err_t result=VirtualCart_StateCapture(false);
+    printf("STATE_SAVE=%s\n",esp_err_to_name(result));return result!=ESP_OK;
+}
+static int NativeLoadCommand(int argc,char **argv)
+{
+    (void)argc;(void)argv;
+    esp_err_t result=VirtualCart_StateCapture(true);
+    printf("STATE_LOAD=%s\n",esp_err_to_name(result));return result!=ESP_OK;
+}
+static int NativeStatusCommand(int argc,char **argv)
+{
+    (void)argc;(void)argv;uint32_t status=0;
+    esp_err_t result=ReadNativeStatus(&status);
+    printf("STATE_STATUS=%08lx uncertain=%u error=%s\n",(unsigned long)status,StateUncertain,esp_err_to_name(result));
+    PrintNativeDebug("status");
+    return result!=ESP_OK;
+}
 static int LoadCommand(int argc, char **argv)
 {
     if (argc != 2)
     {
-        printf("usage: cartload <file.gb|file.gbc>\n");
+        printf("usage: cartload <file.gb|file.gbc|file.gg>\n");
         return 1;
     }
     const esp_err_t Result = VirtualCart_Start(argv[1]);
@@ -1576,7 +1875,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
     const esp_console_cmd_t Load = {
         .command = "cartload",
         .help = "Load a supported GB/GBC backup from /sdcard/CHROMAGIC/BACKUPS",
-        .hint = "<file.gb|file.gbc>",
+        .hint = "<file.gb|file.gbc|file.gg>",
         .func = LoadCommand,
         .argtable = NULL,
     };
@@ -1587,6 +1886,14 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
         .func = StopCommand,
         .argtable = NULL,
     };
+    const esp_console_cmd_t NativeCommands[]={
+      {.command="statesave",.help="Capture volatile native state (experimental)",.func=NativeSaveCommand},
+      {.command="stateload",.help="Restore native state into a separate battery-save branch",.func=NativeLoadCommand},
+      {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand}
+    };
+    for(unsigned i=0;i<3;++i) {
+      esp_err_t err=esp_console_cmd_register(&NativeCommands[i]);if(err!=ESP_OK) return err;
+    }
     esp_err_t Result = esp_console_cmd_register(&Load);
     if (Result == ESP_OK) Result = esp_console_cmd_register(&Stop);
     if (Result != ESP_OK) return Result;

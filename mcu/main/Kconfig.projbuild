@@ -6,3 +6,13 @@ config CHROMATIC_FW_VER_STR
 		The Major.Minor pair which describes a Chromatic firmware release package.
 		It shall be updated any time the Chromatic microcontroller or FPGA is revised.
 endmenu
+
+menu "ChroMagic experimental features"
+config CHROMAGIC_WIFI_FILES
+    bool "Wi-Fi Files transfer mode"
+    default n
+    help
+        Password-protected local hotspot and SD file manager. Requires the
+        larger partition layout in sdkconfig.wifi.defaults; not an app-only
+        upgrade from the standard 1 MiB layout.
+endmenu

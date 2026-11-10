@@ -7,6 +7,10 @@
 #include "cart_mapper.h"
 #include "cart_rtc.h"
 #include "esp_attr.h"
+#include "sdkconfig.h"
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+#include "esp_heap_caps.h"
+#endif
 #include "esp_console.h"
 #include "esp_check.h"
 #include "esp_log.h"
@@ -82,12 +86,22 @@ static portMUX_TYPE StateLock = portMUX_INITIALIZER_UNLOCKED;
 static bool Running;
 static bool PCModeActive;
 static DRAM_ATTR uint8_t CartIoBuffer[kIoBufferSize];
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+/* A backup owns Running until all file/writer users have finished. Keep the
+ * same bank sizes, but return this 32 KiB to the heap outside backup work. */
+static uint8_t (*RomFileStorage)[kFileBufferSize];
+static uint8_t (*SaveFileStorage)[kFileBufferSize];
+#define RomFileBuffer (*RomFileStorage)
+#define SaveFileBuffer (*SaveFileStorage)
+static uint8_t *RomBankBuffers[kRomBufferCount];
+#else
 static DRAM_ATTR uint8_t RomFileBuffer[kFileBufferSize];
 static DRAM_ATTR uint8_t SaveFileBuffer[kFileBufferSize];
 static uint8_t *const RomBankBuffers[kRomBufferCount] = {
     RomFileBuffer,
     SaveFileBuffer,
 };
+#endif
 
 static const uint8_t NintendoLogo[48] = {
     0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b,
@@ -100,7 +114,7 @@ static const uint8_t NintendoLogo[48] = {
 
 static esp_err_t RunBackup(void);
 static void BackupTask(void *pArg);
-static bool BeginRun(void);
+static bool BeginRun(bool NeedsBuffers);
 static void EndRun(void);
 
 typedef esp_err_t (*DataSinkFn_t)(void *pContext, const uint8_t *pData,
@@ -781,7 +795,12 @@ static void RemoveObsoleteCopies(const CartInfo_t *pInfo,
         for (unsigned i = 0; i < Count; ++i)
         {
             char Path[kPathSize];
-            snprintf(Path, sizeof(Path), "%s/%s", BackupDirectory, Names[i]);
+            const size_t DirectoryLength = strlen(BackupDirectory);
+            const size_t NameLength = strlen(Names[i]);
+            if (DirectoryLength + 1 + NameLength >= sizeof(Path)) continue;
+            memcpy(Path, BackupDirectory, DirectoryLength);
+            Path[DirectoryLength] = '/';
+            memcpy(Path + DirectoryLength + 1, Names[i], NameLength + 1);
             if (unlink(Path) == 0)
             {
                 printf("CARTBACKUP_REMOVED_OBSOLETE=%s\n", Path);
@@ -1245,7 +1264,7 @@ bool CartBackup_IsPCModeActive(void)
 
 esp_err_t CartBackup_SetPCMode(bool Enabled)
 {
-    if (!BeginRun())
+    if (!BeginRun(false))
     {
         return ESP_ERR_INVALID_STATE;
     }
@@ -1297,7 +1316,7 @@ esp_err_t CartBackup_FlashSession(uint8_t MapperType,
     {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!CartBackup_IsPCModeActive() || !BeginRun())
+    if (!CartBackup_IsPCModeActive() || !BeginRun(false))
     {
         return ESP_ERR_INVALID_STATE;
     }
@@ -1347,7 +1366,7 @@ esp_err_t CartBackup_ImportSaveFromPC(
     {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!CartBackup_IsPCModeActive() || !BeginRun())
+    if (!CartBackup_IsPCModeActive() || !BeginRun(true))
     {
         return ESP_ERR_INVALID_STATE;
     }
@@ -1443,7 +1462,7 @@ static esp_err_t StreamBackup(uint32_t Selection,
     {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!CartBackup_IsPCModeActive() || !BeginRun())
+    if (!CartBackup_IsPCModeActive() || !BeginRun(true))
     {
         return ESP_ERR_INVALID_STATE;
     }
@@ -1822,7 +1841,7 @@ Cleanup:
     return Result;
 }
 
-static bool BeginRun(void)
+static bool BeginRun(bool NeedsBuffers)
 {
     bool Started = false;
     portENTER_CRITICAL(&StateLock);
@@ -1832,11 +1851,32 @@ static bool BeginRun(void)
         Started = true;
     }
     portEXIT_CRITICAL(&StateLock);
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if (Started && NeedsBuffers)
+    {
+        RomFileStorage = heap_caps_malloc(sizeof(*RomFileStorage), MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+        SaveFileStorage = heap_caps_malloc(sizeof(*SaveFileStorage), MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+        if (!RomFileStorage || !SaveFileStorage)
+        {
+            EndRun();
+            return false;
+        }
+        RomBankBuffers[0] = RomFileBuffer;
+        RomBankBuffers[1] = SaveFileBuffer;
+    }
+#else
+    (void)NeedsBuffers;
+#endif
     return Started;
 }
 
 static void EndRun(void)
 {
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    free(RomFileStorage); free(SaveFileStorage);
+    RomFileStorage = SaveFileStorage = NULL;
+    RomBankBuffers[0] = RomBankBuffers[1] = NULL;
+#endif
     portENTER_CRITICAL(&StateLock);
     Running = false;
     portEXIT_CRITICAL(&StateLock);
@@ -1858,7 +1898,7 @@ esp_err_t CartBackup_Start(void)
     {
         return ESP_ERR_INVALID_STATE;
     }
-    if (!BeginRun())
+    if (!BeginRun(true))
     {
         return ESP_ERR_INVALID_STATE;
     }

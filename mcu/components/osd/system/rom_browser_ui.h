@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef enum { kRomPlatformUnknown, kRomPlatformGB, kRomPlatformGBC } RomPlatform_t;
+typedef enum { kRomPlatformUnknown, kRomPlatformGB, kRomPlatformGBC, kRomPlatformGG } RomPlatform_t;
 
 typedef struct RomBrowserDataSource {
     esp_err_t (*Open)(size_t *pCount);
@@ -65,3 +65,5 @@ void RomBrowserUI_RegisterDataSource(const RomBrowserDataSource_t *pSource);
 void RomBrowserUI_SetProgress(uint32_t Completed, uint32_t Total);
 bool RomBrowserUI_SetComplete(void);
 void RomBrowserUI_SetError(esp_err_t Error);
+
+bool RomBrowserUI_HasPickerFocus(void);

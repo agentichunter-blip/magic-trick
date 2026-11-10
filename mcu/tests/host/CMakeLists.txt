@@ -17,6 +17,8 @@ foreach(DIR ${FW_INCLUDES})
   target_include_directories(lvgl_host PUBLIC "${FW_ROOT}/${DIR}")
 endforeach()
 add_executable(osd_test osd_test.c
+  "${FW_ROOT}/components/tab/tab_list/tab_list.c"
+  "${FW_ROOT}/components/tab/tab_shared.c"
   "${FW_ROOT}/components/battery/battery.c"
   "${FW_ROOT}/components/images/icon_bat_large_g.c"
   "${FW_ROOT}/components/images/icon_bat_large_y.c"
@@ -28,6 +30,7 @@ add_executable(osd_test osd_test.c
   "${FW_ROOT}/components/osd/system/progress_font.c"
   "${FW_ROOT}/components/common/rom_title.c"
   "${FW_ROOT}/components/osd/system/cart_backup_ui.c"
+  "${FW_ROOT}/components/osd/system/native_state_ui.c"
   "${FW_ROOT}/components/osd/status/fw.c"
   "${FW_ROOT}/components/menu_mgr/menu_mgr.c"
   "${FW_ROOT}/components/common/osd_shared.c"
@@ -120,7 +123,7 @@ target_link_libraries(video_preview_test PRIVATE lvgl_host m)
 add_test(NAME video_preview_format COMMAND video_preview_test)
 add_test(NAME gameplay_converter COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/video_converter_test.py")
 
-add_executable(boot_resume_test boot_resume_test.c "${FW_ROOT}/main/boot_resume.c" "${FW_ROOT}/main/last_game.c")
+add_executable(boot_resume_test boot_resume_test.c "${FW_ROOT}/main/boot_resume.c" "${FW_ROOT}/main/last_game.c" "${FW_ROOT}/main/intro_video.c" "${FW_ROOT}/main/intro_video_data.c")
 target_link_libraries(boot_resume_test PRIVATE lvgl_host m)
 add_test(NAME boot_resume COMMAND boot_resume_test)
 
@@ -149,3 +152,82 @@ add_test(NAME recent_game_history COMMAND recent_games_test)
 
 target_sources(boot_resume_test PRIVATE "${FW_ROOT}/components/common/rom_title.c")
 target_sources(recent_games_test PRIVATE "${FW_ROOT}/components/common/rom_title.c")
+
+add_executable(wifi_file_store_test wifi_file_store_test.c "${FW_ROOT}/main/wifi_file_store.c")
+target_include_directories(wifi_file_store_test PRIVATE "${FW_ROOT}/main")
+add_test(NAME wifi_file_store COMMAND wifi_file_store_test)
+add_executable(wifi_http_test wifi_http_test.c "${FW_ROOT}/main/wifi_file_store.c" "${CJSON_SOURCE_DIR}/cJSON.c")
+target_include_directories(wifi_http_test BEFORE PRIVATE "stubs/wifi" "${CJSON_SOURCE_DIR}")
+target_compile_options(wifi_http_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(wifi_http_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(wifi_http_test PRIVATE lvgl_host m)
+add_test(NAME wifi_http COMMAND wifi_http_test)
+target_sources(osd_test PRIVATE "${FW_ROOT}/components/osd/system/wifi_files_ui.c")
+
+target_compile_definitions(osd_test PRIVATE CONFIG_CHROMAGIC_WIFI_FILES=1)
+add_executable(wifi_credentials_test wifi_credentials_test.c)
+target_link_libraries(wifi_credentials_test PRIVATE lvgl_host m)
+add_test(NAME wifi_credentials COMMAND wifi_credentials_test)
+target_sources(wifi_http_test PRIVATE "${FW_ROOT}/main/wifi_credentials.c")
+add_executable(wifi_network_test wifi_network_test.c)
+target_include_directories(wifi_network_test BEFORE PRIVATE "stubs/wifi")
+target_link_libraries(wifi_network_test PRIVATE lvgl_host m)
+add_test(NAME wifi_router_lifecycle COMMAND wifi_network_test)
+add_test(NAME wifi_agent_client COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/wifi_agent_test.py")
+find_program(NODE_EXECUTABLE node)
+if(NODE_EXECUTABLE)
+  add_test(NAME wifi_browser_events COMMAND "${NODE_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/wifi_page_test.js")
+endif()
+add_test(NAME cart_backup_buffer_lifetime COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cart_backup_memory_test.py)
+
+add_executable(pc_mode_wifi_test pc_mode_test.c "${FW_ROOT}/components/osd/system/pc_backup_mode.c")
+target_compile_definitions(pc_mode_wifi_test PRIVATE CONFIG_CHROMAGIC_WIFI_FILES=1)
+target_compile_options(pc_mode_wifi_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(pc_mode_wifi_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(pc_mode_wifi_test PRIVATE lvgl_host m)
+add_test(NAME wifi_usb_mode_exclusion COMMAND pc_mode_wifi_test)
+
+add_executable(native_state_test native_state_test.c "${FW_ROOT}/main/state_save_branch.c" "${FW_ROOT}/main/cart_rtc.c")
+target_compile_options(native_state_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(native_state_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(native_state_test PRIVATE lvgl_host m)
+add_test(NAME native_state_battery_protection COMMAND native_state_test)
+
+# Invoked with real-game exports after the full-board gameplay simulation.
+add_executable(native_state_game_save_test native_state_game_save_test.c "${FW_ROOT}/main/state_save_branch.c" "${FW_ROOT}/main/cart_rtc.c")
+target_compile_options(native_state_game_save_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(native_state_game_save_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(native_state_game_save_test PRIVATE lvgl_host m)
+
+find_package(Threads REQUIRED)
+add_executable(native_state_autosave_test native_state_autosave_test.c "${FW_ROOT}/main/state_save_branch.c" "${FW_ROOT}/main/cart_rtc.c")
+target_compile_definitions(native_state_autosave_test PRIVATE HOST_FREERTOS_PTHREAD_LOCKS)
+target_compile_options(native_state_autosave_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(native_state_autosave_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(native_state_autosave_test PRIVATE lvgl_host m Threads::Threads)
+add_test(NAME native_state_autosave_overlap COMMAND native_state_autosave_test)
+set_tests_properties(native_state_autosave_overlap PROPERTIES TIMEOUT 15)
+
+add_executable(native_shortcuts_test native_shortcuts_test.c "${FW_ROOT}/main/native_state_shortcuts.c")
+target_include_directories(native_shortcuts_test PRIVATE "${FW_ROOT}/main")
+add_test(NAME native_shortcut_gestures COMMAND native_shortcuts_test)
+add_executable(native_control_test native_control_test.c "${FW_ROOT}/main/native_state_shortcuts.c")
+target_link_libraries(native_control_test PRIVATE lvgl_host m)
+add_test(NAME native_state_menu_controller COMMAND native_control_test)
+
+add_executable(gg_load_test gg_load_test.c "${FW_ROOT}/main/cart_mapper.c" "${FW_ROOT}/main/cart_rtc.c" "${FW_ROOT}/main/cheat_patch.c")
+target_compile_options(gg_load_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(gg_load_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(gg_load_test PRIVATE lvgl_host m)
+add_test(NAME gamegear_load COMMAND gg_load_test)
+
+add_executable(core_switch_test core_switch_test.c "${FW_ROOT}/main/core_switch.c" "${FW_ROOT}/main/last_game.c" "${FW_ROOT}/components/common/rom_title.c")
+target_link_libraries(core_switch_test PRIVATE lvgl_host m)
+add_test(NAME core_switch_handoff COMMAND core_switch_test)
+
+add_executable(gg_cheats_test gg_cheats_test.c "${FW_ROOT}/main/gg_cheats.c")
+target_link_libraries(gg_cheats_test PRIVATE lvgl_host m)
+add_test(NAME gamegear_cheat_transport COMMAND gg_cheats_test)
+add_executable(intro_video_test intro_video_test.c "${FW_ROOT}/main/intro_video.c" "${FW_ROOT}/main/intro_video_data.c")
+target_include_directories(intro_video_test PRIVATE "${FW_ROOT}/main")
+add_test(NAME boot_intro_video COMMAND intro_video_test)

@@ -44,6 +44,8 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ### Build from source
 
+> **This branch (`three-systems`) is development firmware.** Here `mcu/` is the three-system firmware (Game Gear, core switching, save states, Wi-Fi). Its 1.4 MB app needs the Wi-Fi partition table (app at `0x260000`, see `mcu/partitions.wifi.csv`) and the matching FPGA cores in [`fpga/cores`](fpga/cores). **Do not use the art31 commands below with it.** There is no tested install path for it yet, and the FPGA cores currently block USB flash tools (see [fpga/cores/README.md](fpga/cores/README.md)). For the art31 source these steps describe, check out tag [`v1.0.1-art31`](https://github.com/agentichunter-blip/magic-trick/tree/v1.0.1-art31).
+
 These instructions are for a Chromatic already running **ChroMagic 1.0.1 with FPGA 18.38**. If starting from stock, first install upstream ChroMagic with [ChroMagician](https://github.com/cursedtoast2/ChroMagician), then verify the versions in the device's status menu. Selecting upstream ChroMagic in that app installs upstream firmware, not this mod. Upstream ChroMagician currently provides Windows and Linux installers; use a supported host for the initial installation or rollback. The source build and application-only flashing commands below can be run on macOS/Linux once the required base firmware is installed.
 
 Download/extract this repository or clone it, then open a terminal in its root directory (the folder containing this README). All relative paths below start there. These commands use the esptool 4.x bundled with ESP-IDF v5.3; see [Espressif's command reference](https://docs.espressif.com/projects/esptool/en/release-v4/esp32/esptool/basic-commands.html).

@@ -1,0 +1,55 @@
+--- gg_system.v.before-psg	2026-11-09 23:56:00
++++ gg_system.v	2026-11-09 23:56:00
+@@ -78762,6 +78762,7 @@
+ module system
+   (input  clk_sys,
+    input  ce_cpu,
++   input  ce_psg, // PSG enable not gated by ROM wait states (board edit)
+    input  ce_vdp,
+    input  ce_pix,
+    input  ce_sp,
+@@ -80197,7 +80198,7 @@
+   jt89 psg_inst (
+     .rst(n157),
+     .clk(clk_sys),
+-    .clk_en(ce_cpu),
++    .clk_en(ce_psg),
+     .din(d_in),
+     .wr_n(psg_wr_n),
+     .mux(psg_mux),
+@@ -80219,7 +80220,7 @@
+   jt89 psg2_inst (
+     .rst(n164),
+     .clk(clk_sys),
+-    .clk_en(ce_cpu),
++    .clk_en(ce_psg),
+     .din(d_in),
+     .wr_n(psg2_wr_n),
+     .mux(psg_mux),
+--- gg_board_core.sv.before-psg	2026-11-09 23:56:00
++++ gg_board_core.sv	2026-11-09 23:56:00
+@@ -23,16 +23,21 @@
+ wire nvram_we;
+ reg [7:0] ram_q,nvram_q;
+ reg [7:0] ram[0:16383];
+-reg [7:0] nvram[0:32767];
++// 16 KiB cartridge RAM (was 32 KiB) frees 8 BSRAM for the ROM cache. GG
++// cartridges use at most 8-16 KiB; bank bit 14 aliases.
++reg [7:0] nvram[0:16383];
+ always @(posedge clk) begin
+  ram_q <= ram_we ? ram_d : ram[ram_a];
+- nvram_q <= nvram_we ? nvram_d : nvram[nvram_a];
++ nvram_q <= nvram_we ? nvram_d : nvram[nvram_a[13:0]];
+  if(ram_we) ram[ram_a] <= ram_d;
+- if(nvram_we) nvram[nvram_a] <= nvram_d;
++ if(nvram_we) nvram[nvram_a[13:0]] <= nvram_d;
+ end
+ system core(
+  .clk_sys(clk),
+  .ce_cpu(ce_cpu && rom_ready && !quiesce),
++ // PSG runs at the true CPU rate; only pause/quiesce stops it. Gating it by
++ // rom_ready froze tone counters on every PSRAM cache miss (garbled audio).
++ .ce_psg(ce_cpu && !quiesce),
+  .ce_vdp(ce_vdp),
+  .ce_pix(ce_pix),
+  .ce_sp(ce_sp),

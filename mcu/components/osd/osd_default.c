@@ -1,3 +1,5 @@
+#include "wifi_files_ui.h"
+#include "native_state_ui.h"
 #include "osd_default.h"
 
 #include "battery.h"
@@ -383,6 +385,12 @@ static void CreateMenuSystem(lv_obj_t *const pScreen)
     };
     Tab_System.Accent = lv_color_make(0xFF, 0x33, 0x99);
 
+    static TabItem_t SaveStates = { .Widget = {
+        .Name="SAVE STATES", .fnDraw=NativeStateUI_Draw,
+        .fnOnButton=NativeStateUI_OnButton, .fnOnTransition=NativeStateUI_OnTransition,
+    }};
+    if(Tab_AddItem(pList,&SaveStates,pScreen)!=kOSD_Result_Ok)return;
+
     static TabItem_t Firmware = {
         .Widget = {
             .Name = "FIRMWARE",
@@ -431,7 +439,7 @@ static void CreateMenuSystem(lv_obj_t *const pScreen)
 
     static TabItem_t PCBackupMode = {
         .Widget = {
-            .Name = "C. MAGICIAN",
+            .Name = "USB TRANSFERS",
             .fnDraw = PCBackupMode_Draw,
             .fnOnButton = PCBackupMode_OnButton,
             .fnOnTransition = PCBackupMode_OnTransition,
@@ -445,6 +453,18 @@ static void CreateMenuSystem(lv_obj_t *const pScreen)
                  PCBackupMode.Widget.Name, eResult);
         return;
     }
+
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    static TabItem_t WifiFiles = {
+        .Widget = {
+            .Name = "WI-FI",
+            .fnDraw = WifiFilesUI_Draw,
+            .fnOnButton = WifiFilesUI_OnButton,
+            .fnOnTransition = WifiFilesUI_OnTransition,
+        },
+    };
+    if (Tab_AddItem(pList, &WifiFiles, pScreen) != kOSD_Result_Ok) return;
+#endif
 
     if (SerialNum_IsPresent())
     {
@@ -474,7 +494,7 @@ static void CreateMenuBackups(void)
 {
     static MenuTab_t Backups = {
         .Widget = {
-            .Name = "BACKUPS",
+            .Name = "GAMES",
             .fnDraw = RomBrowserUI_Draw,
             .fnOnButton = RomBrowserUI_OnButton,
             .fnOnTransition = RomBrowserUI_OnTransition,

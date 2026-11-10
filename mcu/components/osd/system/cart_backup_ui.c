@@ -1,5 +1,6 @@
 #include "cart_backup_ui.h"
 #include "pc_backup_mode.h"
+#include "wifi_files_ui.h"
 
 #include "freertos/FreeRTOS.h"
 #include "lvgl.h"
@@ -14,6 +15,7 @@ typedef enum {
     kState_Complete,
     kState_Error,
     kState_ModeBlocked,
+    kState_WirelessBlocked,
 } BackupState_t;
 
 typedef struct {
@@ -113,6 +115,9 @@ OSD_Result_t CartBackupUI_Draw(void *pArg)
     portENTER_CRITICAL(&ContextLock);
     State = PCBackupMode_GetState() == kPCBackupModeState_On
         ? kState_ModeBlocked : Context.State;
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if(WifiFilesUI_IsBusy())State=kState_WirelessBlocked;
+#endif
     Percent = Context.Percent;
     memcpy(Detail, Context.Detail, sizeof(Detail));
     portEXIT_CRITICAL(&ContextLock);
@@ -144,9 +149,12 @@ OSD_Result_t CartBackupUI_Draw(void *pArg)
             else
                 lv_label_set_text_fmt(Context.pStatus, "FAILED\n%s\nA: RETRY", Detail);
             break;
+        case kState_WirelessBlocked:
+            lv_label_set_text_static(Context.pStatus,"TURN OFF\nWI-FI\nTO BACK UP");
+            break;
         case kState_ModeBlocked:
             lv_label_set_text_static(Context.pStatus,
-                                    "DISABLE\nC. MAGICIAN\nIN SYSTEM\nSETTINGS");
+                                    "DISABLE\nUSB TRANSFERS\nIN SYSTEM\nSETTINGS");
             break;
         default:
             lv_label_set_text_static(Context.pStatus, "BACK UP\nTO SD CARD");
@@ -168,6 +176,9 @@ OSD_Result_t CartBackupUI_OnButton(Button_t Button, ButtonState_t State,
         return kOSD_Result_Ok;
     }
 
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if(WifiFilesUI_IsBusy())return kOSD_Result_Ok;
+#endif
     CartBackupStartCallback_t Callback;
     BackupState_t CurrentState;
     portENTER_CRITICAL(&ContextLock);

@@ -21,3 +21,7 @@ esp_err_t FPGA_Tx_QueueCartRequest(const uint8_t Request[8]);
 esp_err_t FPGA_Tx_CartStreamAck(uint8_t Sequence);
 esp_err_t FPGA_Tx_PulseButtons(uint16_t Buttons);
 esp_err_t FPGA_Tx_RequestButtons(void);
+
+esp_err_t FPGA_Tx_CoreReload(uint8_t Operation, uint8_t Target, uint16_t Nonce);
+
+esp_err_t FPGA_Tx_GGCheat(const uint8_t Payload[6]);

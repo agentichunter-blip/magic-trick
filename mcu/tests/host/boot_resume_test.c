@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "boot_resume.h"
+#include "core_switch.h"
 #include "last_game.h"
 #include "button.h"
 #include "cart_link.h"
@@ -10,6 +11,14 @@
 #include "nvs.h"
 #include "freertos/task.h"
 
+static char SwitchPath[LAST_GAME_PATH_SIZE];
+static esp_err_t SwitchResult=ESP_ERR_NVS_NOT_FOUND;
+static bool SwitchTarget=true;
+esp_err_t CoreSwitch_TakePending(char *Path) { strcpy(Path,SwitchPath);SwitchPath[0]=0;return SwitchResult; }
+bool CoreSwitch_IsTarget(bool GG) { (void)GG;return SwitchTarget; }
+bool CoreSwitch_HasPending(void) { return SwitchPath[0]!=0; }
+int64_t esp_timer_get_time(void) { return 0; }
+void Button_ResetAll(void) {}
 static const char Game[]="/sdcard/CHROMAGIC/BACKUPS/GB/0-F/Alleyway (World).gb";
 static char Stored[600], Pending[600], StartedPath[LAST_GAME_PATH_SIZE];
 static bool HandleOpen, ReadOnly, SetFailed, CommitFailed, OpenFailed;
@@ -69,7 +78,7 @@ bool OSD_IsVisible(void) { return Visible; }
 bool VirtualCart_IsActive(void) { return Active; }
 bool VirtualCart_IsBusy(void) { return Busy; }
 esp_err_t VirtualCart_Start(const char *Path) {
-    assert(!Present && !PC && !PCActive && !Busy && !Visible && !(Held & kButtonBits_B));
+    assert((!Present || SwitchResult==ESP_OK) && !PC && !PCActive && !Busy && !Visible && !(Held & kButtonBits_B));
     ++Starts; strcpy(StartedPath,Path);
     if(FailStart) return ESP_ERR_NO_MEM;
     Busy=true; return ESP_OK;
@@ -110,6 +119,7 @@ esp_err_t CartLink_TransactionOnce(CartLinkOperation_t Op,uint16_t Address,uint8
 }
 static void Reset(void) {
     assert(!SleepLocks && !HandleOpen && !Bulk && !Entered);
+    SwitchPath[0]=0;SwitchResult=ESP_ERR_NVS_NOT_FOUND;SwitchTarget=true;
     PC=PCActive=Visible=Active=Busy=Present=UnknownCart=BadReply=false;
     NoButtons=RequestFailed=FailLoad=FailStart=ManualMenu=ManualLoad=false;
     Starts=Pings=ButtonRequests=MenuOpens=Sequence=Clock=0; Held=0;
@@ -122,6 +132,7 @@ static void Run(void) {
 static void Skipped(void) { Run(); assert(!Starts && !SleepLocks && !HandleOpen && !Bulk && !Entered); }
 int main(void) {
     char Path[LAST_GAME_PATH_SIZE];
+    assert(LastGame_ValidPath("/sdcard/CHROMAGIC/BACKUPS/GG/Game.GG"));
     assert(LastGame_Read(Path)==ESP_ERR_NOT_FOUND && !Path[0]);
     assert(LastGame_Remember(Game)==ESP_OK && Sets==1 && Commits==1);
     assert(LastGame_Read(Path)==ESP_OK && !strcmp(Path,Game));
@@ -176,6 +187,11 @@ int main(void) {
     Reset(); memset(Stored,'x',sizeof(Stored)-1); Stored[sizeof(Stored)-1]=0; Skipped(); assert(MenuOpens==1);
     Reset(); FailStart=true; Run(); assert(Starts==1 && MenuOpens==1 && !SleepLocks);
     Reset(); FailLoad=true; Run(); assert(Starts==1 && MenuOpens==1 && !SleepLocks);
+    Reset();strcpy(SwitchPath,"/sdcard/CHROMAGIC/BACKUPS/GG/Test.gg");SwitchResult=ESP_OK;Present=true;
+    Run();assert(Starts==1 && Active && !SwitchPath[0] && !strcmp(StartedPath,"/sdcard/CHROMAGIC/BACKUPS/GG/Test.gg"));
+    Reset();strcpy(SwitchPath,Game);SwitchResult=ESP_OK;SwitchTarget=false;
+    Skipped();assert(MenuOpens==1 && !SwitchPath[0]);
+    Reset();SwitchResult=ESP_FAIL;Skipped();assert(MenuOpens==1);
     /* A physical game may already be running after UI setup. Use the early
      * result without entering maintenance/reset again, even if the bus would
      * now fail. This reproduces the former late Tetris copyright-screen reset. */

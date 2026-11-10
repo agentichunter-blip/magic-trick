@@ -1,4 +1,11 @@
+#include "native_state_ui.h"
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 #include "menu_mgr.h"
+#include "tab_glyphs.h"
+LV_FONT_DECLARE(chromatic_banner);
+#include "wifi_files_ui.h"
 
 #include "osd_shared.h"
 #include "lvgl.h"
@@ -25,24 +32,6 @@ static const lv_img_dsc_t BackupGlyph = {
     .data = BackupGlyphData,
 };
 
-static const uint8_t BackupTitleData[] = {
-    0xfe, 0x0f, 0x07, 0xe3, 0x9c, 0xe7, 0x3f, 0x87, 0xf0,
-    0xff, 0x1f, 0x8f, 0xf3, 0xb8, 0xe7, 0x3f, 0xcf, 0xe0,
-    0xe7, 0x3b, 0xce, 0x63, 0xf0, 0xe7, 0x39, 0xce, 0x00,
-    0xfe, 0x39, 0xce, 0x03, 0xe0, 0xe7, 0x3f, 0x8f, 0xe0,
-    0xff, 0x3f, 0xce, 0x03, 0xf0, 0xe7, 0x3f, 0x07, 0xf0,
-    0xe7, 0x3f, 0xce, 0x73, 0xf8, 0xe7, 0x38, 0x00, 0x70,
-    0xfe, 0x39, 0xcf, 0xe3, 0xbc, 0xfe, 0x38, 0x0f, 0xe0,
-    0xfc, 0x31, 0x87, 0xc3, 0x18, 0x7c, 0x30, 0x0f, 0xc0,
-};
-static const lv_img_dsc_t BackupTitle = {
-    .header.cf = LV_IMG_CF_ALPHA_1BIT,
-    .header.w = 70,
-    .header.h = 8,
-    .data_size = sizeof(BackupTitleData),
-    .data = BackupTitleData,
-};
-
 typedef struct MenuMgrCtx
 {
     TabID_t eCurTab;
@@ -51,6 +40,7 @@ typedef struct MenuMgrCtx
     lv_obj_t *pBackupFrameAccent;
     lv_obj_t *pInactiveSystem;
     lv_obj_t *pBackupTitle;
+    lv_obj_t *pWifiStatus;
 } MenuMgrCtx_t;
 
 const lv_point_t _MenuOrigin_px = {
@@ -111,43 +101,52 @@ static lv_obj_t *BackupFrame(lv_obj_t *Screen, const lv_img_dsc_t *Base, lv_colo
     return Frame;
 }
 
-static void DrawBackupTab(lv_obj_t *pScreen)
+static void PaintTabs(lv_event_t *Event)
 {
-    if (_Ctx.pBackupTab != NULL) return;
-    const bool Selected = _Ctx.eCurTab == kTabID_Backups;
-    const lv_color_t Accent = Selected ? _Ctx.pMenus[_Ctx.eCurTab]->Accent
-                                      : lv_color_black();
-    const lv_color_t Color = lv_color_hex(Selected ? 0xffffff : 0x666666);
-    _Ctx.pBackupTab = Box(pScreen, 108, 7, 17, 16);
-    lv_obj_set_style_bg_color(_Ctx.pBackupTab, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(_Ctx.pBackupTab, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(_Ctx.pBackupTab, Selected ? Accent : Color, 0);
-    lv_obj_set_style_border_width(_Ctx.pBackupTab, 1, 0);
-    lv_obj_set_style_radius(_Ctx.pBackupTab, 3, 0);
-    lv_obj_t *pGlyph = lv_img_create(_Ctx.pBackupTab);
-    lv_img_set_src(pGlyph, &BackupGlyph);
-    lv_obj_center(pGlyph);
-    lv_obj_set_style_img_recolor(pGlyph, Color, 0);
-    lv_obj_set_style_img_recolor_opa(pGlyph, LV_OPA_COVER, 0);
-    if (Selected)
+    lv_draw_ctx_t *Context=lv_event_get_draw_ctx(Event);
+    lv_area_t Bounds;lv_obj_get_coords(lv_event_get_target(Event),&Bounds);
+    const lv_color_t Accent=_Ctx.pMenus[_Ctx.eCurTab]->Accent;
+    const bool PickerFocus=_Ctx.eCurTab==kTabID_Backups && RomBrowserUI_HasPickerFocus();
+    for(unsigned I=0;I<kNumTabIDs;I++)
     {
-        _Ctx.pInactiveSystem = Box(pScreen, 88, 7, 19, 16);
-        lv_obj_set_style_bg_color(_Ctx.pInactiveSystem, lv_color_hex(0xff00ff), 0);
-        lv_obj_set_style_bg_opa(_Ctx.pInactiveSystem, LV_OPA_COVER, 0);
-        lv_obj_t *pStock = lv_img_create(_Ctx.pInactiveSystem);
-        lv_img_set_src(pStock, &menu_status);
-        lv_obj_set_pos(pStock, -80, 0);
-        lv_obj_t *pBorder = Box(_Ctx.pInactiveSystem, 0, 15, 19, 1);
-        lv_obj_set_style_bg_color(pBorder, Accent, 0);
-        lv_obj_set_style_bg_opa(pBorder, LV_OPA_COVER, 0);
-        _Ctx.pBackupTitle = Box(pScreen, 20, 29, 76, 8);
-        lv_obj_set_style_bg_color(_Ctx.pBackupTitle, Accent, 0);
-        lv_obj_set_style_bg_opa(_Ctx.pBackupTitle, LV_OPA_COVER, 0);
-        lv_obj_t *pTitle = lv_img_create(_Ctx.pBackupTitle);
-        lv_img_set_src(pTitle, &BackupTitle);
-        lv_obj_set_style_img_recolor(pTitle, lv_color_black(), 0);
-        lv_obj_set_style_img_recolor_opa(pTitle, LV_OPA_COVER, 0);
-        lv_obj_set_pos(pTitle, 0, 0);
+        const bool Selected=I==(unsigned)_Ctx.eCurTab;
+        const int X=Bounds.x1+I*18;
+        lv_area_t Cell={X+1,Bounds.y1+1,X+16,Bounds.y1+14};
+        lv_draw_rect_dsc_t Rect;lv_draw_rect_dsc_init(&Rect);
+        Rect.bg_color=lv_color_black();Rect.bg_opa=LV_OPA_COVER;
+        Rect.border_width=1;Rect.radius=3;
+        Rect.border_color=Selected && !PickerFocus?Accent:lv_color_hex(0x666666);
+        lv_draw_rect(Context,&Rect,&Cell);
+        const lv_img_dsc_t *Glyph=I==kTabID_Backups?&BackupGlyph:&NativeTabGlyphs[I-1];
+        lv_area_t Image={X+5,Bounds.y1+(I==kTabID_Backups?3:4),X+5+Glyph->header.w-1,Bounds.y1+(I==kTabID_Backups?3:4)+Glyph->header.h-1};
+        lv_draw_img_dsc_t Ink;lv_draw_img_dsc_init(&Ink);
+        Ink.recolor=lv_color_hex(Selected?0xffffff:0x999999);Ink.recolor_opa=LV_OPA_COVER;
+        lv_draw_img(Context,&Ink,&Image,Glyph);
+    }
+    /* This line belongs to the page frame, never to an inactive tab. */
+    lv_area_t Line={Bounds.x1,Bounds.y1+15,Bounds.x2,Bounds.y1+15};
+    lv_draw_rect_dsc_t Ink;lv_draw_rect_dsc_init(&Ink);
+    Ink.bg_color=Accent;Ink.bg_opa=LV_OPA_COVER;lv_draw_rect(Context,&Ink,&Line);
+}
+static void DrawBackupTab(lv_obj_t *Screen)
+{
+    if(!_Ctx.pBackupTab)
+    {
+        _Ctx.pBackupTab=Box(Screen,16,7,108,16);
+        lv_obj_set_style_bg_color(_Ctx.pBackupTab,lv_color_hex(0xff00ff),0);
+        lv_obj_set_style_bg_opa(_Ctx.pBackupTab,LV_OPA_COVER,0);
+        lv_obj_add_event_cb(_Ctx.pBackupTab,PaintTabs,LV_EVENT_DRAW_MAIN,NULL);
+    }
+    lv_obj_invalidate(_Ctx.pBackupTab);
+    if(_Ctx.eCurTab==kTabID_Backups && !_Ctx.pBackupTitle)
+    {
+        _Ctx.pBackupTitle=Box(Screen,20,29,76,8);
+        lv_obj_set_style_bg_color(_Ctx.pBackupTitle,_Ctx.pMenus[kTabID_Backups]->Accent,0);
+        lv_obj_set_style_bg_opa(_Ctx.pBackupTitle,LV_OPA_COVER,0);
+        lv_obj_t *Title=lv_label_create(_Ctx.pBackupTitle);
+        lv_obj_set_style_text_font(Title,&chromatic_banner,0);
+        lv_obj_set_style_text_color(Title,lv_color_black(),0);
+        lv_label_set_text_static(Title,"GAMES");
     }
 }
 
@@ -203,6 +202,13 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
 
     lv_obj_t *const pScreen = (lv_obj_t*)arg;
 
+    if(NativeStateUI_TakeOpenRequest() && _Ctx.pMenus[kTabID_System]) {
+        MenuMgr_OnTransition(NULL);_Ctx.eCurTab=kTabID_System;
+        TabCollection_t *List=_Ctx.pMenus[kTabID_System]->Menu;
+        if(List)List->pCurrent=(TabItem_t *)sys_dlist_peek_head(&List->WidgetList);
+        NativeStateUI_Open();
+    }
+
     const TabID_t eID = _Ctx.eCurTab;
 
     if ((unsigned)eID >= kNumTabIDs)
@@ -216,7 +222,12 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
         return kOSD_Result_Err_NullDataPtr;
     }
 
-    Battery_SetCompact(eID == kTabID_Backups && OSD_IsVisible());
+    const bool TallFrame=eID==kTabID_Backups
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+        || eID==kTabID_System
+#endif
+        ;
+    Battery_SetCompact(TallFrame && OSD_IsVisible());
     if (eID == kTabID_Backups && !OSD_IsVisible())
     {
         if (pTab->pImgObj != NULL) MenuMgr_OnTransition(NULL);
@@ -225,7 +236,7 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
 
     if (pTab->pImgObj == NULL)
     {
-        if (eID == kTabID_Backups)
+        if (TallFrame)
             pTab->pImgObj = BackupFrame(pScreen, pTab->pImageDesc, pTab->Accent);
         else
         {
@@ -234,7 +245,7 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
         }
     }
 
-    if (eID != kTabID_Backups) lv_img_set_src(pTab->pImgObj, pTab->pImageDesc);
+    if (!TallFrame) lv_img_set_src(pTab->pImgObj, pTab->pImageDesc);
     DrawBackupTab(pScreen);
 
     if (pTab->Widget.fnDraw != NULL)
@@ -243,6 +254,19 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
         pTab->Widget.fnDraw(&Ctx);
     }
 
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    if(WifiFilesUI_IsConnected())
+    {
+        if(!_Ctx.pWifiStatus)
+        {
+            _Ctx.pWifiStatus=WifiFilesUI_CreateIcon(pScreen,false);
+            lv_obj_set_pos(_Ctx.pWifiStatus,148,1);
+        }
+        lv_obj_clear_flag(_Ctx.pWifiStatus,LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(_Ctx.pWifiStatus);
+    }
+    else if(_Ctx.pWifiStatus)lv_obj_add_flag(_Ctx.pWifiStatus,LV_OBJ_FLAG_HIDDEN);
+#endif
     return kOSD_Result_Ok;
 }
 
@@ -250,8 +274,20 @@ static OSD_Result_t MenuMgr_OnButton(const Button_t Button, const ButtonState_t 
 {
     (void)arg;
 
+    /* Raw button polling continues during gameplay for optional shortcuts. */
+    if (!OSD_IsVisible()) return kOSD_Result_Ok;
+
+    if(NativeStateUI_HandlesButton(Button))
+        return NativeStateUI_OnButton(Button,State,NULL);
+
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    /* Only the open editor captures controls. Wi-Fi can keep serving files
+     * while the user navigates settings; SD-backed screens guard their lease. */
+    if (WifiFilesUI_HandlesButton(Button))
+        return WifiFilesUI_OnButton(Button, State, NULL);
+#endif
+
     const TabID_t eID = _Ctx.eCurTab;
-    if (eID == kTabID_Backups && !OSD_IsVisible()) return kOSD_Result_Ok;
 
     if ((unsigned)eID >= kNumTabIDs)
     {
@@ -357,7 +393,7 @@ static OSD_Result_t MenuMgr_OnTransition(void *arg)
     }
 
     lv_obj_t **Extra[] = {&_Ctx.pBackupTab, &_Ctx.pBackupFrameAccent,
-                         &_Ctx.pInactiveSystem, &_Ctx.pBackupTitle};
+                         &_Ctx.pInactiveSystem, &_Ctx.pBackupTitle, &_Ctx.pWifiStatus};
     for (size_t Index = 0; Index < ARRAY_SIZE(Extra); ++Index)
     {
         if (*Extra[Index] != NULL) lv_obj_del(*Extra[Index]);

@@ -16,6 +16,11 @@ esp_err_t PCBackup_Init(void);
 uint32_t PCBackup_GetConsoleBaud(void);
 bool PCBackup_IsEnabled(void);
 
+/* Wireless transfer task owns the PC-mode gate until EndWireless. This blocks
+ * USB commands and game launches while retaining the existing save/stop path. */
+esp_err_t PCBackup_BeginWireless(void);
+esp_err_t PCBackup_EndWireless(void);
+
 void PCBackup_TransportReady(void);
 
 esp_err_t PCBackup_ConfigureConsoleInput(void);

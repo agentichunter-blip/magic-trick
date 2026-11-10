@@ -1,3 +1,5 @@
+#include "core_switch.h"
+#include "native_state_control.h"
 #include "fpga_rx.h"
 
 #include "battery.h"
@@ -409,16 +411,15 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
             break;
         }
         case kRxCmd_Buttons:
-            Button_Update(rxdata);
             if ((rxdata & kButtonBits_MenuEnAlt) != 0 || (rxdata & kButtonBits_MenuEn) != 0)
             {
                 OSD_SetVisiblityState(false);
             }
             else
             {
-                // Hack: If we're getting button data, then the OSD is displayed
                 OSD_SetVisiblityState(true);
             }
+            Button_UpdateRouted(rxdata, NativeStateControl_Buttons(rxdata));
             break;
         case kRxCmd_AudioBrightness:
         {
@@ -465,6 +466,7 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
             const uint8_t fpga_version_minor = (uint8_t)((rxdata >> 6) & 0x3F);
             const uint8_t fpga_version_major = (uint8_t)((rxdata >> 0) & 0x3F);
             Firmware_SetFPGAVersion(fpga_version_major, fpga_version_minor, fpga_debug);
+            CoreSwitch_ObserveVersion(fpga_version_major, fpga_version_minor);
             break;
         }
         case kRxCmd_StatusExtended:

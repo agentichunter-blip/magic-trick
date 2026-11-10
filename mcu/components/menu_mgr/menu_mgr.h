@@ -6,12 +6,12 @@
 #include "tab_shared.h"
 
 typedef enum TabID {
+    kTabID_Backups, /* Games: first in the visible tab order. */
     kTabID_Status,
     kTabID_Display,
     kTabID_Controls,
     kTabID_Palette,
     kTabID_System,
-    kTabID_Backups,
     kNumTabIDs,
 
     kTabID_First = 0,
