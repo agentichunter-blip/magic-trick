@@ -3,7 +3,8 @@ import hashlib, json, re, struct, sys, time
 from pathlib import Path
 import fpga
 
-RELEASE = '1.0.0-beta'
+RELEASE = '1.0.0-beta'            # firmware this installer installs
+INSTALLER_VERSION = '1.0.0-beta.1'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
     'mcu': ('magic-trick-1.0.0-beta-mcu.bin', 'cfbb6af4e16f5574fd6d159691e35c2cf2d6a111670e526078a286ec0cfdd23f'),
@@ -178,7 +179,7 @@ class Session:
     def __init__(self, port, backup_dir, log, operation):
         self.port, self.log = port, log
         self.folder = Path(backup_dir)
-        self.state = {'operation': operation, 'release': RELEASE, 'stage': 'starting'}
+        self.state = {'operation': operation, 'release': RELEASE, 'installer': INSTALLER_VERSION, 'stage': 'starting'}
 
     def checkpoint(self, stage, **extra):
         self.state.update(stage=stage, **extra)
@@ -341,7 +342,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
     fpga.preflight(log)
     folder = Path(backup_dir)
     folder.mkdir(parents=True, exist_ok=False)
-    state = {'operation': 'restore', 'release': RELEASE, 'backup_file': str(backup_file), 'restoring_app': app}
+    state = {'operation': 'restore', 'release': RELEASE, 'installer': INSTALLER_VERSION, 'backup_file': str(backup_file), 'restoring_app': app}
 
     def checkpoint(stage, **extra):
         state.update(stage=stage, **extra)

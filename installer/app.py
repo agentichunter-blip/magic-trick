@@ -12,7 +12,7 @@ DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recover
 
 class App:
     def __init__(self):
-        self.root = tk.Tk(); self.root.title('Magic Trick Installer ' + core.RELEASE)
+        self.root = tk.Tk(); self.root.title('Magic Trick Installer ' + core.INSTALLER_VERSION)
         self.root.geometry('780x680'); self.root.minsize(700, 600)
         self.events = queue.Queue(); self.busy = False
         body = ttk.Frame(self.root, padding=28); body.pack(fill='both', expand=True)
@@ -156,7 +156,7 @@ def self_test():
     assert core.known_running(core.TARGET)
     import esptool, serial   # noqa: F401  (bundled dependencies)
     fpga.run(['--version'], print)
-    print('Magic Trick installer ' + core.RELEASE + ': bundled firmware and dependencies OK')
+    print('Magic Trick installer ' + core.INSTALLER_VERSION + ' (firmware ' + core.RELEASE + '): bundled firmware and dependencies OK')
 
 
 if __name__ == '__main__':
