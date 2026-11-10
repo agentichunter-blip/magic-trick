@@ -1,10 +1,8 @@
-# Desktop installer (recommended for testing)
+# Desktop installer (paused)
 
-[Download Magic Trick Installer 0.2.0](https://github.com/agentichunter-blip/magic-trick/releases/tag/installer-v0.2.0) for Mac, Windows or Linux. It installs both MCU and FPGA directly from supported stock firmware. No separate ChroMagic installation is needed. See the [installer guide](../installer/README.md) for supported firmware, USB setup and recovery limits.
+Installer 0.2.0 has been withdrawn. Hardware testing found that its FPGA step can erase the Chromatic's FPGA flash and then fail to write it. If you downloaded it, please don't run it. A fixed installer is in progress.
 
-**Testing preview:** physical-device installation has not yet been tested. Keep your SD backup and private MCU backup. Packages are unsigned. If the FPGA phase fails, the installation is incomplete even if the MCU was verified. Keep `installation.json` and retry only when the console responds. Official stock restoration requires both stock firmware components through MRUpdater; restoring only the MCU does not restore the FPGA.
-
-The instructions below are the older **manual, MCU-only** route for users who already have the matching ChroMagic FPGA. They do not describe the all-in-one desktop app.
+The instructions below are the older **manual, MCU-only** route for users who already have the matching ChroMagic FPGA. They never write the FPGA.
 
 ---
 

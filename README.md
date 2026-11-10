@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/installer-v0.2.0">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Tip on Ko-fi</a>
@@ -38,7 +38,7 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
-**Easiest:** download [Magic Trick Installer 0.2.0](https://github.com/agentichunter-blip/magic-trick/releases/tag/installer-v0.2.0) for Mac, Windows or Linux. One app installs Magic Trick from supported stock firmware or upgrades a compatible ChroMagic install. It backs up and verifies your MCU first. It is a **testing preview**: it passes automated checks but has not yet been tested end to end on a physical Chromatic. Read the [installer guide](installer/README.md) before using it.
+**Installer paused:** Installer 0.2.0 was withdrawn. Hardware testing found that its FPGA step can erase the FPGA flash and then fail to write it. If you downloaded it, please don't run it. A fixed installer is next.
 
 **Manual, no build:** download the [art31 firmware release](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31) and follow [the prebuilt installation guide](docs/install-release.md). It includes macOS/Linux and Windows commands.
 
