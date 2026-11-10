@@ -172,7 +172,6 @@ Magic Trick is a modification of other people's work, and they deserve the credi
 - **[GOWIN Semiconductor](https://www.gowinsemi.com/en/)**: acknowledged in the upstream FPGA notices.
 - **[Espressif ESP-IDF and esptool](https://github.com/espressif)**, **[LVGL](https://lvgl.io/)**, **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)**, **[libusb](https://libusb.info/)**, **Python** and **PyInstaller**: firmware framework, UI library, and the flashing tools bundled in the installer.
 - **[libretro-database](https://github.com/libretro/libretro-database)** contributors: the optional external cheat data used by the cheat pack compiler. No database or generated pack is bundled.
-- **Wikimedia Commons**: public-domain Game Boy and Game Boy Color text logos ([details](mcu/tools/platform-logos/README.md)).
 
 Additional authors are named in the source file headers; those notices are preserved. See [CREDITS.md](CREDITS.md) for source provenance and exactly what Magic Trick adds. The repository's neutral commit author does not claim authorship of upstream work.
 

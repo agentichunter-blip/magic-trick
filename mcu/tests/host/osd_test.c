@@ -104,15 +104,13 @@ static lv_obj_t *OverlayList(lv_obj_t *Object) {
     }
     return NULL;
 }
-/* Locate a visible system choice by its native image, not a redundant label. */
+/* Locate a visible system choice by its plain-text name. */
 static lv_obj_t *SystemTile(lv_obj_t *Object, unsigned Slot) {
     lv_obj_update_layout(Object);
-    if (lv_obj_check_type(Object,&lv_img_class) && lv_obj_is_visible(Object)) {
-        const lv_img_dsc_t *Source=lv_img_get_src(Object);
-        if (Source && Source->header.w==60 && Source->header.h==68) {
-            lv_obj_t *Tile=lv_obj_get_parent(Object);
-            if (lv_obj_get_x(Tile)==(int)Slot*64) return Tile;
-        }
+    if (lv_obj_check_type(Object,&lv_label_class) && lv_obj_is_visible(Object) &&
+        !strcmp(lv_label_get_text(Object),Slot?"GAME\nBOY\nCOLOR":"GAME\nBOY")) {
+        lv_obj_t *Tile=lv_obj_get_parent(Object);
+        if (lv_obj_get_x(Tile)==(int)Slot*64) return Tile;
     }
     for (unsigned I=0;I<lv_obj_get_child_cnt(Object);++I) {
         lv_obj_t *Found=SystemTile(lv_obj_get_child(Object,I),Slot);

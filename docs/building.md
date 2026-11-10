@@ -61,4 +61,4 @@ mkdir -p mcu/tests/host/evidence
 CHROMATIC_TEST_RENDER_DIR="$PWD/mcu/tests/host/evidence" mcu/build-host/osd_test
 ```
 
-Generated fonts and system logos are checked in, so their generators are not required for normal builds. Regenerating logos additionally requires CairoSVG and its native Cairo dependency.
+Generated fonts are checked in, so their generators are not required for normal builds.

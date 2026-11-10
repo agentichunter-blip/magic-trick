@@ -9,7 +9,6 @@ LV_FONT_DECLARE(chromatic_progress);
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "lvgl.h"
-#include "platform_logos.h"
 #include "genie_lamp.h"
 #include "tab_shared.h"
 #include <stdio.h>
@@ -29,7 +28,7 @@ typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked, 
 typedef struct {
     lv_obj_t *Rows[kVisibleRows], *Selection, *Status, *Hint, *Position, *List;
     lv_obj_t *Cover, *Image, *Placeholder, *Headline, *Title;
-    lv_obj_t *Systems, *SystemTiles[2], *Arrows[kVisibleRows];
+    lv_obj_t *Systems, *SystemTiles[2], *SystemNames[2], *Arrows[kVisibleRows];
     lv_obj_t *Loading, *LoadingText, *Percent, *ProgressBar;
     lv_obj_t *Badge, *BadgeLamp, *HeaderLamp;
     CheatBadge_t BadgeState;
@@ -312,8 +311,13 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
         lv_obj_clear_flag(C.SystemTiles[I],LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_opa(C.SystemTiles[I],LV_OPA_COVER,0);
         lv_obj_set_style_border_width(C.SystemTiles[I],2,0);
-        lv_obj_t *Logo=lv_img_create(C.SystemTiles[I]);
-        lv_img_set_src(Logo,I?&PlatformGBC:&PlatformGB); lv_obj_set_pos(Logo,0,0);
+        /* Plain-text system names (no third-party logos). */
+        C.SystemNames[I]=Label(C.SystemTiles[I],0,I?18:24,60);
+        lv_obj_set_style_text_font(C.SystemNames[I],&chromatic_banner,0);
+        lv_obj_set_style_text_letter_space(C.SystemNames[I],-1,0);
+        lv_obj_set_style_text_line_space(C.SystemNames[I],4,0);
+        lv_obj_set_style_text_align(C.SystemNames[I],LV_TEXT_ALIGN_CENTER,0);
+        lv_label_set_text_static(C.SystemNames[I],I?"GAME\nBOY\nCOLOR":"GAME\nBOY");
     }
     Hide(C.Systems,true);
     C.Loading = lv_obj_create(Screen); lv_obj_remove_style_all(C.Loading);
@@ -581,6 +585,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
                 const bool Active=C.SystemFocus && C.Selected==Systems[I];
                 lv_obj_set_style_border_color(C.SystemTiles[I],Active?Draw->AccentColor:lv_color_hex(0x444444),0);
                 lv_obj_set_style_bg_color(C.SystemTiles[I],Active?Draw->AccentColor:lv_color_hex(0x202020),0);
+                lv_obj_set_style_text_color(C.SystemNames[I],Active?lv_color_black():lv_color_white(),0);
             }
         }
         const size_t VisibleRows = Game ? kOverlayRows : kFolderRows;
@@ -717,7 +722,7 @@ OSD_Result_t RomBrowserUI_OnTransition(void *Arg) {
     }
     C.Image = C.Placeholder = C.Title = NULL;
     C.Badge = C.BadgeLamp = C.HeaderLamp = NULL;
-    for (unsigned I=0;I<2;++I) C.SystemTiles[I]=NULL;
+    for (unsigned I=0;I<2;++I) C.SystemTiles[I]=C.SystemNames[I]=NULL;
     C.LoadingText = C.Percent = C.ProgressBar = NULL;
     C.Selection = NULL;
     for (size_t I = 0; I < kVisibleRows; ++I) C.Rows[I] = C.Arrows[I] = NULL;

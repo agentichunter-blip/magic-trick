@@ -25,7 +25,7 @@ Additional authors are identified in the source headers. Those notices are prese
 
 - **Espressif ESP-IDF** and **LVGL** provide the firmware framework and UI library. Build dependencies retain their own licenses and notices.
 - The desktop installer bundles **[esptool](https://github.com/espressif/esptool)** (Espressif), **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)** (Gwenhael Goavec-Merou and contributors), **[libusb](https://libusb.info/)**, **Python** and **PyInstaller** output. Their licenses ship in the installer's `programmer/licenses` folder; corresponding sources are linked from each release.
-- Included Game Boy / Game Boy Color wordmark sources and provenance are documented in [the system logo credits](mcu/tools/platform-logos/README.md). Nintendo trademarks remain Nintendo's.
+- The system picker names Game Boy and Game Boy Color in plain text; no Nintendo or Sega logo artwork is included. Nintendo and Sega trademarks remain theirs.
 - **libretro-database contributors** provide the optional external cheat database used by the pack compiler. See [cheat preparation and attribution](docs/cheats.md). No database or generated cheat pack is bundled.
 - No third-party cover or gameplay-video pack is included in this repository.
 

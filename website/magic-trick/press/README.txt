@@ -16,6 +16,6 @@ Logo files: magic-trick-logo-*.png is the approved MAGIC TRICK logo on its dark 
 
 Screenshots are real Magic Trick interface renders at 4x native resolution (160x144 -> 640x576). Colour bars are test media standing in for user-supplied cover art. Files with "state", "wifi", "game-gear" or "boot-animation" in the name come from unreleased development firmware; please label them as working in development firmware, not yet released.
 
-magic-trick-boot-animation-640x576.mp4 is the real firmware boot animation (160x144, 30 fps) enlarged 4x. It is silent on the device. It shows the Game Boy and Game Gear logos, which are trademarks of Nintendo and Sega.
+magic-trick-boot-animation-640x576.mp4 is the real firmware boot animation (160x144, 30 fps) enlarged 4x. It is silent on the device. It opens with the supported system names in plain text (no Nintendo or Sega logos). Game Boy and Game Boy Color are trademarks of Nintendo; Game Gear is a trademark of Sega.
 
 Independent community project, not affiliated with ModRetro, Nintendo or Sega.
