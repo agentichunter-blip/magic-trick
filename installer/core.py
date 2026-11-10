@@ -1,146 +1,300 @@
-"""Magic Trick installer: paired MCU/FPGA installation with backup gates."""
-import hashlib, json, re, struct, time
-import fpga
+"""Magic Trick installer: three-system firmware install, upgrade and uninstall with backup gates."""
+import hashlib, json, re, struct, sys, time
 from pathlib import Path
+import fpga
 
-HASH = '83a8cbc4137b1a4c0cd4457194a4e862a4c04d87db4a03af0b58c01a709e5144'
-URL = 'https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.1-art31/mcu.bin'
-SIZE = 921360
+RELEASE = '1.0.0-beta'
+FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
+IMAGES = {
+    'mcu': ('magic-trick-1.0.0-beta-mcu.bin', 'cfbb6af4e16f5574fd6d159691e35c2cf2d6a111670e526078a286ec0cfdd23f'),
+    'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
+    'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
+    'fpga_gb': ('magic-trick-gb-gbc.fs', '9ac2459b9fd62d9f7be8e6f0a4b514db8a582334ff7418db657abea14f10f795'),
+    'fpga_gg': ('magic-trick-game-gear.fs', 'cafa5ff80e6f1e03c5f296029f808e8bc769dd73367fca51955f0245ffea3f0c'),
+    'fpga_chromagic': ('chromagic-1.0.1-fpga.fs', '79791d915060a9898c9be6adc7ab22f298cbea9619c6bb765b8667db62c337a2'),
+}
+TABLE_OFFSET = 0x8000
+STOCK_APP = (0x10000, 0x100000)
+THREE_SYSTEMS_APP = (0x260000, 0x1A0000)
+DATA_PARTITIONS = [(1, 2, 0x9000, 0x6000), (1, 1, 0xF000, 0x1000)]   # nvs, phy_init
+SLOT_GB, SLOT_GG = 0x000000, 0x100000
+TARGET = {'mcu': 'v' + RELEASE, 'fpga': '50.1', 'chromatic': 'Magic Trick 1.0 beta'}
+# A JTAG reset boots the slot the running core points to next, so after installation
+# either core may be running; a real power-on always starts the Game Boy core.
+INSTALLED = dict(TARGET, fpga=('50.1', '50.2'))
 
-def validate_image(data):
-    if len(data) != SIZE or hashlib.sha256(data).hexdigest() != HASH:
-        raise ValueError('Firmware verification failed. Nothing was written.')
+# Applications this installer recognises in a backup. Anything else is refused.
+KNOWN_APP = re.compile(r'0\.13\.[0-8](?:-art\d+(?:-wifi\d+)?)?|three-systems-mb\d+|1\.0\.0-beta(?:\.\d+)?')
+KNOWN_RUNNING_MCU = re.compile(r'v(?:' + KNOWN_APP.pattern + r')')
+KNOWN_RUNNING_FPGA = re.compile(r'18\.\d+|50\.[12]')
 
-def compatible(v):
-    return (v.get('fpga') == '18.38' and
-            re.fullmatch(r'v0\.13\.4(?:-art\d+)?', v.get('mcu', '')) is not None and
-            re.fullmatch(r'1\.0\.1(?:-art\d+)?(?: \(4\.2\))?', v.get('chromatic', '')) is not None)
 
-def supported_source(v):
-    stock = {'v4.2':'v0.13.4', 'v4.5':'v0.13.7', 'v4.6':'v0.13.8'}
-    return compatible(v) or (stock.get(v.get('chromatic')) == v.get('mcu')
-        and v.get('chromatic') in stock and re.fullmatch(r'18\.\d+',v.get('fpga','')) is not None)
+def image(key):
+    """Return the path of a bundled image after checking its SHA-256."""
+    name, digest = IMAGES[key]
+    path = FIRMWARE_DIR / name
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+        raise ValueError(f'Bundled firmware {name} is missing or damaged. Extract the complete download. Nothing was written.')
+    return path
+
+
+def check_images(keys=None):
+    return {k: image(k) for k in (keys or IMAGES)}
+
 
 def device_ports():
     from serial.tools.list_ports import comports
-    return [p.device for p in comports() if (p.vid,p.pid)==(0x374e,0x0101)]
+    return [p.device for p in comports() if (p.vid, p.pid) == (0x374e, 0x0101)]
 
-def version(port):
+
+def version(port, timeout=20):
+    """Ask the running firmware for its versions. Opening the port can restart the MCU."""
     import serial
-    for baud in (115200,2000000):
+    for baud in (115200, 2000000):
         p = serial.Serial(port=None, baudrate=baud, timeout=.1, write_timeout=2)
         p.dtr = False; p.rts = False; p.port = port
         p.open()
-        data = b''; last = 0; deadline = time.monotonic() + 5
+        data = b''; last = 0; deadline = time.monotonic() + timeout
         try:
             while time.monotonic() < deadline:
                 data = (data + p.read(4096))[-65536:]
                 for match in re.findall(rb'\{[^{}]+\}', data):
                     try:
                         obj = json.loads(match)
-                        if all(isinstance(obj.get(k),str) for k in ('mcu', 'fpga', 'chromatic')):
+                        if all(isinstance(obj.get(k), str) for k in ('mcu', 'fpga', 'chromatic')):
                             return obj
-                    except (ValueError, UnicodeDecodeError): pass
+                    except (ValueError, UnicodeDecodeError):
+                        pass
                 if time.monotonic() - last > 1:
                     p.write(b'\x15\rfwversion\r'); p.flush(); last = time.monotonic()
-        finally: p.close()
+        finally:
+            p.close()
     raise ValueError('No firmware version response.')
 
-def identify_backup(data):
-    # ESP-IDF app descriptor: image header + first segment header, then esp_app_desc_t.
-    desc=data[0x10020:0x10120]
-    if len(desc)!=256 or struct.unpack('<I',desc[:4])[0]!=0xabcd5432:
-        raise ValueError('Unrecognized application descriptor. Nothing was written.')
-    app=desc[48:80].split(b'\0',1)[0]
-    ver=desc[16:48].split(b'\0',1)[0].decode('ascii',errors='replace')
-    if app!=b'mcu_fw' or re.fullmatch(r'0\.13\.[0-8](?:-art\d+)?',ver) is None:
-        raise ValueError('Unsupported MCU application '+ver+'. Nothing was written.')
-    return ver
 
-def validate_backup(data):
-    if len(data) != 0x400000:
-        raise ValueError('Backup is incomplete. Nothing was written.')
-    table = data[0x8000:0x9000]
+def known_running(v):
+    return (KNOWN_RUNNING_MCU.fullmatch(v.get('mcu', '')) is not None and
+            KNOWN_RUNNING_FPGA.fullmatch(v.get('fpga', '')) is not None)
+
+
+def parse_table(table):
+    """Parse an ESP-IDF partition table, requiring its MD5 record."""
     entries = []
     for i in range(0, 0xC00, 32):
-        record = table[i:i+32]
+        record = table[i:i + 32]
         if record[:2] == b'\xeb\xeb':
             if hashlib.md5(table[:i]).digest() != record[16:32]:
-                raise ValueError('Partition table checksum mismatch.')
-            break
+                raise ValueError('Partition table checksum mismatch. Nothing was written.')
+            return entries
         if record[:2] == b'\xff\xff':
-            raise ValueError('Partition table checksum missing.')
+            raise ValueError('Partition table checksum missing. Nothing was written.')
         magic, typ, subtype, offset, size = struct.unpack('<HBBII', record[:12])
         if magic != 0x50AA:
-            raise ValueError('Unrecognized partition table.')
+            raise ValueError('Unrecognized partition table. Nothing was written.')
         entries.append((typ, subtype, offset, size))
-    else:
-        raise ValueError('Invalid partition table.')
-    apps = [e for e in entries if e[0] == 0]
-    if apps != [(0, 0, 0x10000, 0x100000)]:
-        raise ValueError('Unsupported application layout. Nothing was written.')
-    for typ, subtype, offset, size in entries:
-        if typ != 0 and offset < 0x110000 and offset + size > 0x10000:
-            raise ValueError('Overlapping partition. Nothing was written.')
-    if data[0x10000] != 0xE9:
-        raise ValueError('No valid existing application.')
+    raise ValueError('Invalid partition table. Nothing was written.')
+
+
+def classify(entries):
+    apps = [e[2:] for e in entries if e[0] == 0]
+    data = [e for e in entries if e[0] != 0]
+    if data != DATA_PARTITIONS:
+        raise ValueError('Unsupported data partitions. Nothing was written.')
+    if apps == [STOCK_APP]:
+        return 'stock'
+    if apps == [THREE_SYSTEMS_APP]:
+        return 'three-systems'
+    raise ValueError('Unsupported application layout. Nothing was written.')
+
+
+def app_info(data, offset):
+    """Return (project, version) from the ESP-IDF app descriptor at offset, or None."""
+    if data[offset] != 0xE9:
+        return None
+    desc = data[offset + 0x20:offset + 0x120]
+    if len(desc) != 256 or struct.unpack('<I', desc[:4])[0] != 0xABCD5432:
+        return None
+    ver = desc[16:48].split(b'\0', 1)[0].decode('ascii', errors='replace')
+    project = desc[48:80].split(b'\0', 1)[0].decode('ascii', errors='replace')
+    return project, ver
+
+
+def known_app(info):
+    return info is not None and info[0] == 'mcu_fw' and KNOWN_APP.fullmatch(info[1]) is not None
+
+
+def validate_backup(data):
+    """Check a full 4 MiB MCU backup. Returns (layout, running app version)."""
+    if len(data) != 0x400000:
+        raise ValueError('Backup is incomplete. Nothing was written.')
+    if data[0x1000] != 0xE9:
+        raise ValueError('No valid bootloader in the backup. Nothing was written.')
+    layout = classify(parse_table(data[TABLE_OFFSET:TABLE_OFFSET + 0xC00]))
+    offset = STOCK_APP[0] if layout == 'stock' else THREE_SYSTEMS_APP[0]
+    info = app_info(data, offset)
+    if not known_app(info):
+        raise ValueError('Unsupported MCU application ' + (info[1] if info else 'image') + '. Nothing was written.')
+    return layout, info[1]
+
 
 def run_tool(port, args):
     import esptool
-    esptool.main(['--chip','esp32','--port',port,'--baud','115200'] + args)
+    esptool.main(['--chip', 'esp32', '--port', port, '--baud', '115200'] + args)
 
-def install(port, firmware, backup_dir, log, fpga_image=None):
-    data = Path(firmware).read_bytes(); validate_image(data)
-    if device_ports()!=[port]:
+
+def write_and_verify(port, offset, path):
+    run_tool(port, ['--before', 'default_reset', '--after', 'hard_reset', 'write_flash',
+                    '--flash_mode', 'dio', '--flash_freq', '40m', '--flash_size', '4MB', hex(offset), str(path)])
+    run_tool(port, ['verify_flash', hex(offset), str(path)])
+
+
+def wait_for_device(log, sleep, timeout=45):
+    """After an FPGA write the USB serial port (provided by the FPGA) disappears while the
+    FPGA reboots, and can come back under a new name. Wait for exactly one Chromatic."""
+    for round_ in range(2):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            ports = device_ports()
+            if len(ports) == 1:
+                sleep(3)   # let the MCU finish starting before esptool resets it
+                return ports[0]
+            sleep(1)
+        if round_ == 0:
+            log('The Chromatic has not reconnected yet; restarting its FPGA from flash.')
+            fpga.reset(log)
+    raise ValueError('The Chromatic did not reconnect over USB after the FPGA write. Unplug and reconnect it, '
+                     'then run the installer again.')
+
+
+class Session:
+    """Backup folder, checkpoints and the backup itself, shared by install and uninstall."""
+    def __init__(self, port, backup_dir, log, operation):
+        self.port, self.log = port, log
+        self.folder = Path(backup_dir)
+        self.state = {'operation': operation, 'release': RELEASE, 'stage': 'starting'}
+
+    def checkpoint(self, stage, **extra):
+        self.state.update(stage=stage, **extra)
+        (self.folder / 'installation.json').write_text(json.dumps(self.state, indent=2))
+
+    def backup(self):
+        self.folder.mkdir(parents=True, exist_ok=False)
+        path = self.folder / 'mcu-backup.bin'
+        self.log('Backing up the 4 MiB MCU flash. Keep USB and power connected.')
+        run_tool(self.port, ['read_flash', '0x0', '0x400000', str(path)])
+        data = path.read_bytes()
+        layout, app = validate_backup(data)
+        run_tool(self.port, ['verify_flash', '0x0', str(path)])
+        (self.folder / 'backup.json').write_text(json.dumps(
+            {'sha256': hashlib.sha256(data).hexdigest(), 'layout': layout, 'app': app}, indent=2))
+        self.checkpoint('backup_verified', layout=layout, previous_app=app)
+        self.log(f'Backup verified ({layout} layout, MCU {app}).')
+        return data, layout, app
+
+
+def preconditions(port, log, keys):
+    files = check_images(keys)
+    if device_ports() != [port]:
         raise ValueError('Connect exactly one Chromatic and select its USB port. Nothing was written.')
-    try: v = version(port)
-    except ValueError: v = None
-    if v is not None and not supported_source(v):
-        # An interrupted paired install can have the new MCU and the old FPGA.
-        if not (v.get('mcu')=='v0.13.4-art31' and v.get('chromatic')=='1.0.1-art31 (4.2)'):
-            raise ValueError('Unsupported firmware: ' + json.dumps(v))
-    if fpga_image is None or hashlib.sha256(Path(fpga_image).read_bytes()).hexdigest()!=fpga.FPGA_HASH:
-        raise ValueError('FPGA image missing or checksum mismatch. Nothing was written.')
-    fpga.preflight(log)
-    log('Device versions: ' + json.dumps(v))
-    folder = Path(backup_dir)
-    folder.mkdir(parents=True, exist_ok=False)
-    backup = folder / 'mcu-backup.bin'
-    log('Backing up 4 MiB MCU flash. Keep USB and power connected.')
-    run_tool(port, ['read_flash','0x0','0x400000',str(backup)])
-    original = backup.read_bytes(); validate_backup(original)
-    previous_mcu=identify_backup(original)
-    if v is None:
-        log('Older console: identified MCU '+previous_mcu+' from verified backup layout.')
-    run_tool(port, ['verify_flash','0x0',str(backup)])
-    (folder / 'backup.json').write_text(json.dumps({'versions':v,'sha256':hashlib.sha256(original).hexdigest()},indent=2))
-    state={'stage':'backup_verified','previous_versions':v,'target_fpga':'18.38'}
-    def checkpoint(stage):
-        state['stage']=stage
-        (folder/'installation.json').write_text(json.dumps(state,indent=2))
-    checkpoint('mcu_write_started')
-    log('Backup verified. Installing Magic Trick MCU application.')
-    run_tool(port, ['--before','default_reset','--after','hard_reset','write_flash','--flash_mode','dio','--flash_freq','40m','--flash_size','4MB','0x10000',str(firmware)])
-    run_tool(port, ['verify_flash','0x10000',str(firmware)])
-    checkpoint('mcu_verified_fpga_pending')
-    log('MCU verified. Installing and verifying FPGA firmware. Do not disconnect.')
     try:
-        fpga.flash(fpga_image,log)
-    except Exception as exc:
-        checkpoint('partial_install_fpga_failed')
-        raise ValueError('MCU was installed, but FPGA installation did not finish. Keep the backup and retry the paired installation after checking USB drivers. '+str(exc)) from exc
-    checkpoint('both_images_verified')
-    log('Both images verified. Checking running firmware…')
-    time.sleep(3)
+        running = version(port)
+    except ValueError:
+        running = None   # older stock firmware has no fwversion command
+    if running is not None and not known_running(running):
+        raise ValueError('Unsupported firmware: ' + json.dumps(running) + '. Nothing was written.')
+    log('Device versions: ' + json.dumps(running))
+    fpga.preflight(log)
+    return files, running
+
+
+def confirm(expected, log, sleep, attempts=4):
+    fpga.reset(log)
+    sleep(8)
     after = None
-    for attempt in range(3):
+    for _ in range(attempts):
         try:
-            ports=device_ports()
-            if len(ports)==1: after=version(ports[0])
-        except (OSError, ValueError): pass
-        if after == {'mcu':'v0.13.4-art31','fpga':'18.38','chromatic':'1.0.1-art31 (4.2)'}: break
-        time.sleep(2)
-    if after != {'mcu':'v0.13.4-art31','fpga':'18.38','chromatic':'1.0.1-art31 (4.2)'}:
-        raise ValueError('Flash verified, but running version was not confirmed. Power-cycle and check Status. Backup: ' + str(folder))
-    checkpoint('complete')
-    log('Installation complete. Firmware and FPGA versions verified.')
+            ports = device_ports()
+            if len(ports) == 1:
+                after = version(ports[0])
+        except (OSError, ValueError):
+            pass
+        if after is not None and all(after.get(k) in (v if isinstance(v, tuple) else (v,)) for k, v in expected.items()):
+            return after
+        sleep(3)
+    raise ValueError('Flash verified, but the running version was not confirmed: ' + json.dumps(after) +
+                     '. Power-cycle and check Status.')
+
+
+def install(port, backup_dir, log, sleep=time.sleep):
+    """Install or upgrade Magic Trick 1.0 beta (MCU, both FPGA cores, partition table)."""
+    files, running = preconditions(port, log, ['mcu', 'table_three_systems', 'fpga_gb', 'fpga_gg', 'fpga_chromagic'])
+    s = Session(port, backup_dir, log, 'install')
+    _, layout, app = s.backup()
+    # A multiboot core in slot 0 points the FPGA's configuration engine at slot 1. Once
+    # slot 1 is partly erased the engine keeps reading it and blocks further flash access,
+    # so slot 1 must only be written while a non-multiboot image is in slot 0.
+    multiboot_in_slot0 = layout == 'three-systems' or (running is not None and running.get('fpga', '').startswith('50.'))
+
+    # 1. MCU application at 0x260000. On the stock layout this region is unused and
+    #    the old table still boots the old app, so nothing changes yet.
+    s.checkpoint('mcu_write_started')
+    log('Writing the Magic Trick MCU application.')
+    write_and_verify(port, THREE_SYSTEMS_APP[0], files['mcu'])
+    s.checkpoint('mcu_verified')
+
+    # 2. FPGA: Game Gear slot first (never booted at power-on), Game Boy slot 0 last.
+    steps = [('fpga_gg', SLOT_GG, 'Game Gear'), ('fpga_gb', SLOT_GB, 'Game Boy / Game Boy Color')]
+    if multiboot_in_slot0:
+        steps.insert(0, ('fpga_chromagic', SLOT_GB, 'temporary ChroMagic'))
+    try:
+        for key, offset, label in steps:
+            s.checkpoint(f'fpga_{key}_started')
+            log(f'Writing the {label} FPGA core. This can take several attempts; keep USB and power connected.')
+            attempts = fpga.flash(files[key], offset, log, sleep=sleep)
+            s.checkpoint(f'fpga_{key}_verified', **{f'{key}_attempts': attempts})
+    except Exception as exc:
+        s.checkpoint('partial_install_fpga_failed')
+        raise ValueError('The FPGA write did not finish. The device can still be reached over USB: run the installer again. ' + str(exc)) from exc
+
+    port = wait_for_device(log, sleep)
+    # 3. Partition table last: this switches the MCU to the new application.
+    if layout == 'stock':
+        s.checkpoint('table_write_started')
+        log('Switching the MCU to the new partition layout.')
+        write_and_verify(port, TABLE_OFFSET, files['table_three_systems'])
+    s.checkpoint('all_images_verified')
+    log('All images verified. Restarting and checking versions…')
+    confirm(INSTALLED, log, sleep)
+    s.checkpoint('complete')
+    log('Magic Trick ' + RELEASE + ' is installed. Turn the Chromatic off and on once. Backup: ' + str(s.folder))
+
+
+def uninstall(port, backup_dir, log, sleep=time.sleep):
+    """Restore the ChroMagic 1.0.1 FPGA and the application kept at 0x10000."""
+    files, running = preconditions(port, log, ['fpga_chromagic', 'table_stock'])
+    s = Session(port, backup_dir, log, 'uninstall')
+    data, layout, _ = s.backup()
+    if layout != 'three-systems':
+        s.checkpoint('nothing_to_uninstall')
+        raise ValueError('Magic Trick 1.0 is not installed (standard layout found). Nothing was written.')
+    previous = app_info(data, STOCK_APP[0])
+    if not known_app(previous) or previous[1].startswith(('three-systems', '1.0.0')):
+        s.checkpoint('no_previous_app')
+        raise ValueError('No earlier application was found at 0x10000 to restore. Nothing was written. '
+                         'Open a GitHub issue with installation.json.')
+    s.checkpoint('fpga_started', restoring_app=previous[1])
+    log('Writing the ChroMagic 1.0.1 FPGA to slot 0. This can take several attempts.')
+    try:
+        attempts = fpga.flash(files['fpga_chromagic'], SLOT_GB, log, sleep=sleep)
+    except Exception as exc:
+        s.checkpoint('partial_uninstall_fpga_failed')
+        raise ValueError('The FPGA write did not finish. Run the uninstaller again. ' + str(exc)) from exc
+    s.checkpoint('fpga_verified', fpga_attempts=attempts)
+    port = wait_for_device(log, sleep)
+    log('Restoring the standard partition layout (application ' + previous[1] + ').')
+    write_and_verify(port, TABLE_OFFSET, files['table_stock'])
+    s.checkpoint('table_restored')
+    confirm({'fpga': '18.38', 'mcu': 'v' + previous[1]}, log, sleep)
+    s.checkpoint('complete')
+    log('Uninstall complete: ChroMagic FPGA 18.38 with MCU ' + previous[1] + '. '
+        'To return fully to stock, now use ModRetro\'s official updater.')

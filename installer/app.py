@@ -1,84 +1,133 @@
-import contextlib, datetime, io, queue, sys, threading, tkinter as tk, urllib.request, webbrowser
+import contextlib, datetime, io, queue, sys, threading, webbrowser
 from pathlib import Path
-from tkinter import ttk, messagebox, filedialog
-import core, fpga, hashlib
+try:
+    import tkinter as tk
+    from tkinter import ttk, messagebox, filedialog
+except ImportError:   # command-line mode does not need a window
+    tk = None
+import core, fpga
+
+DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/installer/README.md'
+
 
 class App:
     def __init__(self):
-        self.root = tk.Tk(); self.root.title('Magic Trick Installer'); self.root.geometry('760x640'); self.root.minsize(680,580)
+        self.root = tk.Tk(); self.root.title('Magic Trick Installer ' + core.RELEASE)
+        self.root.geometry('780x680'); self.root.minsize(700, 600)
         self.events = queue.Queue(); self.busy = False
         body = ttk.Frame(self.root, padding=28); body.pack(fill='both', expand=True)
-        ttk.Label(body,text='MAGIC TRICK',font=('Helvetica',28,'bold')).pack(anchor='w')
-        ttk.Label(body,text='A ChroMagic mod for the ModRetro Chromatic',font=('Helvetica',12)).pack(anchor='w',pady=(4,20))
-        ttk.Label(body,text='Install artwork, gameplay previews, cheats, and recent games.\nInstalls directly from stock or compatible ChroMagic firmware.\nInstalls both MCU and FPGA firmware. No games or media included.',wraplength=680).pack(anchor='w')
-        row = ttk.Frame(body); row.pack(fill='x',pady=16)
-        self.port = tk.StringVar(); self.ports = ttk.Combobox(row,textvariable=self.port,state='readonly',width=45); self.ports.pack(side='left')
-        self.refresh_button = ttk.Button(row,text='Refresh USB ports',command=self.refresh); self.refresh_button.pack(side='right')
+        ttk.Label(body, text='MAGIC TRICK', font=('Helvetica', 28, 'bold')).pack(anchor='w')
+        ttk.Label(body, text='1.0 beta for the ModRetro Chromatic · built on CursedToast\'s ChroMagic',
+                  font=('Helvetica', 12)).pack(anchor='w', pady=(4, 18))
+        ttk.Label(body, wraplength=700, text=(
+            'Game Boy, Game Boy Color and Game Gear with cover art, gameplay previews, Game Genie cheats, '
+            'save states and Wi-Fi transfers. Installs from stock or ChroMagic firmware, or updates an earlier '
+            'Magic Trick install. Writes the MCU application, both FPGA cores and the MCU partition table. '
+            'No games or media are included.')).pack(anchor='w')
+        row = ttk.Frame(body); row.pack(fill='x', pady=16)
+        self.port = tk.StringVar()
+        self.ports = ttk.Combobox(row, textvariable=self.port, state='readonly', width=45); self.ports.pack(side='left')
+        self.refresh_button = ttk.Button(row, text='Refresh USB ports', command=self.refresh); self.refresh_button.pack(side='right')
         self.consent = tk.BooleanVar()
-        ttk.Checkbutton(body,text='I backed up my SD card and will keep power and USB connected.',variable=self.consent).pack(anchor='w')
-        self.button = ttk.Button(body,text='Back up device & install Magic Trick',command=self.start); self.button.pack(anchor='w',pady=14)
-        self.output = tk.Text(body,height=14,wrap='word',state='disabled',font=('Courier',10)); self.output.pack(fill='both',expand=True)
-        footer = ttk.Frame(body); footer.pack(fill='x',pady=(16,0))
-        for label,url in [('Installation & recovery','https://github.com/agentichunter-blip/magic-trick/blob/main/docs/install-release.md'),('Source & credits','https://github.com/agentichunter-blip/magic-trick'),('Support on Ko-fi ↗','https://ko-fi.com/ryansag')]:
-            ttk.Button(footer,text=label,command=lambda u=url:webbrowser.open(u)).pack(side='left',padx=(0,8))
-        self.root.protocol('WM_DELETE_WINDOW',self.close); self.refresh(); self.root.after(100,self.poll)
+        ttk.Checkbutton(body, text='I backed up my SD card and will keep power and USB connected.',
+                        variable=self.consent).pack(anchor='w')
+        actions = ttk.Frame(body); actions.pack(anchor='w', pady=14)
+        self.install_button = ttk.Button(actions, text='Back up & install / update', command=lambda: self.start('install'))
+        self.install_button.pack(side='left')
+        self.uninstall_button = ttk.Button(actions, text='Uninstall…', command=lambda: self.start('uninstall'))
+        self.uninstall_button.pack(side='left', padx=(10, 0))
+        self.output = tk.Text(body, height=14, wrap='word', state='disabled', font=('Courier', 10))
+        self.output.pack(fill='both', expand=True)
+        footer = ttk.Frame(body); footer.pack(fill='x', pady=(16, 0))
+        for label, url in [('Installation & recovery', DOCS),
+                           ('Source & credits', 'https://github.com/agentichunter-blip/magic-trick'),
+                           ('Support on Ko-fi ↗', 'https://ko-fi.com/ryansag')]:
+            ttk.Button(footer, text=label, command=lambda u=url: webbrowser.open(u)).pack(side='left', padx=(0, 8))
+        self.root.protocol('WM_DELETE_WINDOW', self.close); self.refresh(); self.root.after(100, self.poll)
+
     def refresh(self):
         values = core.device_ports(); self.ports['values'] = values
-        self.port.set(values[0] if len(values)==1 else '')
-    def log(self,text): self.events.put(('log',text))
-    def start(self):
-        if self.busy: return
+        self.port.set(values[0] if len(values) == 1 else '')
+
+    def log(self, text):
+        if text and text.strip():
+            self.events.put(('log', text.rstrip()))
+
+    def set_busy(self, busy):
+        self.busy = busy
+        state = 'disabled' if busy else 'normal'
+        for b in (self.install_button, self.uninstall_button, self.refresh_button):
+            b['state'] = state
+        self.ports['state'] = 'disabled' if busy else 'readonly'
+
+    def start(self, operation):
+        if self.busy:
+            return
         if not self.port.get() or not self.consent.get():
-            messagebox.showinfo('Before installing','Select the Chromatic USB port and confirm your SD backup.'); return
+            messagebox.showinfo('Before you start', 'Select the Chromatic USB port and confirm your SD backup.'); return
         parent = filedialog.askdirectory(title='Choose where to keep your private device backup')
-        if not parent: return
-        if not messagebox.askyesno('Install Magic Trick?','This will back up your MCU and replace its application. Keep USB and power connected. Both MCU and FPGA firmware will be updated. Your SD card will not be written. The backup covers MCU only, not FPGA. Continue?'): return
-        port = self.port.get(); folder = Path(parent)/('Magic-Trick-backup-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-        self.busy = True; self.button['state']='disabled'; self.refresh_button['state']='disabled'; self.ports['state']='disabled'
+        if not parent:
+            return
+        if operation == 'install':
+            question = ('Install Magic Trick ' + core.RELEASE + '?\n\nThe app backs up your MCU, then writes the MCU '
+                        'application, both FPGA cores and the partition table. FPGA writes often need several '
+                        'attempts and can take up to 15 minutes. Keep USB and power connected. Your SD card is not written.')
+        else:
+            question = ('Uninstall Magic Trick?\n\nThe app backs up your MCU, writes the ChroMagic 1.0.1 FPGA and '
+                        'restores the standard partition layout, so the application you had before Magic Trick 1.0 '
+                        'runs again. To return fully to stock afterwards, use ModRetro\'s official updater.')
+        if not messagebox.askyesno('Magic Trick', question):
+            return
+        port = self.port.get()
+        folder = Path(parent) / ('Magic-Trick-backup-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+        self.set_busy(True)
+
         def worker():
             try:
-                self.log('Downloading pinned art31 release…')
-                with urllib.request.urlopen(core.URL,timeout=60) as response:
-                    data=response.read(core.SIZE+1)
-                core.validate_image(data)
-                self.log('Downloading pinned ChroMagic FPGA firmware…')
-                with urllib.request.urlopen(fpga.FPGA_URL,timeout=60) as response:
-                    fpga_data=response.read(16*1024*1024+1)
-                if hashlib.sha256(fpga_data).hexdigest()!=fpga.FPGA_HASH:
-                    raise ValueError('FPGA download checksum mismatch.')
-                import tempfile
-                with tempfile.TemporaryDirectory() as tmp:
-                    firmware=Path(tmp)/'mcu.bin'; firmware.write_bytes(data)
-                    fpga_image=Path(tmp)/'fpga.fs'; fpga_image.write_bytes(fpga_data)
-                    class Sink(io.TextIOBase):
-                        def write(_,s):
-                            if s.strip(): self.log(s.strip())
-                            return len(s)
-                        def flush(_): pass
-                    with contextlib.redirect_stdout(Sink()), contextlib.redirect_stderr(Sink()):
-                        core.install(port,firmware,folder,self.log,fpga_image)
-                self.log('Private backup saved to '+str(folder))
-            except (Exception,SystemExit) as exc:
-                self.log('STOPPED: '+str(exc)+'\nDo not erase the device. See Installation & recovery. Backup folder: '+str(folder))
-            finally: self.events.put(('done',''))
-        threading.Thread(target=worker,daemon=True).start()
+                class Sink(io.TextIOBase):
+                    def write(_, s):
+                        self.log(s)
+                        return len(s)
+                    def flush(_):
+                        pass
+                with contextlib.redirect_stdout(Sink()), contextlib.redirect_stderr(Sink()):
+                    getattr(core, operation)(port, folder, self.log)
+            except (Exception, SystemExit) as exc:
+                self.log('STOPPED: ' + str(exc) + '\nDo not erase the device. Your private backup: ' + str(folder) +
+                         '\nSee "Installation & recovery".')
+            finally:
+                self.events.put(('done', ''))
+        threading.Thread(target=worker, daemon=True).start()
+
     def poll(self):
         while not self.events.empty():
-            kind,text=self.events.get()
-            if kind=='done':
-                self.busy=False; self.button['state']='normal'; self.refresh_button['state']='normal'; self.ports['state']='readonly'
+            kind, text = self.events.get()
+            if kind == 'done':
+                self.set_busy(False)
             else:
-                self.output['state']='normal'; self.output.insert('end',text+'\n'); self.output.see('end'); self.output['state']='disabled'
-        self.root.after(100,self.poll)
+                self.output['state'] = 'normal'; self.output.insert('end', text + '\n')
+                self.output.see('end'); self.output['state'] = 'disabled'
+        self.root.after(100, self.poll)
+
     def close(self):
-        if self.busy: messagebox.showinfo('Installation in progress','Keep the installer open until the operation finishes.'); return
+        if self.busy:
+            messagebox.showinfo('Operation in progress', 'Keep the installer open until it finishes.'); return
         self.root.destroy()
 
-if __name__=='__main__':
+
+def self_test():
+    core.check_images()
+    assert core.known_running(core.TARGET)
+    import esptool, serial   # noqa: F401  (bundled dependencies)
+    fpga.run(['--version'], print)
+    print('Magic Trick installer ' + core.RELEASE + ': bundled firmware and dependencies OK')
+
+
+if __name__ == '__main__':
     if '--self-test' in sys.argv:
-        assert core.compatible({'mcu':'v0.13.4-art31','fpga':'18.38','chromatic':'1.0.1-art31 (4.2)'})
-        import esptool, serial
-        fpga.run(['--version'],print)
-        print('Magic Trick installer dependencies OK')
+        self_test()
+    elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall'):
+        # Command-line mode for hardware testing: app.py --install PORT BACKUP_DIR
+        getattr(core, sys.argv[1][2:])(sys.argv[2], sys.argv[3], print)
     else:
-        app=App(); app.root.mainloop()
+        App().root.mainloop()

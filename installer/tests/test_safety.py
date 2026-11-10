@@ -1,86 +1,253 @@
-import hashlib, struct, unittest, tempfile, json
+import hashlib, json, shutil, struct, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 import core, fpga
-TARGET={'mcu':'v0.13.4-art31','fpga':'18.38','chromatic':'1.0.1-art31 (4.2)'}
-STOCK={'mcu':'v0.13.4','fpga':'18.37','chromatic':'v4.2'}
-def backup():
-    data=bytearray(b'\xff'*0x400000)
-    entry=struct.pack('<HBBII16sI',0x50AA,0,0,0x10000,0x100000,b'factory',0)
-    data[0x8000:0x8040]=entry+b'\xeb\xeb'+b'\xff'*14+hashlib.md5(entry).digest()
-    data[0x10000]=0xe9
-    desc=bytearray(256);struct.pack_into('<I',desc,0,0xabcd5432)
-    desc[16:23]=b'0.13.4\0';desc[48:55]=b'mcu_fw\0';data[0x10020:0x10120]=desc
+
+FW = Path(__file__).resolve().parents[1] / 'firmware'
+STOCK = {'mcu': 'v0.13.4', 'fpga': '18.37', 'chromatic': 'v4.2'}
+ART31 = {'mcu': 'v0.13.4-art31', 'fpga': '18.38', 'chromatic': '1.0.1-art31 (4.2)'}
+MB1 = {'mcu': 'vthree-systems-mb1', 'fpga': '50.1', 'chromatic': 'Three systems (MB1)'}
+
+
+def put_app(data, offset, version, project=b'mcu_fw'):
+    data[offset] = 0xE9
+    desc = bytearray(256); struct.pack_into('<I', desc, 0, 0xABCD5432)
+    v = version.encode() + b'\0'; desc[16:16 + len(v)] = v
+    desc[48:48 + len(project) + 1] = project + b'\0'
+    data[offset + 0x20:offset + 0x120] = desc
+
+
+def backup(layout='stock', app='0.13.4-art31', old_app='0.13.4-art31'):
+    data = bytearray(b'\xff' * 0x400000)
+    data[0x1000] = 0xE9
+    table = (FW / ('partition-table-stock.bin' if layout == 'stock' else 'partition-table-three-systems.bin')).read_bytes()
+    data[0x8000:0x8000 + len(table)] = table
+    if layout == 'stock':
+        put_app(data, 0x10000, app)
+    else:
+        put_app(data, 0x260000, app)
+        if old_app:
+            put_app(data, 0x10000, old_app)
     return data
-class Safety(unittest.TestCase):
-    def test_versions(self):
-        for v in [STOCK,TARGET,{'mcu':'v0.13.8','fpga':'18.50','chromatic':'v4.6'}]: self.assertTrue(core.supported_source(v))
-        self.assertFalse(core.supported_source({'mcu':'v9','fpga':'18.38','chromatic':'v4.6'}))
-    def test_image_corruption(self):
-        with self.assertRaises(ValueError): core.validate_image(b'bad')
-    def test_backup(self):
-        core.validate_backup(backup());self.assertEqual(core.identify_backup(backup()),'0.13.4')
-    def test_backup_corruption(self):
-        b=backup();b[0x8010]^=1
-        with self.assertRaises(ValueError): core.validate_backup(b)
-        with self.assertRaises(ValueError): core.validate_backup(b[:100])
-        b=backup();b[0x10020]=0
-        with self.assertRaises(ValueError):core.identify_backup(b)
-    def test_wrong_partition_layout(self):
-        for offset,size in [(0,0x100000),(0x10000,0x200000)]:
-            b=backup()
-            entry=struct.pack('<HBBII16sI',0x50AA,0,0,offset,size,b'factory',0)
-            b[0x8000:0x8040]=entry+b'\xeb\xeb'+b'\xff'*14+hashlib.md5(entry).digest()
-            with self.assertRaises(ValueError):core.validate_backup(b)
-    def test_unknown_backup_app(self):
-        b=backup();b[0x10050:0x10057]=b'bad_fw\0'
-        with self.assertRaises(ValueError):core.identify_backup(b)
-    def test_programmer_detection(self):
-        with patch.object(fpga,'run',side_effect=['1.1.1','1 2 0x33aa:0x0120','GW5A-25']):fpga.preflight(lambda s:None)
-        with patch.object(fpga,'run',side_effect=['1.1.1','1 2 0x33aa:0x0120\n1 3 0x33aa:0x0120']):
-            with self.assertRaises(ValueError):fpga.preflight(lambda s:None)
-class InstallationOrder(unittest.TestCase):
-    def perform(self, *, corrupt_backup=False, fpga_fail=False, corrupt_fpga=False, source=STOCK, read_fail=False, mcu_fail=False, ports=None):
-        events=[]
+
+
+def table_bytes(entries):
+    body = b''.join(struct.pack('<HBBII16sI', 0x50AA, t, s, o, z, b'p', 0) for t, s, o, z in entries)
+    return body + b'\xeb\xeb' + b'\xff' * 14 + hashlib.md5(body).digest()
+
+
+class Images(unittest.TestCase):
+    def test_bundled_images_match_manifest(self):
+        self.assertEqual(set(core.check_images()), set(core.IMAGES))
+
+    def test_damaged_bundle_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
-            image=Path(tmp)/'mcu';image.write_bytes(b'mcu')
-            f=Path(tmp)/'fpga';f.write_bytes(b'fpga')
-            folder=Path(tmp)/'backup'
-            def tool(port,args):
-                if 'read_flash' in args: Path(args[-1]).write_bytes(b'partial' if corrupt_backup else backup())
-                if read_fail and args[0]=='verify_flash' and args[1]=='0x0': raise ValueError('backup verify failed')
-                events.append('write_mcu' if 'write_flash' in args else args[0])
-                if mcu_fail and 'write_flash' in args: raise ValueError('MCU write failed')
-            def flash(*args):
-                events.append('write_fpga')
-                if fpga_fail: raise ValueError('USB disconnected')
-            with patch.object(core,'device_ports',return_value=['test'] if ports is None else ports),patch.object(core,'validate_image'),patch.object(core,'version',side_effect=[ValueError('No console') if source is None else source,TARGET]),patch.object(core,'run_tool',side_effect=tool),patch.object(fpga,'FPGA_HASH', 'bad' if corrupt_fpga else hashlib.sha256(b'fpga').hexdigest()),patch.object(fpga,'preflight'),patch.object(fpga,'flash',side_effect=flash),patch.object(core.time,'sleep'):
-                error=None
-                try:core.install('test',image,folder,lambda s:None,f)
-                except ValueError as exc:error=exc
-                stage=json.loads((folder/'installation.json').read_text())['stage'] if (folder/'installation.json').exists() else None
-            return events,error,stage
-    def test_success_order(self):
-        events,error,stage=self.perform()
-        self.assertIsNone(error);self.assertEqual(stage,'complete')
-        self.assertEqual(events,['read_flash','verify_flash','write_mcu','verify_flash','write_fpga'])
+            for p in FW.iterdir(): shutil.copyfile(p, Path(tmp) / p.name)
+            path = Path(tmp) / core.IMAGES['fpga_gb'][0]; d = bytearray(path.read_bytes()); d[-2] ^= 1; path.write_bytes(d)
+            with patch.object(core, 'FIRMWARE_DIR', Path(tmp)):
+                with self.assertRaises(ValueError): core.check_images()
+
+    def test_bundled_mcu_is_the_release(self):
+        data = bytearray(b'\xff' * 0x400000); mcu = core.image('mcu').read_bytes()
+        data[0x260000:0x260000 + len(mcu)] = mcu
+        self.assertEqual(core.app_info(data, 0x260000), ('mcu_fw', core.RELEASE))
+        self.assertLessEqual(len(mcu), core.THREE_SYSTEMS_APP[1])
+
+
+class Layouts(unittest.TestCase):
+    def test_bundled_tables(self):
+        self.assertEqual(core.classify(core.parse_table(core.image('table_stock').read_bytes())), 'stock')
+        self.assertEqual(core.classify(core.parse_table(core.image('table_three_systems').read_bytes())), 'three-systems')
+
+    def test_backups(self):
+        self.assertEqual(core.validate_backup(backup()), ('stock', '0.13.4-art31'))
+        self.assertEqual(core.validate_backup(backup(app='0.13.8')), ('stock', '0.13.8'))
+        self.assertEqual(core.validate_backup(backup('three-systems', 'three-systems-mb1')), ('three-systems', 'three-systems-mb1'))
+        self.assertEqual(core.validate_backup(backup('three-systems', '1.0.0-beta')), ('three-systems', '1.0.0-beta'))
+
+    def test_rejected_backups(self):
+        bad = [bytes(100), backup(app='9.9.9'), backup('three-systems', 'esp-at')]
+        b = backup(); b[0x1000] = 0xFF; bad.append(b)
+        b = backup(); b[0x8010] ^= 1; bad.append(b)
+        b = backup(); b[0x10000] = 0; bad.append(b)
+        for entries in [[(1, 2, 0x9000, 0x6000), (1, 1, 0xF000, 0x1000), (0, 0, 0x10000, 0x200000)],
+                        [(1, 2, 0x9000, 0x6000), (1, 1, 0xF000, 0x1000), (0, 0, 0x10000, 0x100000), (0, 16, 0x110000, 0x100000)],
+                        [(1, 2, 0x9000, 0x5000), (1, 1, 0xF000, 0x1000), (0, 0, 0x10000, 0x100000)]]:
+            b = backup(); t = table_bytes(entries); b[0x8000:0x8C00] = b'\xff' * 0xC00; b[0x8000:0x8000 + len(t)] = t; bad.append(b)
+        for data in bad:
+            with self.assertRaises(ValueError): core.validate_backup(data)
+
+    def test_running_versions(self):
+        for v in [STOCK, ART31, MB1, core.TARGET, {'mcu': 'v0.13.4-art31-wifi14', 'fpga': '18.38', 'chromatic': 'x'}]:
+            self.assertTrue(core.known_running(v), v)
+        for v in [{'mcu': 'v9', 'fpga': '18.38'}, {'mcu': 'v0.13.4', 'fpga': '51.1'}]:
+            self.assertFalse(core.known_running(v), v)
+
+
+class Programmer(unittest.TestCase):
+    def test_detection(self):
+        with patch.object(fpga, 'run', side_effect=['1.1.1', '1 2 0x33aa:0x0120', 'GW5A-25']): fpga.preflight(lambda s: None)
+        with patch.object(fpga, 'run', side_effect=['1.1.1', '1 2 0x33aa:0x0120\n1 3 0x33aa:0x0120']):
+            with self.assertRaises(ValueError): fpga.preflight(lambda s: None)
+
+    def test_retries_until_success(self):
+        calls = []
+        def run(args, log, timeout=0):
+            calls.append(args)
+            if len(calls) < 4: raise fpga.ProgrammerError('write to flash failed')
+            return 'Verifying write'
+        with patch.object(fpga, 'run', side_effect=run), patch.object(fpga, 'reset') as reset:
+            self.assertEqual(fpga.flash('img.fs', 0x100000, lambda s: None, sleep=lambda s: None), 4)
+            self.assertEqual(reset.call_count, 3)
+        self.assertTrue(all(a[a.index('-o') + 1] == '0x100000' and '--verify' in a and '--reset' not in a for a in calls))
+
+    def test_gives_up_after_attempts(self):
+        with patch.object(fpga, 'run', side_effect=fpga.ProgrammerError('x')), patch.object(fpga, 'reset'):
+            with self.assertRaises(fpga.ProgrammerError):
+                fpga.flash('img.fs', 0, lambda s: None, attempts=3, sleep=lambda s: None)
+
+    def test_rejects_unaligned_slot(self):
+        with self.assertRaises(ValueError): fpga.flash('img.fs', 0x1000, lambda s: None)
+
+
+class Flows(unittest.TestCase):
+    def perform(self, op='install', *, layout='stock', app='0.13.4-art31', old_app='0.13.4-art31', running=ART31,
+                corrupt_backup=False, verify_backup_fail=False, mcu_fail=False, fpga_fail=False, ports=None,
+                after=None, damaged_image=False):
+        events = []
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'backup'
+            def tool(port, args):
+                if 'read_flash' in args:
+                    Path(args[-1]).write_bytes(b'partial' if corrupt_backup else bytes(backup(layout, app, old_app)))
+                    events.append('read_flash'); return
+                if args[0] == 'verify_flash':
+                    if verify_backup_fail and args[1] == '0x0': raise ValueError('backup verify failed')
+                    events.append(('verify', int(args[1], 16))); return
+                if 'erase_flash' in args: events.append('ERASE')
+                offset = int(args[args.index('write_flash') + 7], 16)
+                events.append(('write', offset, Path(args[-1]).name))
+                if mcu_fail and offset == 0x260000: raise ValueError('MCU write failed')
+            def flash(path, offset, log, sleep=None):
+                events.append(('fpga', offset, Path(path).name))
+                if fpga_fail: raise fpga.ProgrammerError('USB disconnected')
+                return 2
+            versions = [running, after or (core.TARGET if op == 'install' else {'mcu': 'v' + str(old_app), 'fpga': '18.38', 'chromatic': 'x'})]
+            def version(port, timeout=20):
+                v = versions.pop(0) if versions else None
+                if v is None: raise ValueError('No console')
+                return v
+            fw_patch = patch.object(core, 'FIRMWARE_DIR', FW)
+            if damaged_image:
+                tmpfw = Path(tmp) / 'fw'; shutil.copytree(FW, tmpfw, copy_function=shutil.copyfile)
+                p = tmpfw / core.IMAGES['mcu'][0]; d = bytearray(p.read_bytes()); d[100] ^= 1; p.write_bytes(d)
+                fw_patch = patch.object(core, 'FIRMWARE_DIR', tmpfw)
+            with fw_patch, patch.object(core, 'device_ports', return_value=['test'] if ports is None else ports), \
+                    patch.object(core, 'version', side_effect=version), patch.object(core, 'run_tool', side_effect=tool), \
+                    patch.object(fpga, 'preflight'), patch.object(fpga, 'flash', side_effect=flash), \
+                    patch.object(fpga, 'reset', side_effect=lambda log: events.append('reset')):
+                error = None
+                try: getattr(core, op)('test', folder, lambda s: None, sleep=lambda s: None)
+                except ValueError as exc: error = exc
+                state = json.loads((folder / 'installation.json').read_text()) if (folder / 'installation.json').exists() else {}
+        writes = [e for e in events if isinstance(e, tuple) and e[0] in ('write', 'fpga')]
+        return events, writes, error, state.get('stage')
+
+    def test_install_from_stock_layout(self):
+        for running in [STOCK, ART31, None]:
+            events, writes, error, stage = self.perform(running=running)
+            self.assertIsNone(error); self.assertEqual(stage, 'complete')
+            self.assertEqual(writes, [('write', 0x260000, core.IMAGES['mcu'][0]),
+                                      ('fpga', core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
+                                      ('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0]),
+                                      ('write', 0x8000, core.IMAGES['table_three_systems'][0])])
+            self.assertEqual(events[:3], ['read_flash', ('verify', 0), ('write', 0x260000, core.IMAGES['mcu'][0])])
+            self.assertIn(('verify', 0x8000), events); self.assertEqual(events[-1], 'reset')
+
+    def test_upgrade_keeps_table_and_never_writes_slot1_behind_multiboot(self):
+        for running in [MB1, None]:
+            events, writes, error, stage = self.perform(layout='three-systems', app='three-systems-mb1', running=running)
+            self.assertIsNone(error); self.assertEqual(stage, 'complete')
+            self.assertNotIn(0x8000, [w[1] for w in writes])
+            self.assertEqual([w for w in writes if w[0] == 'fpga'],
+                             [('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
+                              ('fpga', core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
+                              ('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
+
+    def test_interrupted_install_with_new_fpga_bounces_too(self):
+        _, writes, error, _ = self.perform(running=dict(ART31, fpga='50.1'))
+        self.assertIsNone(error)
+        self.assertEqual(writes[1], ('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]))
+
+    def test_never_touches_bootloader_or_erases(self):
+        for kwargs in [{}, {'layout': 'three-systems', 'app': '1.0.0-beta', 'running': core.TARGET}]:
+            events, writes, _, _ = self.perform(**kwargs)
+            self.assertNotIn('ERASE', events)
+            self.assertTrue(all(w[1] >= 0x8000 for w in writes if w[0] == 'write'))
+
+    def test_table_only_after_both_fpga_cores(self):
+        _, writes, _, _ = self.perform()
+        self.assertGreater(writes.index(('write', 0x8000, core.IMAGES['table_three_systems'][0])),
+                           max(i for i, w in enumerate(writes) if w[0] == 'fpga'))
+
     def test_bad_backup_never_writes(self):
-        for kwargs in [{'corrupt_backup':True},{'read_fail':True}]:
-            events,error,_=self.perform(**kwargs);self.assertIsNotNone(error)
-            self.assertNotIn('write_mcu',events);self.assertNotIn('write_fpga',events)
-    def test_wrong_fpga_never_touches_device(self):
-        events,error,_=self.perform(corrupt_fpga=True);self.assertIsNotNone(error);self.assertEqual(events,[])
-    def test_partial_install_recorded(self):
-        _,error,stage=self.perform(fpga_fail=True);self.assertIsNotNone(error);self.assertEqual(stage,'partial_install_fpga_failed')
-    def test_unknown_source_rejected(self):
-        events,error,_=self.perform(source={'mcu':'v9'});self.assertIsNotNone(error);self.assertEqual(events,[])
-    def test_older_stock_identified_from_backup(self):
-        _,error,stage=self.perform(source=None);self.assertIsNone(error);self.assertEqual(stage,'complete')
-    def test_multiple_devices_rejected(self):
-        events,error,_=self.perform(ports=['test','other']);self.assertIsNotNone(error);self.assertEqual(events,[])
-    def test_mcu_failure_never_writes_fpga(self):
-        events,error,stage=self.perform(mcu_fail=True)
-        self.assertIsNotNone(error);self.assertNotIn('write_fpga',events);self.assertEqual(stage,'mcu_write_started')
-    def test_interrupted_pair_can_retry(self):
-        _,error,stage=self.perform(source=dict(TARGET,fpga='18.37'));self.assertIsNone(error);self.assertEqual(stage,'complete')
-if __name__=='__main__':unittest.main()
+        for kwargs in [{'corrupt_backup': True}, {'verify_backup_fail': True}, {'app': '9.9.9'}]:
+            _, writes, error, _ = self.perform(**kwargs)
+            self.assertIsNotNone(error); self.assertEqual(writes, [])
+
+    def test_damaged_bundle_never_touches_device(self):
+        events, _, error, _ = self.perform(damaged_image=True)
+        self.assertIsNotNone(error); self.assertEqual(events, [])
+
+    def test_unknown_firmware_and_multiple_devices(self):
+        for kwargs in [{'running': {'mcu': 'v9', 'fpga': '1.0', 'chromatic': 'x'}}, {'ports': ['test', 'other']}]:
+            events, _, error, _ = self.perform(**kwargs)
+            self.assertIsNotNone(error); self.assertEqual(events, [])
+
+    def test_mcu_failure_stops_before_fpga(self):
+        _, writes, error, stage = self.perform(mcu_fail=True)
+        self.assertIsNotNone(error); self.assertEqual(stage, 'mcu_write_started')
+        self.assertEqual([w[0] for w in writes], ['write'])
+
+    def test_fpga_failure_leaves_old_table(self):
+        _, writes, error, stage = self.perform(fpga_fail=True)
+        self.assertIsNotNone(error); self.assertEqual(stage, 'partial_install_fpga_failed')
+        self.assertNotIn(0x8000, [w[1] for w in writes])
+
+    def test_either_core_running_counts_as_installed(self):
+        _, _, error, stage = self.perform(after=dict(core.TARGET, fpga='50.2'))
+        self.assertIsNone(error); self.assertEqual(stage, 'complete')
+
+    def test_unconfirmed_version_is_not_success(self):
+        _, _, error, stage = self.perform(after={'mcu': 'v0.13.4-art31', 'fpga': '18.38', 'chromatic': 'x'})
+        self.assertIsNotNone(error); self.assertEqual(stage, 'all_images_verified')
+
+    def test_uninstall_restores_chromagic(self):
+        events, writes, error, stage = self.perform('uninstall', layout='three-systems', app='1.0.0-beta', running=core.TARGET)
+        self.assertIsNone(error); self.assertEqual(stage, 'complete')
+        self.assertEqual(writes, [('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
+                                  ('write', 0x8000, core.IMAGES['table_stock'][0])])
+
+    def test_uninstall_refusals_write_nothing(self):
+        for kwargs in [{'layout': 'stock'}, {'layout': 'three-systems', 'app': '1.0.0-beta', 'old_app': None, 'running': core.TARGET}]:
+            _, writes, error, _ = self.perform('uninstall', **kwargs)
+            self.assertIsNotNone(error); self.assertEqual(writes, [])
+
+
+class Reconnect(unittest.TestCase):
+    def test_waits_for_new_port_name(self):
+        seq = [[], [], ['/dev/new']]
+        with patch.object(core, 'device_ports', side_effect=lambda: seq.pop(0) if seq else ['/dev/new']), \
+                patch.object(fpga, 'reset') as reset:
+            self.assertEqual(core.wait_for_device(lambda s: None, lambda s: None), '/dev/new')
+            reset.assert_not_called()
+
+    def test_resets_fpga_then_gives_up(self):
+        with patch.object(core, 'device_ports', return_value=[]), patch.object(fpga, 'reset') as reset, \
+                patch.object(core.time, 'monotonic', side_effect=[0, 0, 100, 0, 0, 100]):
+            with self.assertRaises(ValueError): core.wait_for_device(lambda s: None, lambda s: None)
+            reset.assert_called_once()
+
+
+if __name__ == '__main__':
+    unittest.main()

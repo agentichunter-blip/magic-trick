@@ -1,22 +1,46 @@
-# Magic Trick Installer 0.2.0 — testing preview
+# Magic Trick Installer 1.0.0-beta
 
-One app installs Magic Trick directly onto a stock ModRetro Chromatic or upgrades a compatible ChroMagic installation. Includes Python, esptool and openFPGALoader. Internet access is required to download the pinned MCU and FPGA images; both SHA-256 hashes are checked before installation. You do not need to install ChroMagic separately.
+One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlier Magic Trick 1.0 install, or uninstalls it. Python, esptool, openFPGALoader and all firmware are bundled. No internet connection is needed.
 
-Extract the entire archive. Mac: open the .app. Windows: open Magic-Trick-Installer.exe in its folder. Linux: run Magic-Trick-Installer from its folder (Ubuntu 22.04+ x64). Connect one powered-on Chromatic with a data USB cable; close other device apps. Back up your SD card yourself, select the detected Chromatic, and choose a private backup folder.
+**What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native Game Boy / Game Boy Color save states, Wi-Fi file transfers and the Magic Trick boot animation. Game Gear has no save states yet.
 
-Windows may need the official MRUpdater USB driver setup before the programmer is accessible. Linux may need serial and USB device permissions. The app checks access before writing firmware. Mac tools are bundled and do not require Homebrew.
+## Before you start
 
-The installer reads and verifies a full 4 MiB MCU backup, validates its partition table and application descriptor, writes/verifies the Magic Trick MCU application, then writes/verifies the ChroMagic FPGA. It checks running versions before reporting success. It leaves the bootloader, partition table and SD card unchanged. The backup does NOT include FPGA or SD contents. Keep your backup private.
+- Back up your SD card yourself, especially saves.
+- Use a data-capable USB cable. Power the Chromatic on and close other device apps (ModRetro's updater, ChroMagician, serial monitors).
+- **Windows:** you may need ModRetro's MRUpdater USB driver setup before the programmer can reach the device. **Linux:** you may need serial and USB permissions (udev rules). The app checks access before it writes anything.
+- Supported starting points: stock 4.2, 4.5 and 4.6, ChroMagic 1.0.1 and art-series firmware, or Magic Trick 1.0 beta. Anything else is refused before anything is written.
 
-Supported source checks: stock 4.2, 4.5 and 4.6; compatible ChroMagic 1.0.1/art-series; and older consoles without fwversion when the backed-up app identifies as mcu_fw 0.13.0–0.13.8 with the expected layout. Unknown firmware/layouts are rejected. These are software checks, not a hardware compatibility certification.
+## Install or update
 
-If interrupted, keep the backup and installation.json. An MCU-success/FPGA-failure result is a partial installation, never success. If the console still responds, retry the paired installer. If it no longer responds, stop and use the recovery documentation; do not erase flash or overwrite the only backup. Stock restoration requires matching stock MCU AND FPGA firmware (official MRUpdater); an MCU backup alone does not restore the FPGA.
+Extract the whole archive and open Magic Trick Installer. **Mac:** open the .app. **Windows:** run Magic-Trick-Installer.exe from its folder. **Linux:** run Magic-Trick-Installer from its folder (Ubuntu 22.04+ x64). Select the Chromatic, confirm your SD backup, choose a private backup folder, then choose **Back up & install / update**.
 
-Recovery: https://github.com/agentichunter-blip/magic-trick/blob/main/docs/install-release.md
+The installer:
 
-These packages are unsigned and not Apple-notarized. No end-to-end hardware installation has been tested yet. Intended for testing; wait for hardware validation if you need a proven installation path. Device Status reports MCU v0.13.4-art31, FPGA 18.38, Chromatic 1.0.1-art31 (4.2). No games, saves, artwork or previews are bundled.
+1. Saves and verifies a full 4 MiB backup of the MCU flash in your folder. Keep it private: it contains your device's settings.
+2. Writes and verifies the Magic Trick MCU application in an unused area. Until step 5 your old application still starts.
+3. Writes and verifies the Game Gear FPGA core, then the Game Boy / Game Boy Color core. Updating an existing Magic Trick 1.0 install? The installer first puts the ChroMagic FPGA in the Game Boy slot so the Game Gear slot can be rewritten safely.
+4. FPGA writes sometimes fail a few times before they go through. That's expected: the installer restarts the FPGA and retries, up to 12 times at about 80 seconds per attempt. Every completed write is read back and verified.
+5. Switches the MCU partition table to the new layout, last.
+6. Restarts the Chromatic and checks the running versions.
 
-Source: https://github.com/agentichunter-blip/magic-trick
-Based on CursedToast's ChroMagic and ModRetro firmware. Independent community project. Installer source is GPL-3.0; bundled tools retain their own licenses, included under programmer/licenses. Programmer source archives are included for Mac; corresponding Linux/Windows sources are provided with the release. Firmware sources and full credits are in the repository.
+It never writes the SD card or the bootloader, and never erases the whole flash. When it says it's done, turn the Chromatic off and on once. Status shows **Magic Trick 1.0 beta** and MCU **v1.0.0-beta**.
 
-Optional donations: https://ko-fi.com/ryansag
+## Uninstall
+
+Choose **Uninstall…**. The installer writes the ChroMagic 1.0.1 FPGA and restores the standard partition table, so the application you had before Magic Trick 1.0 runs again. It's kept untouched at 0x10000. To return fully to stock afterwards, use ModRetro's official updater.
+
+ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0: their FPGA writes fail and they don't retry. Uninstall with this app first.
+
+## If something goes wrong
+
+- Keep the backup folder and its `installation.json`. It records how far the installer got.
+- If a step fails, run the installer again. The Chromatic's FPGA can always be reached over USB, even when an FPGA write was interrupted. If the screen stays dark, the FPGA slot is incomplete; running the installer again rewrites it.
+- If the Chromatic isn't detected, unplug it, power-cycle it and reconnect. Don't erase flash and don't overwrite your only backup.
+- Still stuck? [Open a GitHub issue](https://github.com/agentichunter-blip/magic-trick/issues/new) with `installation.json` and the log. Never attach the backup itself, ROMs or saves.
+
+## Status
+
+**Beta.** Hardware-tested on one Chromatic: uninstall to ChroMagic, a fresh install from ChroMagic, and an update of an installed device, with switching between Game Boy and Game Gear games in both directions. A fresh install from stock 4.x firmware hasn't been tested on hardware. The packages are unsigned and the Mac apps aren't notarized. One Game Gear FPGA timing path is marginal; the core runs correctly on the test device.
+
+Source and credits: https://github.com/agentichunter-blip/magic-trick. Based on CursedToast's ChroMagic and ModRetro's open-source firmware. Installer source is GPL-3.0; bundled tools keep their own licenses (programmer/licenses). Optional donations: https://ko-fi.com/ryansag
