@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Tip on Ko-fi</a>
@@ -14,83 +14,42 @@
 
 # Magic Trick
 
-**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It turns the handheld's file list into a game library: cover art, looping gameplay previews, Game Genie cheats, a Recent folder and automatic last-game startup.
+**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It plays Game Boy, Game Boy Color and Game Gear games from the SD card and switches FPGA cores automatically. It turns the file list into a game library with cover art, looping gameplay previews, Game Genie cheats, a Recent folder and last-game startup, and adds native save states, Wi-Fi file transfers and a boot animation.
 
-> **Standing on the shoulders of ChroMagic.** Magic Trick would not exist without CursedToast's ChroMagic and ChroMagician, and ModRetro's decision to open-source the Chromatic firmware and FPGA design. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
+> **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Chromatic `1.0.1-art31 (4.2)` / MCU `v0.13.4-art31`. Based on ChroMagic 1.0.1; tested with FPGA **18.38**. Magic Trick changes the MCU application only. There is no modified FPGA `.fs` file to install.
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
 
-This is an independent, experimental community project with no guaranteed support or release schedule. It is not affiliated with ModRetro, Nintendo or Sega. No game ROMs, personal saves, cover packs, or gameplay video packs are included. Supply your own games and media.
-
-**In development:** Game Gear support with sound, automatic Game Boy/Game Gear core switching, true save states, Wi-Fi file transfers and a boot animation already run on a real Chromatic in development firmware. They are not in a published release yet.
+This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo or Sega. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
 ## Features
 
-- Game Boy / Game Boy Color system picker and nested folder navigation.
-- Cover art followed by an optional silent, looping gameplay preview.
-- Five-row game overlay when holding Up/Down, accelerated navigation, and scrolling titles.
-- Game title and progress indicator during loading.
-- Background media reads, cancellation during navigation, and SD access coordination.
-- Automatically reopen the last successfully launched SD game when no cartridge is inserted; hold B at power-on to skip.
-- Files beginning with `[BIOS]` are hidden in the browser without being deleted.
+- **Three systems:** Game Boy, Game Boy Color and Game Gear (with sound) on FPGA cores. Opening a game for the other system reloads the right core automatically.
+- **Native save states** for Game Boy and Game Boy Color: full FPGA snapshots from System → Save States, plus Menu+Up to save and Menu+Down (hold) to load. Game Gear has no save states yet.
+- **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
+- **Game Genie cheats** for Game Boy and Game Boy Color SD games. Game Gear cheats are new and not yet verified on hardware. See [cheats](docs/cheats.md).
+- **Recent games** and **last-game startup** (hold B at power-on to skip).
+- **Wi-Fi file transfers** to and from the SD card in a web browser.
+- **Boot animation** with the Magic Trick logo.
+- Files beginning with `[BIOS]` are hidden without being deleted. Demo and Kiosk ROMs are filtered out.
 
-ChroMagic's cartridge backup and save features remain available. An installed SD card is required for on-device backups and this browser.
+ChroMagic's cartridge backup and save features remain available. An installed SD card is required for the browser and on-device backups.
 
 ## Install
 
-**Installer paused:** Installer 0.2.0 was withdrawn. Hardware testing found that its FPGA step can erase the FPGA flash and then fail to write it. If you downloaded it, please don't run it. A fixed installer is next.
+Download **[Magic Trick Installer 1.0.0-beta](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) before you start.
 
-**Manual, no build:** download the [art31 firmware release](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31) and follow [the prebuilt installation guide](docs/install-release.md). It includes macOS/Linux and Windows commands.
+- **Updates take 10–15 minutes.** FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
+- **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
+- **Beta:** hardware-tested on one Chromatic (install from ChroMagic, updates, uninstall, core switching). A fresh install from stock 4.x and the Windows/Linux apps haven't been tested on hardware yet.
+
+Looking for the older MCU-only art31 release and its manual esptool steps? See [art31](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31) and [its install guide](docs/install-release.md).
 
 ### Build from source
 
-> **This branch (`three-systems`) is development firmware.** Here `mcu/` is the three-system firmware (Game Gear, core switching, save states, Wi-Fi). Its 1.4 MB app needs the Wi-Fi partition table (app at `0x260000`, see `mcu/partitions.wifi.csv`) and the matching FPGA cores in [`fpga/cores`](fpga/cores). **Do not use the art31 commands below with it.** There is no tested install path for it yet, and the FPGA cores currently block USB flash tools (see [fpga/cores/README.md](fpga/cores/README.md)). For the art31 source these steps describe, check out tag [`v1.0.1-art31`](https://github.com/agentichunter-blip/magic-trick/tree/v1.0.1-art31).
-
-These instructions are for a Chromatic already running **ChroMagic 1.0.1 with FPGA 18.38**. If starting from stock, first install upstream ChroMagic with [ChroMagician](https://github.com/cursedtoast2/ChroMagician), then verify the versions in the device's status menu. Selecting upstream ChroMagic in that app installs upstream firmware, not this mod. Upstream ChroMagician currently provides Windows and Linux installers; use a supported host for the initial installation or rollback. The source build and application-only flashing commands below can be run on macOS/Linux once the required base firmware is installed.
-
-Download/extract this repository or clone it, then open a terminal in its root directory (the folder containing this README). All relative paths below start there. These commands use the esptool 4.x bundled with ESP-IDF v5.3; see [Espressif's command reference](https://docs.espressif.com/projects/esptool/en/release-v4/esp32/esptool/basic-commands.html).
-
-1. Back up your SD card, especially saves. Build the application using [the build guide](docs/building.md). The output is `mcu/build/mcu_fw.bin`.
-2. Keep the device powered on and connect it using a data-capable USB cable. Close ChroMagician, serial monitors, and other applications using the device.
-3. With ESP-IDF v5.3 activated, list serial ports and set `PORT` to your Chromatic's actual port. The shell commands below use macOS/Linux syntax; Windows users can run them in an ESP-IDF shell with the appropriate port/variable syntax.
-
-   ```sh
-   python -m serial.tools.list_ports
-   PORT=/dev/cu.usbmodemYOUR_DEVICE
-   ```
-
-4. Save a private backup of the existing 4 MiB MCU flash. Choose a new filename if a backup already exists so you do not overwrite your original backup. Keep this outside the repository and do not share it. This backs up the MCU only, not the SD card or FPGA.
-
-   ```sh
-   python -m esptool --chip esp32 --port "$PORT" --baud 460800 \
-     read_flash 0x0 0x400000 ../chromatic-mcu-backup.bin
-   ```
-
-5. Continue only after the backup finishes successfully and produces a 4,194,304-byte file. Inspect the application image, then write **only the application at `0x10000`**. Run from the repository root. Do not use `erase_flash` or the general `idf.py flash` command for this upgrade.
-
-   ```sh
-   python -m esptool --chip esp32 image_info --version 2 mcu/build/mcu_fw.bin
-   ```
-
-   Check that `image_info` reports project `mcu_fw`, app version `0.13.4-art31`, ESP-IDF `v5.3`, and a valid checksum/validation hash. Only then run:
-
-   ```sh
-   python -m esptool --chip esp32 --port "$PORT" --baud 460800 \
-     --before default_reset --after hard_reset write_flash \
-     --flash_mode dio --flash_freq 40m --flash_size 4MB \
-     0x10000 mcu/build/mcu_fw.bin
-   ```
-
-6. Wait for `Hash of data verified.` before disconnecting. Power-cycle the device and confirm MCU `v0.13.4-art31`, Chromatic `1.0.1-art31 (4.2)`, and FPGA `18.38`. Leave **C. MAGICIAN** off for on-device browsing and gameplay.
-7. Add optional [covers and gameplay previews](docs/media.md) to the SD card. Games remain in `CHROMAGIC/BACKUPS`. The browser works without media.
-
-The application occupies a 1 MiB partition. These commands leave the existing bootloader, partition table, and FPGA in place. Compatibility with other firmware layouts or FPGA versions has not been established.
-
-### Troubleshooting and rollback
-
-- If the port cannot open, close other device apps and check the cable and USB drivers. Follow the USB setup guidance linked by upstream ChroMagician. Do not guess a different flash offset or erase the device to fix a connection issue.
-- If artwork is missing, check that paths mirror the full game filename, including `.gb` or `.gbc`, as shown in the media guide.
-- To return to upstream ChroMagic or stock firmware, use ChroMagician's firmware installation/restore workflow. Restoring upstream replaces this custom browser. Keep your SD/save backups until you have verified the restored setup.
+- **MCU:** with ESP-IDF v5.3 activated, run `mcu/tools/build_wifi.sh`. It builds the app (`mcu_fw.bin`) for the Wi-Fi partition table in `mcu/partitions.wifi.csv` (application at `0x260000`) and runs the host tests. More in [docs/building.md](docs/building.md).
+- **FPGA:** see [fpga/cores/README.md](fpga/cores/README.md). Both cores rebuild bit-for-bit from this repository with Gowin EDA V1.9.12.04.
+- **Installing your own build:** the MCU app, both FPGA cores and the partition table have to go on together. Use the installer's code in [`installer/`](installer) as the reference sequence. Never run the multi-region `idf.py flash` command printed by the build: it would overwrite the bootloader.
 
 ## Game Genie cheats
 
@@ -150,7 +109,7 @@ save state. Existing save behavior is unchanged. The FPGA/core is unchanged.
 
 ## Controls
 
-At the two-system picker, Left/Right selects a system and A opens it. B or Up returns focus to the tabs; A or Down returns to the picker. Roots with additional entries use the normal folder list.
+At the system picker, Game Boy, Game Boy Color and Game Gear are stacked rows. Up/Down moves between them and A opens one. Up at the first row or B returns focus to the tabs. Roots with additional entries use the normal folder list.
 
 In a folder, tapping Up/Down selects the next cover directly. Holding for 350 milliseconds opens the five-row selector and starts repeating; continuing to hold accelerates scrolling. The selector stays open after release, and taps fine-tune the highlighted game. Press **A** to reveal that game’s cover/video preview, then **A** again to launch. **B** goes back. Videos start after the cover has been unobscured for 1.5 seconds. Missing clips leave the cover visible. Press **Select** from the preview to open cheats.
 
