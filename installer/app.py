@@ -7,7 +7,7 @@ except ImportError:   # command-line mode does not need a window
     tk = None
 import core, fpga
 
-DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/installer/README.md'
+DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md'
 
 
 class App:
@@ -29,13 +29,19 @@ class App:
         self.ports = ttk.Combobox(row, textvariable=self.port, state='readonly', width=45); self.ports.pack(side='left')
         self.refresh_button = ttk.Button(row, text='Refresh USB ports', command=self.refresh); self.refresh_button.pack(side='right')
         self.consent = tk.BooleanVar()
-        ttk.Checkbutton(body, text='I backed up my SD card and will keep power and USB connected.',
+        ttk.Label(body, wraplength=700, foreground='#b45309', text=(
+            'Beta firmware, installed at your own risk. Not made or supported by ModRetro; it may void your '
+            'warranty. Read "Installation & recovery" first, and keep the backup folder from your first install.'
+        )).pack(anchor='w', pady=(0, 8))
+        ttk.Checkbutton(body, text='I understand the risk, backed up my SD card, and will keep power and USB connected.',
                         variable=self.consent).pack(anchor='w')
         actions = ttk.Frame(body); actions.pack(anchor='w', pady=14)
         self.install_button = ttk.Button(actions, text='Back up & install / update', command=lambda: self.start('install'))
         self.install_button.pack(side='left')
         self.uninstall_button = ttk.Button(actions, text='Uninstall…', command=lambda: self.start('uninstall'))
         self.uninstall_button.pack(side='left', padx=(10, 0))
+        self.restore_button = ttk.Button(actions, text='Restore backup…', command=self.start_restore)
+        self.restore_button.pack(side='left', padx=(10, 0))
         self.output = tk.Text(body, height=14, wrap='word', state='disabled', font=('Courier', 10))
         self.output.pack(fill='both', expand=True)
         footer = ttk.Frame(body); footer.pack(fill='x', pady=(16, 0))
@@ -56,7 +62,7 @@ class App:
     def set_busy(self, busy):
         self.busy = busy
         state = 'disabled' if busy else 'normal'
-        for b in (self.install_button, self.uninstall_button, self.refresh_button):
+        for b in (self.install_button, self.uninstall_button, self.restore_button, self.refresh_button):
             b['state'] = state
         self.ports['state'] = 'disabled' if busy else 'readonly'
 
@@ -80,6 +86,35 @@ class App:
             return
         port = self.port.get()
         folder = Path(parent) / ('Magic-Trick-backup-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+        self.run(lambda: getattr(core, operation)(port, folder, self.log), folder)
+
+    def start_restore(self):
+        """Recovery: put back the backup made before Magic Trick was first installed. Works without
+        a USB serial port, because the FPGA (which provides it) is repaired first."""
+        if self.busy:
+            return
+        if not self.consent.get():
+            messagebox.showinfo('Before you start', 'Confirm your SD backup first.'); return
+        chosen = filedialog.askopenfilename(
+            title='Choose mcu-backup.bin from your FIRST Magic Trick install',
+            filetypes=[('MCU backup', 'mcu-backup.bin'), ('All files', '*')])
+        if not chosen:
+            return
+        try:
+            _, app = core.check_restore_backup(chosen)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('Magic Trick', str(exc)); return
+        if not messagebox.askyesno('Magic Trick', (
+                'Restore this backup?\n\nUse this if install, update or uninstall can\'t finish, or the Chromatic '
+                'no longer starts. The app writes the ChroMagic 1.0.1 FPGA, then puts back your saved MCU flash '
+                '(application ' + app + ' and your settings). It takes 10–20 minutes. Keep USB and power '
+                'connected. Your SD card is not written.\n\nTo return fully to stock afterwards, use ModRetro\'s '
+                'official updater.')):
+            return
+        folder = Path(chosen).parent.parent / ('Magic-Trick-restore-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+        self.run(lambda: core.restore(chosen, folder, self.log), folder)
+
+    def run(self, operation, folder):
         self.set_busy(True)
 
         def worker():
@@ -91,10 +126,11 @@ class App:
                     def flush(_):
                         pass
                 with contextlib.redirect_stdout(Sink()), contextlib.redirect_stderr(Sink()):
-                    getattr(core, operation)(port, folder, self.log)
+                    operation()
             except (Exception, SystemExit) as exc:
                 self.log('STOPPED: ' + str(exc) + '\nDo not erase the device. Your private backup: ' + str(folder) +
-                         '\nSee "Installation & recovery".')
+                         '\nSee "Installation & recovery". If install, update and uninstall keep refusing, '
+                         'use Restore backup with mcu-backup.bin from your first install.')
             finally:
                 self.events.put(('done', ''))
         threading.Thread(target=worker, daemon=True).start()
@@ -129,5 +165,8 @@ if __name__ == '__main__':
     elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall'):
         # Command-line mode for hardware testing: app.py --install PORT BACKUP_DIR
         getattr(core, sys.argv[1][2:])(sys.argv[2], sys.argv[3], print)
+    elif len(sys.argv) == 4 and sys.argv[1] == '--restore':
+        # app.py --restore path/to/mcu-backup.bin NEW_FOLDER
+        core.restore(sys.argv[2], sys.argv[3], print)
     else:
         App().root.mainloop()

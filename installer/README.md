@@ -1,5 +1,7 @@
 # Magic Trick Installer 1.0.0-beta
 
+> **Beta firmware, installed at your own risk.** Magic Trick is an independent community mod, not made, endorsed or supported by ModRetro. It rewrites your Chromatic's MCU and FPGA firmware and may void your warranty. Read the [recovery guide](../docs/recovery.md) before you install.
+
 One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlier Magic Trick 1.0 install, or uninstalls it. Python, esptool, openFPGALoader and all firmware are bundled. No internet connection is needed.
 
 **What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native Game Boy / Game Boy Color save states, Wi-Fi file transfers and the Magic Trick boot animation. Game Gear has no save states yet.
@@ -7,6 +9,7 @@ One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlie
 ## Before you start
 
 - Back up your SD card yourself, especially saves.
+- After your first install, copy its backup folder somewhere safe. Its `mcu-backup.bin` is your way back to how the device was (see [recovery](../docs/recovery.md)).
 - Use a data-capable USB cable. Power the Chromatic on and close other device apps (ModRetro's updater, ChroMagician, serial monitors).
 - **Windows:** you may need ModRetro's MRUpdater USB driver setup before the programmer can reach the device. **Linux:** you may need serial and USB permissions (udev rules). The app checks access before it writes anything.
 - Supported starting points: stock 4.2, 4.5 and 4.6, ChroMagic 1.0.1 and art-series firmware, or Magic Trick 1.0 beta. Anything else is refused before anything is written.
@@ -32,11 +35,18 @@ Choose **Uninstall…**. The installer writes the ChroMagic 1.0.1 FPGA and resto
 
 ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0: their FPGA writes fail and they don't retry. Uninstall with this app first.
 
+## Restore backup
+
+Choose **Restore backup…** and pick `mcu-backup.bin` from your **first** install. It works whatever state the device is in, even with no USB serial port: it writes the ChroMagic 1.0.1 FPGA first, then puts back your saved MCU flash. Use it when install, update or uninstall can't finish. Afterwards ModRetro's updater works normally.
+
 ## If something goes wrong
+
+The full step-by-step is in the [recovery guide](../docs/recovery.md).
 
 - Keep the backup folder and its `installation.json`. It records how far the installer got.
 - If a step fails, run the installer again. The Chromatic's FPGA can always be reached over USB, even when an FPGA write was interrupted. If the screen stays dark, the FPGA slot is incomplete; running the installer again rewrites it.
 - If the Chromatic isn't detected, unplug it, power-cycle it and reconnect. Don't erase flash and don't overwrite your only backup.
+- If the installer refuses to start ("partition table checksum", "unsupported layout") or Uninstall finds no earlier application, use **Restore backup**.
 - Still stuck? [Open a GitHub issue](https://github.com/agentichunter-blip/magic-trick/issues/new) with `installation.json` and the log. Never attach the backup itself, ROMs or saves.
 
 ## Status

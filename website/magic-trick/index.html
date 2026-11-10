@@ -672,7 +672,7 @@ footer a{color:var(--muted)}
         </div>
         <div class="warn" role="note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5m0 3v.01"/></svg>
-          <div><strong>Beta.</strong> Tested on one Chromatic: install from ChroMagic, updates, uninstall, and switching between Game Boy and Game Gear. A fresh install from stock 4.x and the Windows and Linux apps haven't been tested on hardware yet. Updating can take 10 to 15 minutes because FPGA writes often need several attempts; the app retries and verifies on its own. The apps are unsigned and the Mac builds aren't notarized.</div>
+          <div><strong>Beta firmware, installed at your own risk.</strong> Magic Trick isn't made or supported by ModRetro and may void your warranty. Read the <a href="https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md">recovery guide</a> before you install. Tested on one Chromatic: install from ChroMagic, updates, uninstall, and switching between Game Boy and Game Gear. A fresh install from stock 4.x and the Windows and Linux apps haven't been tested on hardware yet. Updating can take 10 to 15 minutes because FPGA writes often need several attempts; the app retries and verifies on its own. The apps are unsigned and the Mac builds aren't notarized.</div>
         </div>
         <div class="dl-list">
           <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta/Magic-Trick-macos-arm64.zip">
@@ -708,10 +708,11 @@ footer a{color:var(--muted)}
           <ul>
             <li>Run the installer again. The FPGA can always be reached over USB, even after an interrupted write, and a rerun rewrites anything incomplete.</li>
             <li>If the Chromatic isn't detected, unplug it, power-cycle it and reconnect. Don't erase flash or overwrite your only backup.</li>
+            <li>Installer refuses to start, or the screen stays dark? Use <strong>Restore backup</strong> with <code>mcu-backup.bin</code> from your first install. Copy that folder somewhere safe after installing.</li>
             <li>Want to go back? Use <strong>Uninstall</strong> in the app, then ModRetro's official updater for a full return to stock. ModRetro's updater can't reflash a device running Magic Trick 1.0 until you've uninstalled.</li>
             <li>Still stuck? <a href="https://github.com/agentichunter-blip/magic-trick/issues/new">Open a GitHub issue</a> with <code>installation.json</code> and the log, never the backup itself.</li>
           </ul>
-          <p><a href="https://github.com/agentichunter-blip/magic-trick/blob/main/installer/README.md">Installer guide: compatibility, drivers and recovery ↗</a></p>
+          <p><a href="https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md">Full recovery guide ↗</a> · <a href="https://github.com/agentichunter-blip/magic-trick/blob/main/installer/README.md">Installer guide ↗</a></p>
         </div>
       </details>
       <details class="faq">

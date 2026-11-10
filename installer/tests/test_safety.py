@@ -234,6 +234,75 @@ class Flows(unittest.TestCase):
             self.assertIsNotNone(error); self.assertEqual(writes, [])
 
 
+class Restore(unittest.TestCase):
+    def perform(self, *, layout='stock', app='0.13.8', ports=(['test'],), fpga_fail=False, after=None,
+                tamper=False, write_meta=True):
+        events = []
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = Path(tmp) / 'first' / 'mcu-backup.bin'; saved.parent.mkdir()
+            data = bytes(backup(layout, app, None)); saved.write_bytes(data)
+            if write_meta:
+                (saved.parent / 'backup.json').write_text(json.dumps({'sha256': hashlib.sha256(data).hexdigest()}))
+            if tamper:
+                d = bytearray(data); d[0x300000] ^= 1; saved.write_bytes(d)
+            folder = Path(tmp) / 'restore'
+            seq = list(ports)
+            def tool(port, args):
+                if 'read_flash' in args: events.append('read_flash'); return
+                if args[0] == 'verify_flash': events.append(('verify', int(args[1], 16))); return
+                offset = int(args[args.index('write_flash') + 7], 16)
+                events.append(('write', offset, len(Path(args[-1]).read_bytes())))
+            def flash(path, offset, log, sleep=None):
+                events.append(('fpga', offset, Path(path).name))
+                if fpga_fail: raise fpga.ProgrammerError('USB disconnected')
+                return 1
+            def version(port, timeout=20):
+                if after is None: raise ValueError('No console')
+                return after
+            with patch.object(core, 'FIRMWARE_DIR', FW), \
+                    patch.object(core, 'device_ports', side_effect=lambda: seq.pop(0) if seq else ['test']), \
+                    patch.object(core, 'version', side_effect=version), patch.object(core, 'run_tool', side_effect=tool), \
+                    patch.object(fpga, 'preflight'), patch.object(fpga, 'flash', side_effect=flash), \
+                    patch.object(fpga, 'reset'):
+                error = None
+                try: core.restore(saved, folder, lambda s: None, sleep=lambda s: None)
+                except ValueError as exc: error = exc
+                state = json.loads((folder / 'installation.json').read_text()) if (folder / 'installation.json').exists() else {}
+                leftovers = sorted(p.name for p in folder.iterdir()) if folder.exists() else []
+        return events, error, state.get('stage'), leftovers
+
+    def test_restores_fpga_then_mcu_from_0x8000(self):
+        events, error, stage, left = self.perform(after={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'v4.6'})
+        self.assertIsNone(error); self.assertEqual(stage, 'complete')
+        self.assertEqual(events, ['read_flash', ('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
+                                  ('write', 0x8000, 0x400000 - 0x8000), ('verify', 0x8000)])
+        self.assertNotIn('restore-0x8000.bin', left)
+
+    def test_works_without_serial_port(self):
+        events, error, stage, _ = self.perform(ports=([], [], ['test']), after={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'x'})
+        self.assertIsNone(error); self.assertEqual(stage, 'complete')
+        self.assertNotIn('read_flash', events)
+        self.assertEqual(events[0][0], 'fpga')
+
+    def test_missing_version_command_is_not_a_failure(self):
+        _, error, stage, _ = self.perform(after=None)
+        self.assertIsNone(error); self.assertEqual(stage, 'complete_unconfirmed')
+
+    def test_refuses_magic_trick_or_damaged_backup(self):
+        for kwargs in [{'layout': 'three-systems', 'app': '1.0.0-beta'}, {'tamper': True}, {'app': '9.9.9'}]:
+            events, error, _, left = self.perform(**kwargs)
+            self.assertIsNotNone(error, kwargs); self.assertEqual(events, []); self.assertEqual(left, [])
+
+    def test_backup_without_metadata_still_restores(self):
+        _, error, _, _ = self.perform(write_meta=False, after={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'x'})
+        self.assertIsNone(error)
+
+    def test_fpga_failure_stops_before_mcu(self):
+        events, error, stage, _ = self.perform(fpga_fail=True)
+        self.assertIsNotNone(error); self.assertEqual(stage, 'fpga_failed')
+        self.assertFalse([e for e in events if isinstance(e, tuple) and e[0] == 'write'])
+
+
 class Reconnect(unittest.TestCase):
     def test_waits_for_new_port_name(self):
         seq = [[], [], ['/dev/new']]

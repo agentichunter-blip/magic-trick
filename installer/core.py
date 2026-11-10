@@ -298,3 +298,93 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
     s.checkpoint('complete')
     log('Uninstall complete: ChroMagic FPGA 18.38 with MCU ' + previous[1] + '. '
         'To return fully to stock, now use ModRetro\'s official updater.')
+
+
+def check_restore_backup(path):
+    """Validate a backup chosen for Restore. Only a standard-layout backup (the one made before
+    Magic Trick 1.0 was first installed) can be restored. Returns (data, app version)."""
+    path = Path(path)
+    data = path.read_bytes()
+    layout, app = validate_backup(data)
+    if layout != 'stock':
+        raise ValueError('This backup was made while Magic Trick 1.0 was installed. Choose the mcu-backup.bin '
+                         'from your first install (its backup.json says "layout": "stock"). Nothing was written.')
+    meta = path.with_name('backup.json')
+    if meta.is_file():
+        try:
+            expected = json.loads(meta.read_text()).get('sha256')
+        except ValueError:
+            expected = None
+        if expected and expected != hashlib.sha256(data).hexdigest():
+            raise ValueError('mcu-backup.bin does not match its backup.json; the file was changed or damaged. '
+                             'Nothing was written.')
+    return data, app
+
+
+
+def restore(backup_file, backup_dir, log, sleep=time.sleep):
+    """Return a device to the state saved before Magic Trick 1.0 was installed, whatever state it
+    is in now: ChroMagic 1.0.1 FPGA in slot 0, then the saved MCU flash from 0x8000 on.
+
+    Unlike install and uninstall this does not require the device's current flash to be valid,
+    so it also recovers an interrupted partition-table write. The USB serial port comes from the
+    FPGA, so the FPGA is written first (over JTAG, which works whatever the FPGA flash holds)."""
+    data, app = check_restore_backup(backup_file)
+    files = check_images(['fpga_chromagic'])
+    fpga.preflight(log)
+    folder = Path(backup_dir)
+    folder.mkdir(parents=True, exist_ok=False)
+    state = {'operation': 'restore', 'release': RELEASE, 'backup_file': str(backup_file), 'restoring_app': app}
+
+    def checkpoint(stage, **extra):
+        state.update(stage=stage, **extra)
+        (folder / 'installation.json').write_text(json.dumps(state, indent=2))
+
+    checkpoint('starting')
+    ports = device_ports()
+    if len(ports) > 1:
+        raise ValueError('Connect exactly one Chromatic. Nothing was written.')
+    if ports:
+        # Keep a raw copy of the flash as it is now, valid or not, before overwriting it.
+        log('Saving the current 4 MiB MCU flash (it may be damaged; it is kept only as a precaution).')
+        try:
+            run_tool(ports[0], ['read_flash', '0x0', '0x400000', str(folder / 'pre-restore-flash.bin')])
+            checkpoint('pre_restore_saved')
+        except (Exception, SystemExit) as exc:
+            checkpoint('pre_restore_unreadable', error=str(exc))
+            log('The current flash could not be read; continuing with the restore.')
+    else:
+        # No serial port means the FPGA isn't running a working core; JTAG still works.
+        checkpoint('no_serial_port')
+        log('No USB serial port yet (the FPGA is not running). Repairing the FPGA first.')
+
+    checkpoint('fpga_started')
+    log('Writing the ChroMagic 1.0.1 FPGA to slot 0. This can take several attempts.')
+    try:
+        attempts = fpga.flash(files['fpga_chromagic'], SLOT_GB, log, sleep=sleep)
+    except Exception as exc:
+        checkpoint('fpga_failed')
+        raise ValueError('The FPGA write did not finish. Run Restore again. ' + str(exc)) from exc
+    checkpoint('fpga_verified', fpga_attempts=attempts)
+    port = wait_for_device(log, sleep)
+
+    # The bootloader (below 0x8000) is never changed by this installer, so leave it alone.
+    image_path = folder / 'restore-0x8000.bin'
+    image_path.write_bytes(data[TABLE_OFFSET:])
+    checkpoint('mcu_write_started')
+    log('Writing the saved MCU flash (partition table, settings and application ' + app + '). '
+        'This takes a few minutes; keep USB and power connected.')
+    write_and_verify(port, TABLE_OFFSET, image_path)
+    image_path.unlink()
+    checkpoint('mcu_verified')
+    try:
+        confirm({'fpga': '18.38', 'mcu': 'v' + app}, log, sleep)
+    except ValueError:
+        # Some stock firmware has no version command, so a missing answer is not a failure here.
+        checkpoint('complete_unconfirmed')
+        log('Restore written and verified. The running version could not be read back (older stock firmware '
+            'does not report it). Turn the Chromatic off and on and check that it starts.')
+        return
+    checkpoint('complete')
+    log('Restore complete: ChroMagic FPGA 18.38 with MCU ' + app + '. '
+        'To return fully to stock, now use ModRetro\'s official updater.')
