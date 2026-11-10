@@ -1,0 +1,3 @@
+# Bundled firmware is checksummed byte for byte: never convert line endings.
+installer/firmware/** -text
+*.fs -text
