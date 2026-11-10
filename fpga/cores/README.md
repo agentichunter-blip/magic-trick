@@ -40,7 +40,7 @@ The bitstream lands in `impl/pnr/`. Write the GB/GBC image at flash offset `0x00
 
 ## Status
 
-- **Known issue, blocks release:** while one of these cores sits in flash slot 0, USB/JTAG flash tools (openFPGALoader, ModRetro's updater, ChroMagician) cannot rewrite the FPGA flash. Gowin's programmer works after retries. The ChroMagic/stock image does not have this problem. Rebuilding with stock background programming (`jtag_sspi_qsspi`) keeps core switching working but does not fix it. Multiboot settings are the next suspect.
+- **Known issue:** while one of these cores sits in flash slot 0, the first USB/JTAG flash write after a reboot fails. That holds for openFPGALoader, ModRetro's updater, ChroMagician and Gowin's programmer. The cause is `-multi_boot 1`, which core switching needs. Re-running the write succeeds: on hardware it took 2 to 5 attempts, and every completed write verified. Tools that don't retry (ModRetro's updater, ChroMagician) will fail, so the Magic Trick installer must handle installs, upgrades and uninstalls with retries.
 
 - **GB/GBC:** closes timing with no setup or hold violations.
 - **Game Gear:** 26 setup endpoints in the `xclk` domain miss timing by up to 0.26 ns. All are T80 registers that only update on the CPU clock enable (about 1 cycle in 19), and the core runs correctly on hardware. Treat it as beta.
