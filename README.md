@@ -43,8 +43,6 @@ Download **[Magic Trick Installer 1.0.0-beta](https://github.com/agentichunter-b
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
 - **Beta:** hardware-tested on one Chromatic (install from ChroMagic, updates, uninstall, core switching). A fresh install from stock 4.x and the Windows/Linux apps haven't been tested on hardware yet.
 
-Looking for the older MCU-only art31 release and its manual esptool steps? See [art31](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31) and [its install guide](docs/install-release.md).
-
 ### Build from source
 
 - **MCU:** with ESP-IDF v5.3 activated, run `mcu/tools/build_wifi.sh`. It builds the app (`mcu_fw.bin`) for the Wi-Fi partition table in `mcu/partitions.wifi.csv` (application at `0x260000`) and runs the host tests. More in [docs/building.md](docs/building.md).
