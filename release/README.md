@@ -1,6 +1,6 @@
 # Prebuilt releases
 
-Download the MCU application and installation guide from [GitHub Releases](https://github.com/agentichunter-blip/chromagic-preview-mod/releases).
+Download the MCU application and installation guide from [GitHub Releases](https://github.com/agentichunter-blip/magic-trick/releases).
 
 For art31, use [the prebuilt installation guide](../docs/install-release.md). The firmware ZIP includes `mcu.bin`, `INSTALL.md`, checksums, source provenance and credits/licenses. The matching source is tagged `v1.0.1-art31`.
 

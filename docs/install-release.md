@@ -1,6 +1,6 @@
 # Desktop installer (recommended for testing)
 
-[Download Magic Trick Installer 0.2.0](https://github.com/agentichunter-blip/chromagic-preview-mod/releases/tag/installer-v0.2.0) for Mac, Windows or Linux. It installs both MCU and FPGA directly from supported stock firmware. No separate ChroMagic installation is needed. See the [installer guide](../installer/README.md) for supported firmware, USB setup and recovery limits.
+[Download Magic Trick Installer 0.2.0](https://github.com/agentichunter-blip/magic-trick/releases/tag/installer-v0.2.0) for Mac, Windows or Linux. It installs both MCU and FPGA directly from supported stock firmware. No separate ChroMagic installation is needed. See the [installer guide](../installer/README.md) for supported firmware, USB setup and recovery limits.
 
 **Testing preview:** physical-device installation has not yet been tested. Keep your SD backup and private MCU backup. Packages are unsigned. If the FPGA phase fails, the installation is incomplete even if the MCU was verified. Keep `installation.json` and retry only when the console responds. Official stock restoration requires both stock firmware components through MRUpdater; restoring only the MCU does not restore the FPGA.
 
@@ -18,7 +18,7 @@ Start with **ChroMagic 1.0.1 and FPGA 18.38**, or an earlier art-series MCU mod 
 
 If starting from stock, first use [ChroMagician](https://github.com/cursedtoast2/ChroMagician/releases) to install upstream ChroMagic and verify FPGA 18.38. Upstream currently provides Windows/Linux installers. Complete its USB driver setup, then close it before using esptool. If a different FPGA version is installed, stop: compatibility has not been established.
 
-Back up your SD card, especially saves. Download **chromagic-1.0.1-art31-firmware.zip** from [this release](https://github.com/agentichunter-blip/chromagic-preview-mod/releases/tag/v1.0.1-art31) and extract it. Open a terminal in the extracted folder containing `mcu.bin` and `INSTALL.md`. GitHub's automatic “Source code” archives are for building, not installing this binary.
+Back up your SD card, especially saves. Download **chromagic-1.0.1-art31-firmware.zip** from [this release](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31) and extract it. Open a terminal in the extracted folder containing `mcu.bin` and `INSTALL.md`. GitHub's automatic “Source code” archives are for building, not installing this binary.
 
 ## 1. Install the flashing tool
 
@@ -108,12 +108,12 @@ If a remembered SD game starts automatically, hold **B** at power-on for five se
 
 ## Media, cheats, and rollback
 
-Existing ROMs, saves, covers and previews need no changes. Optional media and cheat packs are separate: see [media preparation](https://github.com/agentichunter-blip/chromagic-preview-mod/blob/v1.0.1-art31/docs/media.md) and [cheat preparation](https://github.com/agentichunter-blip/chromagic-preview-mod/blob/v1.0.1-art31/docs/cheats.md). No personal library or downloaded database is supplied.
+Existing ROMs, saves, covers and previews need no changes. Optional media and cheat packs are separate: see [media preparation](https://github.com/agentichunter-blip/magic-trick/blob/v1.0.1-art31/docs/media.md) and [cheat preparation](https://github.com/agentichunter-blip/magic-trick/blob/v1.0.1-art31/docs/cheats.md). No personal library or downloaded database is supplied.
 
 If the port cannot open, close other apps and check the USB cable/drivers. If transfers fail, retry with `--baud 115200`. Do not erase the device or guess another offset. To return to upstream ChroMagic or stock, use ChroMagician's firmware installation/restore workflow on a supported host. Keep SD/save backups until the restored setup is verified.
 
 ## Source, credits, and validation
 
-Matching source: [v1.0.1-art31](https://github.com/agentichunter-blip/chromagic-preview-mod/tree/v1.0.1-art31). ChroMagic is by CursedToast, based on ModRetro's firmware/design; see `CREDITS.md`, `NOTICE.txt`, and the included licenses. This is an independent experimental mod.
+Matching source: [v1.0.1-art31](https://github.com/agentichunter-blip/magic-trick/tree/v1.0.1-art31). ChroMagic is by CursedToast, based on ModRetro's firmware/design; see `CREDITS.md`, `NOTICE.txt`, and the included licenses. This is an independent experimental mod.
 
 The source passed all 24 host tests normally and with address/undefined-behavior sanitizers. Art31 was previously verified on hardware. This release image was built from the matching tested source and its image checksum/version were checked; this exact packaged build has not been reflashed onto hardware. Sustained preview benchmarks, broad game/save compatibility, and every cheat's behavior remain unverified. No guaranteed support schedule.

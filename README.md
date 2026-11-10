@@ -1,10 +1,28 @@
-# ChroMagic — artwork and gameplay preview mod
+<p align="center">
+  <img src="website/magic-trick/press/magic-trick-wordmark-1128x776.png" alt="Magic Trick" width="420">
+</p>
 
-An experimental modification of [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic) for the ModRetro Chromatic. Browse Game Boy and Game Boy Color backups with cover art, looping gameplay previews, and a compact scrolling game list.
+<h3 align="center">Your Chromatic. More Magical.</h3>
 
-**Version:** Chromatic `1.0.1-art31 (4.2)` / MCU `v0.13.4-art31`. Based on ChroMagic 1.0.1; tested with FPGA **18.38**. This mod changes the MCU application only. There is no modified FPGA `.fs` file to install.
+<p align="center">
+  <a href="https://ryansag.com/magic-trick/">Website</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/installer-v0.2.0">Download</a> ·
+  <a href="https://x.com/ryansagdotcom">X</a> ·
+  <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
+  <a href="https://ko-fi.com/ryansag">Tip on Ko-fi</a>
+</p>
 
-This is a personal, experimental project with no guaranteed support or release schedule. No game ROMs, personal saves, cover packs, or gameplay video packs are included. Supply your own games and media.
+# Magic Trick
+
+**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It turns the handheld's file list into a game library: cover art, looping gameplay previews, Game Genie cheats, a Recent folder and automatic last-game startup.
+
+> **Standing on the shoulders of ChroMagic.** Magic Trick would not exist without CursedToast's ChroMagic and ChroMagician, and ModRetro's decision to open-source the Chromatic firmware and FPGA design. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
+
+**Version:** Chromatic `1.0.1-art31 (4.2)` / MCU `v0.13.4-art31`. Based on ChroMagic 1.0.1; tested with FPGA **18.38**. Magic Trick changes the MCU application only. There is no modified FPGA `.fs` file to install.
+
+This is an independent, experimental community project with no guaranteed support or release schedule. It is not affiliated with ModRetro, Nintendo or Sega. No game ROMs, personal saves, cover packs, or gameplay video packs are included. Supply your own games and media.
+
+**In development:** Game Gear support with sound, automatic Game Boy/Game Gear core switching, true save states, Wi-Fi file transfers and a boot animation already run on a real Chromatic in development firmware. They are not in a published release yet.
 
 ## Features
 
@@ -20,7 +38,11 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
-**No build required:** download the [art31 firmware release](https://github.com/agentichunter-blip/chromagic-preview-mod/releases/tag/v1.0.1-art31) and follow [the prebuilt installation guide](docs/install-release.md). It includes macOS/Linux and Windows commands. The source-build route follows below.
+**Easiest:** download [Magic Trick Installer 0.2.0](https://github.com/agentichunter-blip/magic-trick/releases/tag/installer-v0.2.0) for Mac, Windows or Linux. One app installs Magic Trick from supported stock firmware or upgrades a compatible ChroMagic install. It backs up and verifies your MCU first. It is a **testing preview**: it passes automated checks but has not yet been tested end to end on a physical Chromatic. Read the [installer guide](installer/README.md) before using it.
+
+**Manual, no build:** download the [art31 firmware release](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.1-art31) and follow [the prebuilt installation guide](docs/install-release.md). It includes macOS/Linux and Windows commands.
+
+### Build from source
 
 These instructions are for a Chromatic already running **ChroMagic 1.0.1 with FPGA 18.38**. If starting from stock, first install upstream ChroMagic with [ChroMagician](https://github.com/cursedtoast2/ChroMagician), then verify the versions in the device's status menu. Selecting upstream ChroMagic in that app installs upstream firmware, not this mod. Upstream ChroMagician currently provides Windows and Linux installers; use a supported host for the initial installation or rollback. The source build and application-only flashing commands below can be run on macOS/Linux once the required base firmware is installed.
 
@@ -140,8 +162,24 @@ When reporting an issue, include your MCU/FPGA versions, steps to reproduce, and
 
 ## Credits and licenses
 
-ChroMagic is by **[CursedToast](https://github.com/cursedtoast2/ChroMagic)**, based on **ModRetro's** firmware and FPGA design. This repository adds the artwork/gameplay browser modifications; it is not an official upstream release and is not affiliated with ModRetro or Nintendo.
+Magic Trick is a modification of other people's work, and they deserve the credit for most of what runs on your Chromatic:
 
-See [CREDITS.md](CREDITS.md) for upstream authors, source provenance, and the scope of this mod. The clean import commit does not claim authorship of upstream work.
+- **[CursedToast](https://github.com/cursedtoast2)**: creator of [ChroMagic](https://github.com/cursedtoast2/ChroMagic), the firmware Magic Trick is built on, and [ChroMagician](https://github.com/cursedtoast2/ChroMagician), whose installer tooling the Magic Trick installer bundles on Windows and Linux. Magic Trick starts from ChroMagic 1.0.1 and installs the ChroMagic 1.0.1 FPGA image unchanged. Please support the original project.
+- **[ModRetro](https://modretro.com/)**: the Chromatic hardware, plus the original firmware and FPGA design they released as open source under GPL-3.0.
+- **[Gameboy_MiSTer](https://github.com/MiSTer-devel/Gameboy_MiSTer)** and **[Gameboy for MiST](https://github.com/mist-devel/gameboy)** contributors: the Game Boy core inside the FPGA design.
+- **[SameBoy](https://github.com/LIJI32/SameBoy/)** contributors: boot ROM sources adapted upstream (MIT).
+- **rayjt9**: boot ROM palette improvements, credited upstream.
+- **[GOWIN Semiconductor](https://www.gowinsemi.com/en/)**: acknowledged in the upstream FPGA notices.
+- **[Espressif ESP-IDF and esptool](https://github.com/espressif)**, **[LVGL](https://lvgl.io/)**, **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)**, **[libusb](https://libusb.info/)**, **Python** and **PyInstaller**: firmware framework, UI library, and the flashing tools bundled in the installer.
+- **[libretro-database](https://github.com/libretro/libretro-database)** contributors: the optional external cheat data used by the cheat pack compiler. No database or generated pack is bundled.
+- **Wikimedia Commons**: public-domain Game Boy and Game Boy Color text logos ([details](mcu/tools/platform-logos/README.md)).
 
-Existing licenses and notices are retained: [MCU license](mcu/LICENSE), [FPGA license](fpga/LICENSE), and [NOTICE](NOTICE). See [system logo credits](mcu/tools/platform-logos/README.md) for the included wordmarks. `SOURCE_SNAPSHOT.json` records upstream component snapshots; the mod's base commit is `e611a1ef36eb9aa93f706d836f5b0e46129d7137`.
+Additional authors are named in the source file headers; those notices are preserved. See [CREDITS.md](CREDITS.md) for source provenance and exactly what Magic Trick adds. The repository's neutral commit author does not claim authorship of upstream work.
+
+Magic Trick is released under the **GNU GPL v3.0**, the same license as the upstream firmware and FPGA design: see [LICENSE](LICENSE), [mcu/LICENSE](mcu/LICENSE), [fpga/LICENSE](fpga/LICENSE) and [NOTICE](NOTICE). Bundled tools keep their own licenses. `SOURCE_SNAPSHOT.json` records upstream component snapshots; the base ChroMagic commit is `e611a1ef36eb9aa93f706d836f5b0e46129d7137`.
+
+Game Boy and Game Boy Color are trademarks of Nintendo. Game Gear is a trademark of Sega. Chromatic is a trademark of ModRetro. Magic Trick is not affiliated with or endorsed by any of them.
+
+## Follow and support
+
+Magic Trick is free. Development updates go out on [X](https://x.com/ryansagdotcom) and [YouTube](https://www.youtube.com/@RyanSag), and the project site is [ryansag.com/magic-trick](https://ryansag.com/magic-trick/). Tips on [Ko-fi](https://ko-fi.com/ryansag) are optional and help fund development. Bugs and feature requests go in [GitHub issues](https://github.com/agentichunter-blip/magic-trick/issues).

@@ -12,11 +12,11 @@ Supported source checks: stock 4.2, 4.5 and 4.6; compatible ChroMagic 1.0.1/art-
 
 If interrupted, keep the backup and installation.json. An MCU-success/FPGA-failure result is a partial installation, never success. If the console still responds, retry the paired installer. If it no longer responds, stop and use the recovery documentation; do not erase flash or overwrite the only backup. Stock restoration requires matching stock MCU AND FPGA firmware (official MRUpdater); an MCU backup alone does not restore the FPGA.
 
-Recovery: https://github.com/agentichunter-blip/chromagic-preview-mod/blob/main/docs/install-release.md
+Recovery: https://github.com/agentichunter-blip/magic-trick/blob/main/docs/install-release.md
 
 These packages are unsigned and not Apple-notarized. No end-to-end hardware installation has been tested yet. Intended for testing; wait for hardware validation if you need a proven installation path. Device Status reports MCU v0.13.4-art31, FPGA 18.38, Chromatic 1.0.1-art31 (4.2). No games, saves, artwork or previews are bundled.
 
-Source: https://github.com/agentichunter-blip/chromagic-preview-mod
+Source: https://github.com/agentichunter-blip/magic-trick
 Based on CursedToast's ChroMagic and ModRetro firmware. Independent community project. Installer source is GPL-3.0; bundled tools retain their own licenses, included under programmer/licenses. Programmer source archives are included for Mac; corresponding Linux/Windows sources are provided with the release. Firmware sources and full credits are in the repository.
 
 Optional donations: https://ko-fi.com/ryansag

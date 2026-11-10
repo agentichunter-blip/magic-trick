@@ -4,7 +4,7 @@ import fpga
 from pathlib import Path
 
 HASH = '83a8cbc4137b1a4c0cd4457194a4e862a4c04d87db4a03af0b58c01a709e5144'
-URL = 'https://github.com/agentichunter-blip/chromagic-preview-mod/releases/download/v1.0.1-art31/mcu.bin'
+URL = 'https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.1-art31/mcu.bin'
 SIZE = 921360
 
 def validate_image(data):

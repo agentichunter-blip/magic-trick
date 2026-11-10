@@ -19,7 +19,7 @@ class App:
         self.button = ttk.Button(body,text='Back up device & install Magic Trick',command=self.start); self.button.pack(anchor='w',pady=14)
         self.output = tk.Text(body,height=14,wrap='word',state='disabled',font=('Courier',10)); self.output.pack(fill='both',expand=True)
         footer = ttk.Frame(body); footer.pack(fill='x',pady=(16,0))
-        for label,url in [('Installation & recovery','https://github.com/agentichunter-blip/chromagic-preview-mod/blob/main/docs/install-release.md'),('Source & credits','https://github.com/agentichunter-blip/chromagic-preview-mod'),('Support on Ko-fi ↗','https://ko-fi.com/ryansag')]:
+        for label,url in [('Installation & recovery','https://github.com/agentichunter-blip/magic-trick/blob/main/docs/install-release.md'),('Source & credits','https://github.com/agentichunter-blip/magic-trick'),('Support on Ko-fi ↗','https://ko-fi.com/ryansag')]:
             ttk.Button(footer,text=label,command=lambda u=url:webbrowser.open(u)).pack(side='left',padx=(0,8))
         self.root.protocol('WM_DELETE_WINDOW',self.close); self.refresh(); self.root.after(100,self.poll)
     def refresh(self):

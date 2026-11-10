@@ -1,12 +1,13 @@
 # Credits and source provenance
 
-This project is a modification of existing work. The neutral name used for this repository's import commit identifies the packaging of this source snapshot; it does not claim authorship of the upstream code.
+Magic Trick is a modification of existing work. The neutral name used for this repository's import commit identifies the packaging of this source snapshot; it does not claim authorship of the upstream code.
 
 ## ChroMagic and Chromatic
 
 - **CursedToast** — creator of [ChroMagic](https://github.com/cursedtoast2/ChroMagic), the firmware this mod builds on. The starting point is ChroMagic 1.0.1, commit [`e611a1e`](https://github.com/cursedtoast2/ChroMagic/commit/e611a1ef36eb9aa93f706d836f5b0e46129d7137). Consult that repository for the original development history and contributor attribution.
 - **ModRetro** — original Chromatic firmware and FPGA design on which ChroMagic is based.
-- **This mod** — artwork and gameplay-preview browsing, Recent folders, last-game startup, the Game Genie selector/compiler, related navigation/loading UI, media conversion tools, and associated fixes/tests described in the README. It is an independent modification, not an official ChroMagic or ModRetro release.
+- **CursedToast** — also creator of [ChroMagician](https://github.com/cursedtoast2/ChroMagician). The Magic Trick installer bundles ChroMagician 1.0.3's programmer tools on Windows and Linux, and installs the unmodified ChroMagic 1.0.1 FPGA image downloaded from the ChroMagic releases.
+- **Magic Trick (this repository)** — artwork and gameplay-preview browsing, Recent folders, last-game startup, the Game Genie selector/compiler, related navigation/loading UI, media conversion tools, the desktop installer, the project website, and associated fixes/tests described in the README. It is an independent modification, not an official ChroMagic or ModRetro release.
 
 ## FPGA, emulation, and boot ROM work
 
@@ -23,6 +24,7 @@ Additional authors are identified in the source headers. Those notices are prese
 ## Dependencies and visual assets
 
 - **Espressif ESP-IDF** and **LVGL** provide the firmware framework and UI library. Build dependencies retain their own licenses and notices.
+- The desktop installer bundles **[esptool](https://github.com/espressif/esptool)** (Espressif), **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)** (Gwenhael Goavec-Merou and contributors), **[libusb](https://libusb.info/)**, **Python** and **PyInstaller** output. Their licenses ship in the installer's `programmer/licenses` folder; corresponding sources are linked from each release.
 - Included Game Boy / Game Boy Color wordmark sources and provenance are documented in [the system logo credits](mcu/tools/platform-logos/README.md). Nintendo trademarks remain Nintendo's.
 - **libretro-database contributors** provide the optional external cheat database used by the pack compiler. See [cheat preparation and attribution](docs/cheats.md). No database or generated cheat pack is bundled.
 - No third-party cover or gameplay-video pack is included in this repository.

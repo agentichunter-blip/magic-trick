@@ -8,7 +8,7 @@ Status (Nov 2026): Installer 0.2.0 is a TESTING PREVIEW (firmware art31). Game G
 Website:  https://ryansag.com/magic-trick/
 X:        https://x.com/ryansagdotcom
 YouTube:  https://www.youtube.com/@RyanSag
-Source:   https://github.com/agentichunter-blip/chromagic-preview-mod
+Source:   https://github.com/agentichunter-blip/magic-trick
 License:  GPL-3.0
 Based on: CursedToast's ChroMagic and ModRetro's open-source Chromatic firmware
 
