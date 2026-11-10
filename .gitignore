@@ -24,6 +24,7 @@ dist/
 *.cma
 *.cmv
 *.mp4
+!website/magic-trick/**/*.mp4
 /backups/
 /local/
 /fpga/esp32t/src/Gameboy_MiSTer/releases/*.rbf
