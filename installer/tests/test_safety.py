@@ -303,6 +303,14 @@ class Restore(unittest.TestCase):
         self.assertFalse([e for e in events if isinstance(e, tuple) and e[0] == 'write'])
 
 
+class UsbIds(unittest.TestCase):
+    def test_any_player_number_and_unbooted_mcu(self):
+        for pid in (0x0100, 0x0101, 0x0102, 0x01FF):
+            self.assertTrue(core.is_chromatic(0x374e, pid), hex(pid))
+        for vid, pid in ((0x374e, 0x0200), (0x33aa, 0x0120), (0x374e, None), (None, None)):
+            self.assertFalse(core.is_chromatic(vid, pid), (vid, pid))
+
+
 class Reconnect(unittest.TestCase):
     def test_waits_for_new_port_name(self):
         seq = [[], [], ['/dev/new']]

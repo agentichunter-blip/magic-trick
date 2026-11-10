@@ -42,9 +42,16 @@ def check_images(keys=None):
     return {k: image(k) for k in (keys or IMAGES)}
 
 
+def is_chromatic(vid, pid):
+    """The FPGA's USB descriptor puts the player number (set by the MCU) in the low byte of the
+    product ID: 0x0101 for player 1, and 0x0100 until a working MCU has set it, for example while
+    the MCU can't boot. Accept any player number."""
+    return vid == 0x374e and pid is not None and pid & 0xFF00 == 0x0100
+
+
 def device_ports():
     from serial.tools.list_ports import comports
-    return [p.device for p in comports() if (p.vid, p.pid) == (0x374e, 0x0101)]
+    return [p.device for p in comports() if is_chromatic(p.vid, p.pid)]
 
 
 def version(port, timeout=20):

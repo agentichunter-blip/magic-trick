@@ -73,8 +73,10 @@ Please don't try `esptool erase_flash`, other people's flash dumps, or random FP
 | Install from ChroMagic 1.0.1 / art-series | Yes |
 | Update an existing Magic Trick 1.0 install, including from a half-written FPGA slot | Yes |
 | Uninstall to ChroMagic | Yes |
-| Restore backup | See the release notes for the build you're using |
-| Install from stock 4.x, and Uninstall/Restore back to stock firmware | See the release notes |
-| Windows and Linux installers | See the release notes |
+| Restore backup from an installed Magic Trick 1.0 | Yes |
+| Restore backup after an interrupted partition-table write (installer refused the device) | Yes |
+| Restore backup with a blank FPGA slot 0 (dark screen, no USB serial port) | Yes |
+| Install from stock 4.x, and Uninstall/Restore back to stock firmware | Not yet |
+| Windows and Linux installers | Not yet |
 
 This is a beta tested on a small number of devices. If your situation isn't covered here, stop and open an issue before you try anything else.
