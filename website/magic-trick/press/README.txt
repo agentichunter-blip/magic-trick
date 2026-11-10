@@ -6,6 +6,8 @@ Magic Trick is a free, open-source firmware mod for the ModRetro Chromatic. It t
 Status (Nov 2026): Installer 0.2.0 is a TESTING PREVIEW (firmware art31). Game Gear support with picture and sound, automatic Game Boy/Game Gear core switching, true save states (GB/GBC), Wi-Fi file transfers and the Magic Trick boot animation RUN ON A REAL CHROMATIC IN DEVELOPMENT FIRMWARE but are NOT in any published release yet.
 
 Website:  https://ryansag.com/magic-trick/
+X:        https://x.com/ryansagdotcom
+YouTube:  https://www.youtube.com/@RyanSag
 Source:   https://github.com/agentichunter-blip/chromagic-preview-mod
 License:  GPL-3.0
 Based on: CursedToast's ChroMagic and ModRetro's open-source Chromatic firmware

@@ -21,6 +21,8 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Magic Trick logo and the headline Your Chromatic. More Magical., beside real Magic Trick interface screens: the Recent games folder and the Game Genie menu.">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ryansagdotcom">
+<meta name="twitter:creator" content="@ryansagdotcom">
 <meta name="twitter:title" content="Magic Trick — Your Chromatic. More Magical.">
 <meta name="twitter:description" content="Free, open-source game library mod for the ModRetro Chromatic. Cover art, gameplay previews, Game Genie cheats, recent games.">
 <meta name="twitter:image" content="https://ryansag.com/magic-trick/og.png">
@@ -43,7 +45,7 @@
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "isAccessibleForFree": true,
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
-  "author": {"@type": "Person", "name": "Ryan", "url": "https://ryansag.com/"},
+  "author": {"@type": "Person", "name": "Ryan", "url": "https://ryansag.com/", "sameAs": ["https://x.com/ryansagdotcom", "https://www.youtube.com/@RyanSag"]},
   "sameAs": ["https://github.com/agentichunter-blip/chromagic-preview-mod"]
 }
 </script>
@@ -112,8 +114,15 @@ section{position:relative}
 .nav .btn{min-height:40px;padding:0 16px;font-size:14px}
 .tip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid var(--line-2);font-size:13px;font-weight:650;color:var(--muted);text-decoration:none;white-space:nowrap;transition:color .15s ease,border-color .15s ease}
 .tip:hover{color:var(--amber);border-color:rgba(255,185,92,.45)}
+.social{display:flex;gap:6px}
+.social a{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:999px;color:var(--muted);transition:color .15s ease,background .15s ease}
+.social a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
+.social svg{width:17px;height:17px}
+.support .follow{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.support .follow svg{width:18px;height:18px}
 .tip span{font-size:15px;line-height:1}
-@media (max-width:860px){.nav-links{display:none}.tip{margin-left:auto}}
+@media (max-width:860px){.nav-links{display:none}.nav .social{margin-left:auto}}
+@media (max-width:560px){.nav .social{display:none}.tip{margin-left:auto}}
 @media (max-width:380px){.tip em{display:none}}
 
 /* hero */
@@ -343,6 +352,7 @@ footer a{color:var(--muted)}
       <a href="#open-source">Open source</a>
       <a href="#press">Press</a>
     </nav>
+    <div class="social"><a href="https://x.com/ryansagdotcom" aria-label="Ryan on X" title="X"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.65l-5.21-6.82-5.97 6.82H1.68l7.73-8.84L1.25 2.25h6.83l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.12z"/></svg></a><a href="https://www.youtube.com/@RyanSag" aria-label="Ryan on YouTube" title="YouTube"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.2 3.6z"/></svg></a></div>
     <a class="tip" href="https://ko-fi.com/ryansag" title="Magic Trick is free. Tips are optional and support development."><span aria-hidden="true">☕</span><em style="font-style:normal">Tip the dev</em></a>
     <a class="btn btn-primary" href="#download">Download</a>
   </div>
@@ -361,14 +371,14 @@ footer a{color:var(--muted)}
       <h1 id="hero-title"><span>Your Chromatic.</span><span class="magic">More Magical.</span></h1>
     </div>
     <div class="hero-copy">
-      <p class="lede">Discover a beautiful new way to explore and play your retro game library on the ModRetro Chromatic: cover art, looping gameplay previews, Game Genie cheats and your recent games, right on the device.</p>
+      <p class="lede">Browse your games by cover art, watch gameplay previews, turn on Game Genie cheats and jump back into recent games.</p>
       <div class="cta">
         <a class="btn btn-primary" href="#download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>Download Magic Trick</a>
         <a class="btn" href="#demo"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Watch demo</a>
         <a class="btn" href="https://github.com/agentichunter-blip/chromagic-preview-mod"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/></svg>View on GitHub</a>
       </div>
-      <a class="coming" href="#game-gear"><b>Running on hardware</b>Game Gear with sound, true save states, Wi-Fi transfers and a boot animation are working in development firmware →</a>
-      <p class="hero-note"><span><strong>Testing preview.</strong> The desktop installer has passed automated safety checks, but no end-to-end install on a physical Chromatic has been tested yet. Read the <a href="#download">compatibility and recovery notes</a> before you install.</span></p>
+      <a class="coming" href="#game-gear"><b>In dev</b>Game Gear, save states, Wi-Fi transfers and a boot animation already run on hardware →</a>
+      <p class="hero-note"><span><strong>Testing preview.</strong> The installer passes automated checks but hasn't been tested end to end on a real Chromatic. Read the <a href="#download">install notes</a> first.</span></p>
     </div>
 
     <div class="hero-visual">
@@ -384,7 +394,7 @@ footer a{color:var(--muted)}
         </div>
         <div class="screen-caption"><span data-label>Boot animation</span><div class="dots" id="hero-dots" role="group" aria-label="Choose interface screen"></div></div>
       </div>
-      <p class="screen-caption" style="margin-top:12px"><span>The real boot animation and interface at native 160×144, taken from the firmware. Colour bars are test media; bring your own covers.</span></p>
+      <p class="screen-caption" style="margin-top:12px"><span>Real screens from the firmware at 160×144. Colour bars are placeholder art.</span></p>
     </div>
   </div>
 </section>
@@ -393,9 +403,8 @@ footer a{color:var(--muted)}
 <section class="demo section" id="demo" aria-labelledby="demo-title">
   <div class="wrap">
     <div class="section-head reveal">
-      <p class="eyebrow">See it run</p>
-      <h2 id="demo-title">Watch Magic Trick in action.</h2>
-      <p>Browse a library by cover art, preview gameplay, then jump straight into a game.</p>
+      <p class="eyebrow">Demo</p>
+      <h2 id="demo-title">See it run.</h2>
     </div>
     <div class="demo-frame pending reveal" id="demo-frame">
       <!-- Filled by script from DEMO config below. Without config, shows the "coming soon" placeholder. -->
@@ -403,11 +412,11 @@ footer a{color:var(--muted)}
         <div>
           <div class="play pending" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></div>
           <strong>Demo video coming soon</strong>
-          <span>A real on-device walkthrough is being recorded. Until then, the screens on this page come straight from the firmware's interface renderer.</span>
+          <span>Recording on real hardware now. The screens on this page come straight from the firmware.</span>
         </div>
       </div>
     </div>
-    <div class="demo-meta"><span id="demo-caption">No footage has been published yet.</span><a href="#press">Creators: get the press kit →</a></div>
+    <div class="demo-meta"><span id="demo-caption">No footage yet.</span><a href="#press">Creators: get the press kit →</a></div>
   </div>
 </section>
 
@@ -415,14 +424,14 @@ footer a{color:var(--muted)}
 <section class="section" id="features" aria-labelledby="status-title">
   <div class="wrap">
     <div class="section-head reveal">
-      <p class="eyebrow">What's real today</p>
-      <h2 id="status-title">Straight answers about what ships.</h2>
-      <p>Every item is checked against the source code, the published release and hardware test logs. <b>Available now</b> means it is in the public art31 firmware that the 0.2.0 installer puts on your device. <b>Working on hardware</b> means it runs on a real Chromatic in development firmware that hasn't been released yet.</p>
+      <p class="eyebrow">Status</p>
+      <h2 id="status-title">What works today.</h2>
+      <p><b>Available now</b> is in the 0.2.0 release. <b>Working on hardware</b> runs on a real Chromatic but isn't released yet.</p>
     </div>
     <div class="board reveal">
       <div class="col">
         <span class="tag now"><i></i>Available now</span>
-        <h3>In the 0.2.0 release</h3>
+        <h3>Release 0.2.0</h3>
         <p>Firmware art31 · MCU v0.13.4-art31</p>
         <ul>
           <li>Cover-art game library (GB &amp; GBC)<small>MCU firmware</small></li>
@@ -436,8 +445,8 @@ footer a{color:var(--muted)}
       </div>
       <div class="col">
         <span class="tag dev"><i></i>Working on hardware</span>
-        <h3>Running on a real Chromatic</h3>
-        <p>Development firmware · not in a public release yet</p>
+        <h3>Dev firmware</h3>
+        <p>Not released yet</p>
         <ul id="dev-list">
           <li>Game Gear, with picture &amp; sound<small>FPGA core + MCU firmware</small></li>
           <li>Automatic Game Boy ↔ Game Gear core switching<small>FPGA + MCU firmware</small></li>
@@ -448,8 +457,8 @@ footer a{color:var(--muted)}
       </div>
       <div class="col">
         <span class="tag soon"><i></i>Coming later</span>
-        <h3>Still to finish</h3>
-        <p>Not yet verified on hardware, or not built</p>
+        <h3>To do</h3>
+        <p>Not built or not tested on hardware</p>
         <ul id="soon-list">
           <li>Game Gear covers, previews &amp; Game Genie on device<small>MCU firmware</small></li>
           <li>Save states from the on-screen menu on device<small>MCU firmware</small></li>
@@ -479,13 +488,12 @@ footer a{color:var(--muted)}
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag now"><i></i>Available now</span><span class="tag comp"><i></i>MCU firmware</span></div>
-        <h3>A game library worth browsing.</h3>
-        <p>Magic Trick replaces the plain file list with a Game Boy and Game Boy Color library built around your own cover art. Rest on a game and its cover gives way to a silent, looping gameplay clip, so you can see what you're about to play.</p>
+        <h3>Game library</h3>
+        <p>Your Game Boy and Game Boy Color games, by cover art instead of a file list. Stop on a game and the cover turns into a looping gameplay clip.</p>
         <ul>
-          <li><strong>Covers and clips from your SD card.</strong> Bring your own; the included converters prepare them.</li>
-          <li><strong>Fast navigation.</strong> Tap to step through covers, hold for the five-row selector, keep holding to accelerate.</li>
-          <li><strong>Nested folders</strong> and a Game Boy / Game Boy Color system picker.</li>
-          <li><strong>Media loads in the background</strong> and is cancelled as you scroll, so browsing stays responsive.</li>
+          <li><strong>Your covers and clips,</strong> from the SD card. Included tools convert them.</li>
+          <li><strong>Quick to scroll:</strong> tap to step, hold for a five-row list, keep holding to speed up.</li>
+          <li><strong>Folders</strong> and a Game Boy / Game Boy Color picker.</li>
         </ul>
       </div>
     </article>
@@ -499,14 +507,14 @@ footer a{color:var(--muted)}
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag now"><i></i>Available now</span><span class="tag comp"><i></i>MCU firmware</span></div>
-        <h3>Cheats, recents and a faster start.</h3>
-        <p>A gold lamp marks games that have Game Genie codes. Press Select on a game's preview to turn codes on, and they apply the next time it starts. Your ROM files are never modified.</p>
+        <h3>Cheats and recent games</h3>
+        <p>A gold lamp marks games with Game Genie codes. Press Select on the preview to turn them on. Your ROMs are never modified.</p>
         <ul>
-          <li><strong>Game Genie cheats</strong> from packs you generate for your own library with the included tool. No cheat database is bundled. <a href="#how-to-cheats">How to use them →</a></li>
-          <li><strong>Recent games:</strong> the last 20 games per system, newest first, kept across power cycles.</li>
-          <li><strong>Last-game startup:</strong> with no cartridge inserted, the Chromatic reopens the last game you launched. Hold B at power-on to go to your library instead.</li>
+          <li><strong>Game Genie:</strong> build packs for your library with the included tool. <a href="#how-to-cheats">How to →</a></li>
+          <li><strong>Recent:</strong> your last 20 games per system.</li>
+          <li><strong>Last-game startup:</strong> with no cartridge in, it reopens your last game. Hold B at power-on to skip it.</li>
         </ul>
-        <p class="callout"><strong>Not a save state.</strong> Last-game startup reopens the game with its normal saved progress. It does not resume the exact moment you left. True save states are a separate feature, working in development firmware.</p>
+        <p class="callout"><strong>Not a save state.</strong> Last-game startup loads the game's normal save, not the exact moment you left.</p>
       </div>
     </article>
 
@@ -516,12 +524,12 @@ footer a{color:var(--muted)}
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag dev"><i></i>Working on hardware</span><span class="tag comp"><i></i>FPGA core + MCU firmware</span></div>
-        <h3 data-copy="gg-title">Game Gear, on a Chromatic.</h3>
-        <p data-copy="gg-body">Game Gear is now a third system beside Game Boy and Game Boy Color. On a real Chromatic, Game Gear games such as Sonic 2 and Columns run with correct picture and sound, and the menu works on top of them. It isn't in a published release yet and needs more testing before anyone else should try it.</p>
+        <h3 data-copy="gg-title">Game Gear</h3>
+        <p data-copy="gg-body">A third system next to Game Boy and Game Boy Color. Sonic 2 and Columns run with correct picture and sound on a real Chromatic. Not released yet; it needs more testing.</p>
         <ul data-copy="gg-list">
-          <li><strong>A real hardware core.</strong> Game Gear runs on its own FPGA core, adapted from the open-source MiSTer Master System core, not on software emulation.</li>
-          <li><strong>Switches cores automatically.</strong> Pick a Game Gear game and the Chromatic reloads into the Game Gear core and starts it; pick a Game Boy game and it switches back. The original firmware is kept on the device as a recovery copy.</li>
-          <li><strong>Still to verify on device:</strong> Game Gear covers and previews, and Game Genie for Game Gear (built and passing automated tests). Game Gear has no save states.</li>
+          <li><strong>FPGA core,</strong> adapted from MiSTer's Master System core. Not software emulation.</li>
+          <li><strong>Automatic switching:</strong> pick a Game Gear game and the Chromatic swaps cores; pick a Game Boy game and it swaps back.</li>
+          <li><strong>Still to test:</strong> Game Gear covers, previews and Game Genie. No save states for Game Gear.</li>
         </ul>
       </div>
     </article>
@@ -535,13 +543,13 @@ footer a{color:var(--muted)}
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag dev"><i></i>Working on hardware</span><span class="tag comp"><i></i>FPGA core + MCU firmware</span></div>
-        <h3 data-copy="save-states-title">True save states.</h3>
-        <p data-copy="save-states-body">Freeze a game at any moment and jump back to that exact frame, even mid-level. Saving and restoring has been tested on a real Chromatic with Game Boy and Game Boy Color games, including ten repeated restores in a row. It isn't in a published release yet, and the on-screen menu is still being tested on the device.</p>
+        <h3 data-copy="save-states-title">Save states</h3>
+        <p data-copy="save-states-body">Save anywhere and jump back to that exact frame. Tested on a real Chromatic with Game Boy and Game Boy Color games, including ten restores in a row. Not released yet; the on-screen menu is still being tested.</p>
         <ul data-copy="save-states-list">
-          <li><strong>Captured by the FPGA core itself:</strong> CPU, video, audio, memory and cartridge-mapper state, not just the game's own save.</li>
-          <li><strong>One temporary slot,</strong> held in memory. It is cleared on power-off, reset or when you change games.</li>
-          <li><strong>Optional shortcuts:</strong> Menu + Up to save, hold Menu + Down to load. <a href="#how-to-save-states">Full controls →</a></li>
-          <li><strong>Current limits:</strong> SD games using MBC1 or MBC5 only. Cartridges and real-time-clock games aren't supported yet.</li>
+          <li><strong>Full snapshot</strong> from the FPGA core: CPU, video, audio, memory and mapper.</li>
+          <li><strong>One slot,</strong> cleared on power-off, reset or game change.</li>
+          <li><strong>Shortcuts:</strong> Menu + Up saves, hold Menu + Down loads. <a href="#how-to-save-states">Controls →</a></li>
+          <li><strong>Limits:</strong> SD games with MBC1 or MBC5. No cartridges or clock games yet.</li>
         </ul>
       </div>
     </article>
@@ -552,24 +560,24 @@ footer a{color:var(--muted)}
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag dev"><i></i>Working on hardware</span><span class="tag comp"><i></i>MCU firmware</span></div>
-        <h3 data-copy="wifi-title">Wireless file transfers.</h3>
-        <p data-copy="wifi-body">Join your home Wi-Fi from the System menu and the Chromatic shows its local address and a 6-digit code. Open that address in any browser on the same network, enter the code, and copy games, covers and saves to and from the SD card. No card reader and no cable needed.</p>
+        <h3 data-copy="wifi-title">Wi-Fi transfers</h3>
+        <p data-copy="wifi-body">Join Wi-Fi from the System menu, open the address the Chromatic shows in any browser on your network, enter the 6-digit code, and move games, covers and saves. No cable, no card reader.</p>
         <ul data-copy="wifi-list">
-          <li><strong>A small web page served by the Chromatic itself.</strong> No app to install, no cloud account, nothing leaves your network.</li>
-          <li><strong>Careful by default:</strong> a pairing code is required, and existing files are never overwritten.</li>
-          <li><strong>Games pause while Wi-Fi is on.</strong> Turn it off to play. It joins your router; there's no hotspot mode.</li>
-          <li><strong>Tested on hardware:</strong> transfers checked byte-for-byte with SHA-256 on a real Chromatic. Long sessions and weak-signal recovery are still being tested.</li>
+          <li><strong>No app, no account.</strong> Nothing leaves your network.</li>
+          <li><strong>Safe:</strong> pairing code required, existing files never overwritten.</li>
+          <li><strong>Games pause while Wi-Fi is on.</strong> It joins your router; no hotspot mode.</li>
+          <li><strong>Verified</strong> byte for byte on a real Chromatic. Long sessions still being tested.</li>
         </ul>
         <div class="speed">
           <table>
-            <caption>Faster than USB transfers today, measured on a real Chromatic</caption>
+            <caption>Faster than USB today, measured on a real Chromatic</caption>
             <thead><tr><th scope="col">Same 1 MiB file</th><th scope="col">USB</th><th scope="col">Wi-Fi</th><th scope="col">Speed-up</th></tr></thead>
             <tbody>
               <tr><th scope="row">Upload to Chromatic</th><td>113.9 s</td><td class="wifi">7.3 s</td><td class="x">15.5×</td></tr>
               <tr><th scope="row">Download to computer</th><td>29.6 s</td><td class="wifi">9.1 s</td><td class="x">3.2×</td></tr>
             </tbody>
           </table>
-          <p>Both files verified intact. Compares Magic Trick's current transfer software, not the USB port's maximum: the existing USB uploader paces writes conservatively.</p>
+          <p>Both files verified intact. This compares today's transfer software, not the USB port's limit.</p>
         </div>
       </div>
     </article>
@@ -580,12 +588,12 @@ footer a{color:var(--muted)}
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag dev"><i></i>Working on hardware</span><span class="tag comp"><i></i>MCU firmware</span></div>
-        <h3>A boot animation of its own.</h3>
-        <p>Turn the Chromatic on and Magic Trick greets you with its own animation before your library appears. It's built into the firmware itself, so it plays even without an SD card, and it replaces the old two-second startup pause.</p>
+        <h3>Boot animation</h3>
+        <p>Magic Trick now starts with its own animation. It's built into the firmware, plays without an SD card, and replaces the old two-second pause.</p>
         <ul>
-          <li><strong>144 frames at 30 fps,</strong> confirmed playing in full on a real Chromatic.</li>
-          <li><strong>Never in your way:</strong> press any button to skip it. It's skipped automatically when switching between Game Boy and Game Gear.</li>
-          <li><strong>Picture only.</strong> The Chromatic's ESP32 has no audio path, so the animation is silent.</li>
+          <li><strong>144 frames at 30 fps,</strong> confirmed on a real Chromatic.</li>
+          <li><strong>Skippable:</strong> press any button. It's skipped when switching systems.</li>
+          <li><strong>Silent.</strong> The ESP32 has no audio path.</li>
         </ul>
       </div>
     </article>
@@ -598,14 +606,13 @@ footer a{color:var(--muted)}
   <div class="wrap">
     <div class="section-head reveal">
       <p class="eyebrow">How to</p>
-      <h2 id="howto-title">Cheats and save states, step by step.</h2>
-      <p>Exact controls from the firmware, so you know what to press before you pick it up.</p>
+      <h2 id="howto-title">Cheats and save states</h2>
     </div>
     <div class="howto">
       <article class="guide reveal" id="how-to-cheats" aria-labelledby="g-cheats">
         <div class="guide-head"><span class="tag now"><i></i>Available now</span><span class="tag comp"><i></i>Game Boy &amp; Game Boy Color SD games</span></div>
-        <h3 id="g-cheats">Use Game Genie cheats</h3>
-        <p>Cheats come from packs you build for your own games. Once they're on your SD card, a lamp shows you which games have them.</p>
+        <h3 id="g-cheats">Game Genie cheats</h3>
+        <p>Build packs for your games once. After that, a lamp shows which games have cheats.</p>
         <div class="guide-shots">
           <figure><div class="screen"><img src="media/screens/genie-lamp.png" width="160" height="144" alt="A game's preview with an outlined gold lamp beside the title, meaning cheats are available." loading="lazy"></div><figcaption>Lamp = cheats available</figcaption></figure>
           <figure><div class="screen"><img src="media/screens/cheats.png" width="160" height="144" alt="The Game Genie menu with Disable all at the top and Infinite lives switched on." loading="lazy"></div><figcaption>Toggle with A</figcaption></figure>
@@ -625,8 +632,8 @@ footer a{color:var(--muted)}
 
       <article class="guide reveal" id="how-to-save-states" aria-labelledby="g-states">
         <div class="guide-head"><span class="tag dev"><i></i>Working on hardware</span><span class="tag comp"><i></i>Development firmware</span></div>
-        <h3 id="g-states">Save and load states</h3>
-        <p>For Game Boy and Game Boy Color games on your SD card. Not in a public release yet; these are the controls in the development firmware.</p>
+        <h3 id="g-states">Save states</h3>
+        <p>Game Boy and Game Boy Color games on your SD card. Dev firmware only for now.</p>
         <div class="guide-shots">
           <figure><div class="screen"><img src="media/screens/state-menu.png" width="160" height="144" alt="The System tab with Save States highlighted at the top of the list." loading="lazy"></div><figcaption>System → Save States</figcaption></figure>
           <figure><div class="screen"><img src="media/screens/state-saved.png" width="160" height="144" alt="The Save States panel reporting State saved, with Save State, Load State and Shortcuts." loading="lazy"></div><figcaption>Save or load</figcaption></figure>
@@ -652,9 +659,9 @@ footer a{color:var(--muted)}
 <section class="download section" id="download" aria-labelledby="dl-title">
   <div class="wrap">
     <div class="section-head reveal">
-      <p class="eyebrow">Download</p>
-      <h2 id="dl-title">One app. Both firmware parts.</h2>
-      <p>The Magic Trick Installer takes a stock Chromatic, or a compatible ChroMagic install, to Magic Trick in one session. Python and the MCU/FPGA programmers are bundled.</p>
+      <p class="eyebrow">Mac · Windows · Linux</p>
+      <h2 id="dl-title">Download</h2>
+      <p>One app installs Magic Trick from stock or ChroMagic firmware. Everything it needs is bundled.</p>
     </div>
 
     <div class="release reveal">
@@ -668,7 +675,7 @@ footer a{color:var(--muted)}
         </div>
         <div class="warn" role="note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5m0 3v.01"/></svg>
-          <div><strong>Not hardware-validated yet.</strong> No end-to-end flash on a physical Chromatic has been tested with this installer. Automated tests cover install ordering, corrupted backups, unsupported firmware and programmer startup, but not real USB flashing or recovery. The apps are unsigned, and the Mac builds aren't notarized. If you need a proven install path, wait for a validated release.</div>
+          <div><strong>Not tested on hardware yet.</strong> This installer hasn't done a full flash on a real Chromatic. Automated tests cover install order, bad backups, unsupported firmware and programmer startup, not real USB flashing or recovery. The apps are unsigned and the Mac builds aren't notarized. Want a proven install? Wait for a validated release.</div>
         </div>
         <div class="dl-list">
           <a class="dl" href="https://github.com/agentichunter-blip/chromagic-preview-mod/releases/download/installer-v0.2.0/Magic-Trick-macos-arm64.zip">
@@ -765,9 +772,9 @@ footer a{color:var(--muted)}
 <section class="section" id="open-source" aria-labelledby="os-title">
   <div class="wrap">
     <div class="section-head reveal">
-      <p class="eyebrow">Free &amp; open source</p>
-      <h2 id="os-title">Built in the open, on the shoulders of giants.</h2>
-      <p>Magic Trick is free software under the GNU GPL v3, the same licence as the ChroMagic and ModRetro firmware it builds on. Read the code, build it yourself, or help make it better.</p>
+      <p class="eyebrow">GPL v3</p>
+      <h2 id="os-title">Open source</h2>
+      <p>Free under the GPL v3, like the ChroMagic and ModRetro firmware it's built on.</p>
     </div>
     <div class="grid-3 reveal">
       <a class="link-card" href="https://github.com/agentichunter-blip/chromagic-preview-mod"><strong>Source code</strong><span>Firmware, FPGA source, desktop installer and media tools.</span><em>GitHub ↗</em></a>
@@ -787,9 +794,9 @@ footer a{color:var(--muted)}
 <section class="press section" id="press" aria-labelledby="press-title">
   <div class="wrap">
     <div class="section-head reveal">
-      <p class="eyebrow">Press &amp; creators</p>
+      <p class="eyebrow">Press</p>
       <h2 id="press-title">Covering Magic Trick?</h2>
-      <p>Everything you need for a video, article or post. All screenshots are real interface renders, free to use when covering the project.</p>
+      <p>Logos, screens and a blurb. Screens are real renders, free to use.</p>
     </div>
     <div class="grid-2 reveal">
       <div class="card boiler">
@@ -806,7 +813,7 @@ footer a{color:var(--muted)}
           <div><dt>Platform</dt><dd>ModRetro Chromatic (Game Boy / Game Boy Color FPGA handheld)</dd></div>
           <div><dt>Current release</dt><dd>Installer 0.2.0 (testing preview) · firmware art31</dd></div>
           <div><dt>Price &amp; licence</dt><dd>Free · GPL-3.0</dd></div>
-          <div><dt>Contact</dt><dd><a href="https://github.com/agentichunter-blip/chromagic-preview-mod/issues">GitHub issues</a> · <a href="https://ko-fi.com/ryansag">Ko-fi</a></dd></div>
+          <div><dt>Contact</dt><dd><a href="https://x.com/ryansagdotcom">X @ryansagdotcom</a> · <a href="https://www.youtube.com/@RyanSag">YouTube @RyanSag</a> · <a href="https://github.com/agentichunter-blip/chromagic-preview-mod/issues">GitHub issues</a></dd></div>
         </dl>
       </div>
     </div>
@@ -826,7 +833,7 @@ footer a{color:var(--muted)}
         <a class="asset" href="press/magic-trick-boot-animation-640x576.mp4" download><div class="thumb"><img src="media/boot-intro-poster.png" alt="" width="160" height="144" loading="lazy"></div>Boot animation · MP4 640×576</a>
         <a class="asset" href="og.png" download><div class="thumb" style="aspect-ratio:1200/630"><img src="og.png" alt="" width="1200" height="630" loading="lazy" style="image-rendering:auto;object-fit:cover"></div>Social card · 1200×630</a>
       </div>
-      <p class="muted" style="font-size:14px;margin-top:16px">Please describe Game Gear, save states, Wi-Fi transfers and the boot animation as working in development firmware, not yet released, and the 0.2.0 installer as a testing preview. Screens marked "dev" come from unreleased development firmware.</p>
+      <p class="muted" style="font-size:14px;margin-top:16px">Please call Game Gear, save states, Wi-Fi and the boot animation "in development, not released", and 0.2.0 a testing preview. Screens marked "dev" are from unreleased firmware.</p>
     </div>
   </div>
 </section>
@@ -836,8 +843,12 @@ footer a{color:var(--muted)}
   <div class="wrap reveal">
     <img src="media/logo-mark.png" alt="" width="141" height="97" style="margin:0 auto 26px;width:170px;height:auto;image-rendering:pixelated">
     <h2 id="support-title">Enjoying Magic Trick?</h2>
-    <p>Magic Trick is free and open source. If you're enjoying it and want to help support future development, you can buy me a coffee. It's entirely optional, and every feature stays free.</p>
-    <a class="btn" href="https://ko-fi.com/ryansag">☕ Support on Ko-fi ↗</a>
+    <p>It's free and always will be. If you want to chip in, buy me a coffee. Follow along for updates.</p>
+    <div class="follow">
+      <a class="btn" href="https://ko-fi.com/ryansag">☕ Tip on Ko-fi</a>
+      <a class="btn" href="https://www.youtube.com/@RyanSag"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.2 3.6z"/></svg>YouTube</a>
+      <a class="btn" href="https://x.com/ryansagdotcom"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.65l-5.21-6.82-5.97 6.82H1.68l7.73-8.84L1.25 2.25h6.83l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.12z"/></svg>Follow on X</a>
+    </div>
   </div>
 </section>
 </main>
@@ -850,6 +861,8 @@ footer a{color:var(--muted)}
       <a href="https://github.com/agentichunter-blip/chromagic-preview-mod/releases/tag/installer-v0.2.0">Release notes</a>
       <a href="#press">Press kit</a>
       <a href="https://ko-fi.com/ryansag">Ko-fi</a>
+      <a href="https://x.com/ryansagdotcom">X</a>
+      <a href="https://www.youtube.com/@RyanSag">YouTube</a>
     </div>
     <p>Built on <a href="https://github.com/cursedtoast2/ChroMagic">CursedToast's ChroMagic</a> and ModRetro's open-source firmware. <a href="https://github.com/agentichunter-blip/chromagic-preview-mod/blob/main/CREDITS.md">Source &amp; credits</a>.</p>
     <p>Independent community project, not affiliated with or endorsed by ModRetro, Nintendo or Sega. Game Boy and Game Boy Color are trademarks of Nintendo; Game Gear is a trademark of Sega. Firmware reports version 1.0.1-art31 (4.2).</p>
