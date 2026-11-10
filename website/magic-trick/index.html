@@ -110,7 +110,11 @@ section{position:relative}
 .nav-links a{text-decoration:none;color:var(--muted)}
 .nav-links a:hover{color:var(--ink)}
 .nav .btn{min-height:40px;padding:0 16px;font-size:14px}
-@media (max-width:860px){.nav-links{display:none}.nav .btn{margin-left:auto}}
+.tip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid var(--line-2);font-size:13px;font-weight:650;color:var(--muted);text-decoration:none;white-space:nowrap;transition:color .15s ease,border-color .15s ease}
+.tip:hover{color:var(--amber);border-color:rgba(255,185,92,.45)}
+.tip span{font-size:15px;line-height:1}
+@media (max-width:860px){.nav-links{display:none}.tip{margin-left:auto}}
+@media (max-width:380px){.tip em{display:none}}
 
 /* hero */
 .hero{padding:clamp(48px,8vw,96px) 0 clamp(64px,9vw,110px);overflow:hidden}
@@ -203,6 +207,29 @@ button.demo-poster{cursor:pointer}
 .callout{margin-top:22px;padding:14px 16px;border-radius:10px;background:rgba(255,185,92,.07);border:1px solid rgba(255,185,92,.22);font-size:14px;color:#e8dcc4;max-width:520px}
 .callout strong{color:var(--amber)}
 @media (max-width:900px){.feature{grid-template-columns:1fr}.feature.flip .feature-media{order:0}}
+
+/* how-to guides */
+.howto{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.guide{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:clamp(22px,3vw,32px)}
+.guide-head{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.guide h3{font-size:clamp(24px,2.6vw,30px);margin-bottom:8px}
+.guide>p{color:var(--muted);font-size:15px}
+.guide-shots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0 22px}
+.guide-shots figure{margin:0}
+.guide-shots .screen{border-radius:4px;box-shadow:0 0 0 1px #02040b,0 0 0 5px #070b1a}
+.guide-shots figcaption{font:500 11px/1.35 var(--mono);color:var(--faint);margin-top:10px}
+.howto ol{list-style:none;counter-reset:hs;margin:0;padding:0}
+.howto ol>li{counter-increment:hs;position:relative;padding:12px 0 12px 40px;border-top:1px solid var(--line);font-size:15px;color:#c3cbdc}
+.howto ol>li::before{content:counter(hs);position:absolute;left:0;top:11px;width:26px;height:26px;border-radius:7px;background:var(--surface-2);color:var(--accent);font:700 13px/26px var(--mono);text-align:center}
+.howto ol>li strong{color:var(--ink)}
+kbd{display:inline-block;min-width:22px;padding:1px 7px;border-radius:6px;border:1px solid var(--line-2);border-bottom-width:2px;background:var(--surface-2);color:var(--ink);font:600 12px/1.6 var(--mono);text-align:center;white-space:nowrap}
+.shortcut{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin:14px 0 4px;padding:14px 16px;border-radius:12px;background:rgba(91,196,255,.06);border:1px solid rgba(91,196,255,.18);font-size:14px;color:#c3cbdc}
+.shortcut b{font:700 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lamps{display:flex;flex-wrap:wrap;gap:10px 22px;margin:8px 0 2px}
+.lamps span{display:flex;align-items:center;gap:10px;font-size:14px}
+.lamps img{width:36px;height:36px;image-rendering:pixelated;background:#000;border-radius:6px;padding:3px}
+.guide .fine{font-size:13px;color:var(--faint);margin:14px 0 0}
+@media (max-width:900px){.howto{grid-template-columns:1fr}}
 
 /* download */
 .download{background:linear-gradient(180deg,var(--bg-2),var(--bg));border-top:1px solid var(--line)}
@@ -297,11 +324,13 @@ footer a{color:var(--muted)}
     <a class="brand" href="./"><img src="media/logo-mark.png" alt="Magic Trick" width="58" height="40"></a>
     <nav class="nav-links" aria-label="Sections">
       <a href="#features">Features</a>
+      <a href="#how-to">How to</a>
       <a href="#demo">Demo</a>
       <a href="#download">Download</a>
       <a href="#open-source">Open source</a>
       <a href="#press">Press</a>
     </nav>
+    <a class="tip" href="https://ko-fi.com/ryansag" title="Magic Trick is free. Tips are optional and support development."><span aria-hidden="true">☕</span><em style="font-style:normal">Tip the dev</em></a>
     <a class="btn btn-primary" href="#download">Download</a>
   </div>
 </header>
@@ -460,7 +489,7 @@ footer a{color:var(--muted)}
         <h3>Cheats, recents and a faster start.</h3>
         <p>A gold lamp marks games that have Game Genie codes. Press Select on a game's preview to turn codes on, and they apply the next time it starts. Your ROM files are never modified.</p>
         <ul>
-          <li><strong>Game Genie cheats</strong> from packs you generate for your own library with the included tool. No cheat database is bundled.</li>
+          <li><strong>Game Genie cheats</strong> from packs you generate for your own library with the included tool. No cheat database is bundled. <a href="#how-to-cheats">How to use them →</a></li>
           <li><strong>Recent games:</strong> the last 20 games per system, newest first, kept across power cycles.</li>
           <li><strong>Last-game startup:</strong> with no cartridge inserted, the Chromatic reopens the last game you launched. Hold B at power-on to go to your library instead.</li>
         </ul>
@@ -498,7 +527,7 @@ footer a{color:var(--muted)}
         <ul data-copy="save-states-list">
           <li><strong>Captured by the FPGA core itself:</strong> CPU, video, audio, memory and cartridge-mapper state, not just the game's own save.</li>
           <li><strong>One temporary slot,</strong> held in memory. It is cleared on power-off, reset or when you change games.</li>
-          <li><strong>Optional shortcuts:</strong> Menu + Up to save, hold Menu + Down to load.</li>
+          <li><strong>Optional shortcuts:</strong> Menu + Up to save, hold Menu + Down to load. <a href="#how-to-save-states">Full controls →</a></li>
           <li><strong>Current limits:</strong> SD games using MBC1 or MBC5 only. Cartridges and real-time-clock games aren't supported yet.</li>
         </ul>
       </div>
@@ -537,6 +566,61 @@ footer a{color:var(--muted)}
       </div>
     </article>
 
+  </div>
+</section>
+
+<!-- HOW TO -->
+<section class="section" id="how-to" aria-labelledby="howto-title" style="padding-top:0">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">How to</p>
+      <h2 id="howto-title">Cheats and save states, step by step.</h2>
+      <p>Exact controls from the firmware, so you know what to press before you pick it up.</p>
+    </div>
+    <div class="howto">
+      <article class="guide reveal" id="how-to-cheats" aria-labelledby="g-cheats">
+        <div class="guide-head"><span class="tag now"><i></i>Available now</span><span class="tag comp"><i></i>Game Boy &amp; Game Boy Color SD games</span></div>
+        <h3 id="g-cheats">Use Game Genie cheats</h3>
+        <p>Cheats come from packs you build for your own games. Once they're on your SD card, a lamp shows you which games have them.</p>
+        <div class="guide-shots">
+          <figure><div class="screen"><img src="media/screens/genie-lamp.png" width="160" height="144" alt="A game's preview with an outlined gold lamp beside the title, meaning cheats are available." loading="lazy"></div><figcaption>Lamp = cheats available</figcaption></figure>
+          <figure><div class="screen"><img src="media/screens/cheats.png" width="160" height="144" alt="The Game Genie menu with Disable all at the top and Infinite lives switched on." loading="lazy"></div><figcaption>Toggle with A</figcaption></figure>
+          <figure><div class="screen"><img src="media/screens/genie-selected.png" width="160" height="144" alt="The same game's preview with a filled gold lamp, meaning cheats are on for the next launch." loading="lazy"></div><figcaption>Filled lamp = cheats on</figcaption></figure>
+        </div>
+        <ol>
+          <li><strong>Add cheat packs once.</strong> Run the included cheat tool on your game library, then copy the <code>CHEATS</code> folder into the <code>CHROMAGIC</code> folder on your SD card. <a href="https://github.com/agentichunter-blip/chromagic-preview-mod/blob/main/docs/cheats.md">Cheat pack guide ↗</a></li>
+          <li><strong>Look for the lamp</strong> next to a game's cover or title in your library:
+            <div class="lamps"><span><img src="media/lamp-outline.png" alt="" width="18" height="18">Outlined: cheats available</span><span><img src="media/lamp-filled.png" alt="" width="18" height="18">Filled: cheats on for next launch</span></div>
+            No lamp means there's no pack for that game.</li>
+          <li><strong>Open the cheats.</strong> Show the game's preview and press <kbd>Select</kbd>. If the scrolling list is open, press <kbd>A</kbd> first to reveal the preview.</li>
+          <li><strong>Pick your cheats.</strong> <kbd>Up</kbd>/<kbd>Down</kbd> to browse, <kbd>A</kbd> to turn a cheat on or off, <kbd>B</kbd> to go back. The top item turns them all off.</li>
+          <li><strong>Start the game.</strong> Cheats apply the next time it launches, including automatic last-game startup. They can't be switched on in a game that's already running.</li>
+        </ol>
+        <p class="fine">Choices are remembered per game. Turning a cheat off doesn't undo anything already written to that game's normal save. GameShark and Pro Action Replay codes aren't supported.</p>
+      </article>
+
+      <article class="guide reveal" id="how-to-save-states" aria-labelledby="g-states">
+        <div class="guide-head"><span class="tag dev"><i></i>Working on hardware</span><span class="tag comp"><i></i>Development firmware</span></div>
+        <h3 id="g-states">Save and load states</h3>
+        <p>For Game Boy and Game Boy Color games on your SD card. Not in a public release yet; these are the controls in the development firmware.</p>
+        <div class="guide-shots">
+          <figure><div class="screen"><img src="media/screens/state-menu.png" width="160" height="144" alt="The System tab with Save States highlighted at the top of the list." loading="lazy"></div><figcaption>System → Save States</figcaption></figure>
+          <figure><div class="screen"><img src="media/screens/state-saved.png" width="160" height="144" alt="The Save States panel reporting State saved, with Save State, Load State and Shortcuts." loading="lazy"></div><figcaption>Save or load</figcaption></figure>
+          <figure><div class="screen"><img src="media/screens/state-confirm.png" width="160" height="144" alt="Load State confirmation with Cancel selected and Load State below it." loading="lazy"></div><figcaption>Confirm to load</figcaption></figure>
+        </div>
+        <ol>
+          <li><strong>Open the menu while playing.</strong> Press <kbd>Menu</kbd>, go to the <strong>System</strong> tab, highlight <strong>Save States</strong> and press <kbd>A</kbd>.</li>
+          <li><strong>Save.</strong> Choose <strong>Save State</strong>. It replaces your one saved snapshot.</li>
+          <li><strong>Load.</strong> Choose <strong>Load State</strong>. Cancel is selected first so you can't load by accident: move to <strong>Load State</strong> and press <kbd>A</kbd>. <kbd>B</kbd> cancels.</li>
+        </ol>
+        <div class="shortcut">
+          <b>Shortcuts</b><span>Turn <strong>Shortcuts</strong> on in the same panel. It stays on after restarts.</span>
+          <b>Save</b><span>Hold <kbd>Menu</kbd> + <kbd>Up</kbd>, then release both.</span>
+          <b>Load</b><span>Hold <kbd>Menu</kbd> + <kbd>Down</kbd> for one second, then release both. This skips the confirmation.</span>
+        </div>
+        <p class="fine">One slot, kept in memory: it's cleared when you power off, reset or switch games. Loading an older state keeps your newer battery save safe in a separate file. Works with SD games that use the MBC1 or MBC5 mapper (most of the library). Physical cartridges, real-time-clock games and Game Gear aren't supported.</p>
+      </article>
+    </div>
   </div>
 </section>
 
