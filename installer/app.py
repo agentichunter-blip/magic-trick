@@ -646,6 +646,11 @@ def demo_work(speed=1.0, fail=False):
 
 
 if __name__ == '__main__':
+    for stream in (sys.stdout, sys.stderr):   # a cp1252 console or redirect must not crash on device output
+        try:
+            stream.reconfigure(errors='replace')
+        except (AttributeError, ValueError, OSError):
+            pass
     if len(sys.argv) > 1 and sys.argv[1] == '--demo':
         import tempfile
         app = App(); app.consent = True

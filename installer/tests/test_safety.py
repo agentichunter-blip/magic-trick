@@ -523,3 +523,13 @@ class StockConsoleWindow(unittest.TestCase):
             v = core.version('COM4', timeout=1)
         self.assertEqual(v['fpga'], '18.38')
         self.assertNotIn('restart', log)
+
+    def test_trace_failure_does_not_end_attempt(self):
+        Port, log = self.fake_serial(answers_without_reset=False)
+        def bad_trace(text):
+            text.encode('cp1252')   # like print() to a cp1252 console
+            if 'mcu' in text:
+                raise UnicodeEncodeError('charmap', '�', 0, 1, 'boom')
+        with patch('serial.Serial', Port), patch.object(core, 'RESET_LISTEN', 1):
+            v = core.version('COM4', timeout=1, trace=bad_trace)
+        self.assertEqual(v['mcu'], 'v0.13.8')

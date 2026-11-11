@@ -95,6 +95,13 @@ def _set_rts(p, state):
 
 def _ask_version(port, baud, reset, listen, trace):
     import serial
+    if trace:   # tracing is diagnostics only; it must never end an attempt
+        raw_trace = trace
+        def trace(text):
+            try:
+                raw_trace(text)
+            except Exception:
+                pass
     tag = f'[{baud}{" after restart" if reset else ""}] '
     p = serial.Serial(port=None, baudrate=baud, timeout=.1, write_timeout=2)
     p.dtr = False; p.rts = False; p.port = port   # stock firmware's console is silent with DTR on
