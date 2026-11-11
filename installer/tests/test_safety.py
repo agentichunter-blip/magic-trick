@@ -533,3 +533,35 @@ class StockConsoleWindow(unittest.TestCase):
         with patch('serial.Serial', Port), patch.object(core, 'RESET_LISTEN', 1):
             v = core.version('COM4', timeout=1, trace=bad_trace)
         self.assertEqual(v['mcu'], 'v0.13.8')
+
+
+class AlmostDone(unittest.TestCase):
+    def test_download_mode_stops_the_final_check_early(self):
+        logs = []
+        with patch.object(core, 'device_ports', return_value=['COM5']), patch.object(fpga, 'reset'), \
+                patch.object(core, 'version', side_effect=core.DownloadMode('off and on')) as version:
+            with self.assertRaises(ValueError):
+                core.confirm({'mcu': 'v0.13.8'}, logs.append, lambda s: None)
+        self.assertEqual(version.call_count, 1)
+        self.assertTrue(any('download mode' in line for line in logs))
+
+    def test_check_again_marks_complete(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'installation.json'
+            path.write_text(json.dumps({'stage': 'complete_unconfirmed', 'expected': {'fpga': '18.38', 'mcu': 'v0.13.8'}}))
+            with patch.object(core, 'device_ports', return_value=['COM4']), \
+                    patch.object(core, 'version', return_value={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'v4.6'}):
+                ok, _ = core.recheck(d)
+            self.assertTrue(ok)
+            self.assertEqual(json.loads(path.read_text())['stage'], 'complete')
+
+    def test_check_again_wrong_versions(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'installation.json'
+            path.write_text(json.dumps({'stage': 'complete_unconfirmed', 'expected': {'fpga': '18.38', 'mcu': 'v0.13.8'}}))
+            with patch.object(core, 'device_ports', return_value=['COM4']), \
+                    patch.object(core, 'version', return_value={'mcu': 'v1.0.0-beta', 'fpga': '50.1', 'chromatic': 'x'}):
+                ok, found = core.recheck(d)
+            self.assertFalse(ok)
+            self.assertEqual(json.loads(path.read_text())['stage'], 'complete_unconfirmed')
+

@@ -77,6 +77,8 @@ def version(port, timeout=20, trace=None):
     for baud, reset, listen in ((115200, False, timeout), (115200, True, RESET_LISTEN), (2000000, False, timeout)):
         try:
             found = _ask_version(port, baud, reset, listen, trace)
+        except DownloadMode:
+            raise
         except (OSError, ValueError) as exc:
             if trace: trace(f'[{baud}] open failed: {exc}')
             continue
@@ -86,6 +88,11 @@ def version(port, timeout=20, trace=None):
 
 
 RESET_LISTEN = 10   # seconds to listen after restarting the MCU
+
+
+class DownloadMode(ValueError):
+    """The MCU restarted into its ROM loader instead of the application. Seen on Windows right
+    after an FPGA write; only a power cycle brings the application back."""
 
 
 def _set_rts(p, state):
@@ -121,6 +128,10 @@ def _ask_version(port, baud, reset, listen, trace):
             if chunk and trace:
                 trace(tag + chunk.decode('ascii', errors='replace'))
             data = (data + chunk)[-65536:]
+            if reset and b'waiting for download' in data:
+                # The MCU came up in its ROM loader instead of the app; only a power cycle helps.
+                if trace: trace(tag + 'the MCU started in download mode; power-cycle the Chromatic')
+                raise DownloadMode('The Chromatic needs to be turned off and on.')
             for match in re.findall(rb'\{[^{}]+\}', data):
                 try:
                     obj = json.loads(match)
@@ -421,6 +432,27 @@ def preconditions(port, log, keys):
 CONFIRM_WINDOW = 180   # seconds; Windows may install drivers for a new USB layout first
 
 
+def matches(after, expected):
+    return after is not None and all(after.get(k) in (v if isinstance(v, tuple) else (v,)) for k, v in expected.items())
+
+
+def recheck(folder):
+    """After ALMOST DONE: the user power-cycled; ask the Chromatic again. Returns (confirmed, versions).
+    On success the run's installation.json is marked complete."""
+    path = Path(folder) / 'installation.json'
+    state = json.loads(path.read_text())
+    expected = state.get('expected')
+    ports = device_ports()
+    if not expected or len(ports) != 1:
+        return False, None
+    after = version(ports[0])
+    if not matches(after, expected):
+        return False, after
+    state.update(stage='complete', confirmed_later=after)
+    path.write_text(json.dumps(state, indent=2))
+    return True, after
+
+
 def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
     """Restart and wait for the expected versions. The serial port is looked up again each time:
     its name can change (Windows gives the stock firmware's USB layout a new COM number)."""
@@ -441,9 +473,12 @@ def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
                 log('Waiting for the Chromatic to reconnect. The first time, Windows may set up drivers; '
                     'this can take a minute or two.')
                 said = True
+        except DownloadMode:
+            log('The Chromatic restarted into its download mode, so it can\'t answer until it is turned off and on.')
+            break
         except (OSError, ValueError):
             pass
-        if after is not None and all(after.get(k) in (v if isinstance(v, tuple) else (v,)) for k, v in expected.items()):
+        if matches(after, expected):
             return after
         sleep(3)
         waited += 3
@@ -529,11 +564,12 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
     write_and_verify(port, TABLE_OFFSET, files['table_stock'], log)
     s.checkpoint('table_restored')
     try:
-        confirm({'fpga': '18.38', 'mcu': 'v' + previous[1]}, log, sleep)
+        expected = {'fpga': '18.38', 'mcu': 'v' + previous[1]}
+        confirm(expected, log, sleep)
     except ValueError:
         # Everything was written and verified; only the read-back failed (seen on Windows while it
         # set up drivers for the stock firmware's USB layout). Not a reason to alarm the user.
-        s.checkpoint('complete_unconfirmed')
+        s.checkpoint('complete_unconfirmed', expected=expected)
         log('Uninstall written and verified. The running version could not be read back. Turn the Chromatic '
             'off and on and check that it starts. To return fully to stock, now use ModRetro\'s official updater.')
         return
@@ -640,10 +676,11 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
     image_path.unlink()
     checkpoint('mcu_verified')
     try:
-        confirm({'fpga': '18.38', 'mcu': 'v' + app}, log, sleep)
+        expected = {'fpga': '18.38', 'mcu': 'v' + app}
+        confirm(expected, log, sleep)
     except ValueError:
         # Some stock firmware has no version command, so a missing answer is not a failure here.
-        checkpoint('complete_unconfirmed')
+        checkpoint('complete_unconfirmed', expected=expected)
         log('Restore written and verified. The running version could not be read back (older stock firmware '
             'does not report it). Turn the Chromatic off and on and check that it starts.')
         return

@@ -492,9 +492,9 @@ class App:
             self.status_dot.configure(fg=GREEN); self.status_text.configure(text='ALL DONE')
         elif error is None:
             word, colour = 'ALMOST DONE', AMBER
-            lines = ('Everything was written and checked, but the Chromatic didn\'t answer the final check. '
-                     'Turn it off and on and make sure it starts.')
-            extra = 'If it doesn\'t start, open the installer again and use Restore backup. Backup: ' + folder
+            lines = ('Everything was written and verified. One last step: turn the Chromatic off and on, '
+                     'wait for its menu, then press CHECK AGAIN.')
+            extra = ('If it doesn\'t start, open the installer again and use Restore backup. Backup: ' + folder)
             self.status_dot.configure(fg=AMBER); self.status_text.configure(text='CHECK YOUR CHROMATIC')
         else:
             word, colour = 'STOPPED', RED
@@ -507,13 +507,46 @@ class App:
         self.label(box, word, self.f_pixel_huge, colour).pack(anchor='w')
         self.label(box, lines, self.f_body_big, INK, wrap=820).pack(anchor='w', pady=(14, 0))
         self.label(box, extra, self.f_body, MUTED, wrap=820).pack(anchor='w', pady=(12, 0))
+        self.recheck_note = self.label(box, '', self.f_body, AMBER, wrap=820)
+        self.recheck_note.pack(anchor='w', pady=(8, 0))
         row = tk.Frame(box, bg=BG); row.pack(anchor='w', pady=(22, 0))
+        if error is None and stage == 'complete_unconfirmed':
+            PixelButton(row, 'CHECK AGAIN', self.check_again, self.f_pixel, 'primary').pack(side='left', padx=(0, 10))
         if Path(folder).is_dir():
             PixelButton(row, 'OPEN FOLDER', lambda: self.open_folder(folder), self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
         PixelButton(row, 'COPY LOG', self.copy_log, self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
         if error is not None:
             PixelButton(row, 'HELP', lambda: webbrowser.open(DOCS), self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
-        PixelButton(row, 'START OVER', self.show_home, self.f_pixel, 'primary').pack(side='left')
+        PixelButton(row, 'START OVER', self.show_home, self.f_pixel,
+                    'secondary' if error is None and stage == 'complete_unconfirmed' else 'primary').pack(side='left')
+
+    def check_again(self):
+        if self.busy:
+            return
+        self.busy = True
+        self.recheck_note.configure(text='Asking the Chromatic… (up to a minute)', fg=MUTED)
+        folder = self.folder
+
+        def worker():
+            try:
+                ok, found = core.recheck(folder)
+            except (OSError, ValueError) as exc:
+                ok, found = False, str(exc)
+            self.events.put(('recheck', (ok, found)))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def rechecked(self, result):
+        ok, found = result
+        if ok:
+            self.log('Confirmed after the power cycle: ' + json.dumps(found))
+            self.save_log(self.folder)
+            self.finished(None)
+        elif isinstance(found, dict):
+            self.recheck_note.configure(fg=AMBER, text='The Chromatic answered, but with other versions: MCU %s, FPGA %s. '
+                                        'Try Uninstall or Restore backup again.' % (found.get('mcu'), found.get('fpga')))
+        else:
+            self.recheck_note.configure(fg=AMBER, text='No answer yet. Make sure it is switched on, plugged in and showing '
+                                        'its menu, then press CHECK AGAIN.')
 
     def open_folder(self, folder):
         try:
@@ -568,6 +601,10 @@ class App:
                 changed = True
             elif kind == 'finished':
                 self.finished(payload)
+            elif kind == 'recheck':
+                self.busy = False
+                if self.mode == 'finished':
+                    self.rechecked(payload)
         if changed and self.mode == 'running':
             self.draw_steps(); self.draw_progress()
         self.root.after(100, self.poll)
