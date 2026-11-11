@@ -476,3 +476,50 @@ class Reconnect(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class StockConsoleWindow(unittest.TestCase):
+    """The stock console only answers for a few seconds after a restart (seen on Windows)."""
+
+    def fake_serial(self, answers_without_reset):
+        reply = b'mcu> fwversion { "mcu": "v0.13.8", "fpga": "18.38", "chromatic": "v4.6" }\r\nmcu> '
+        log = []
+
+        class Port:
+            def __init__(self, **kw):
+                self.baudrate = kw['baudrate']; self.rts = False; self.dtr = False
+                self.pending = b''; self.restarted = False
+                self._rts = False
+            def __setattr__(self, name, value):
+                if name == 'rts' and getattr(self, '_rts', False) and not value:
+                    object.__setattr__(self, 'restarted', True); log.append('restart')
+                if name == 'rts':
+                    object.__setattr__(self, '_rts', value)
+                object.__setattr__(self, name, value)
+            def open(self):
+                log.append(('open', self.baudrate))
+            def read(self, n):
+                out, self.pending = self.pending, b''
+                return out
+            def write(self, data):
+                if self.baudrate == 115200 and (self.restarted or answers_without_reset):
+                    self.pending += reply
+            def flush(self):
+                pass
+            def close(self):
+                pass
+        return Port, log
+
+    def test_restarts_and_asks_when_plain_read_is_ignored(self):
+        Port, log = self.fake_serial(answers_without_reset=False)
+        with patch('serial.Serial', Port), patch.object(core, 'RESET_LISTEN', 1):
+            v = core.version('COM4', timeout=1)
+        self.assertEqual(v['mcu'], 'v0.13.8')
+        self.assertIn('restart', log)
+
+    def test_no_restart_when_console_answers(self):
+        Port, log = self.fake_serial(answers_without_reset=True)
+        with patch('serial.Serial', Port):
+            v = core.version('COM4', timeout=1)
+        self.assertEqual(v['fpga'], '18.38')
+        self.assertNotIn('restart', log)

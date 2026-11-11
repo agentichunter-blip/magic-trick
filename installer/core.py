@@ -69,47 +69,71 @@ def device_ports():
 
 def version(port, timeout=20, trace=None):
     """Ask the running firmware for its versions. Opening the port can restart the MCU.
-    trace, if given, receives raw console text and any errors (used by --status)."""
-    import serial
-    for baud in (115200, 2000000):
+    trace, if given, receives raw console text and any errors (used by --status).
+
+    The stock console only takes commands for a few seconds after its first prompt, then
+    ignores input until the next reset. Windows often opens the port too late for that,
+    so if a plain read gets no answer, restart the MCU with the port open and ask right away."""
+    for baud, reset, listen in ((115200, False, timeout), (115200, True, RESET_LISTEN), (2000000, False, timeout)):
         try:
-            p = serial.Serial(port=None, baudrate=baud, timeout=.1, write_timeout=2)
-            p.dtr = False; p.rts = False; p.port = port   # stock firmware's console is silent with DTR on
-            p.open()
+            found = _ask_version(port, baud, reset, listen, trace)
         except (OSError, ValueError) as exc:
             if trace: trace(f'[{baud}] open failed: {exc}')
             continue
-        data = b''; last = 0; deadline = time.monotonic() + timeout
-        try:
-            while time.monotonic() < deadline:
-                try:
-                    chunk = p.read(4096)
-                except (OSError, ValueError) as exc:
-                    if trace: trace(f'[{baud}] read failed: {exc}')
-                    break
-                if chunk and trace:
-                    trace(f'[{baud}] ' + chunk.decode('ascii', errors='replace'))
-                data = (data + chunk)[-65536:]
-                for match in re.findall(rb'\{[^{}]+\}', data):
-                    try:
-                        obj = json.loads(match)
-                        if all(isinstance(obj.get(k), str) for k in ('mcu', 'fpga', 'chromatic')):
-                            return obj
-                    except (ValueError, UnicodeDecodeError):
-                        pass
-                if time.monotonic() - last > 1:
-                    last = time.monotonic()
-                    try:
-                        # Ctrl-U clears a half-typed line; works on Magic Trick and stock consoles.
-                        p.write(b'\x15\rfwversion\r'); p.flush()
-                    except (OSError, ValueError) as exc:   # a write timeout must not end the attempt
-                        if trace: trace(f'[{baud}] write failed: {exc}')
-        finally:
-            try:
-                p.close()
-            except (OSError, ValueError):
-                pass
+        if found is not None:
+            return found
     raise ValueError('No firmware version response.')
+
+
+RESET_LISTEN = 10   # seconds to listen after restarting the MCU
+
+
+def _set_rts(p, state):
+    p.rts = state
+    p.dtr = p.dtr   # Windows usbser.sys only sends the new RTS state along with a DTR update (as esptool does)
+
+
+def _ask_version(port, baud, reset, listen, trace):
+    import serial
+    tag = f'[{baud}{" after restart" if reset else ""}] '
+    p = serial.Serial(port=None, baudrate=baud, timeout=.1, write_timeout=2)
+    p.dtr = False; p.rts = False; p.port = port   # stock firmware's console is silent with DTR on
+    p.open()
+    try:
+        if reset:   # esptool's hard reset: RTS pulls the MCU's EN low
+            if trace: trace(tag + 'restarting the MCU')
+            _set_rts(p, True); time.sleep(.1); _set_rts(p, False)
+        every = .3 if reset else 1
+        data = b''; last = 0; deadline = time.monotonic() + listen
+        while time.monotonic() < deadline:
+            try:
+                chunk = p.read(4096)
+            except (OSError, ValueError) as exc:
+                if trace: trace(tag + f'read failed: {exc}')
+                return None
+            if chunk and trace:
+                trace(tag + chunk.decode('ascii', errors='replace'))
+            data = (data + chunk)[-65536:]
+            for match in re.findall(rb'\{[^{}]+\}', data):
+                try:
+                    obj = json.loads(match)
+                    if all(isinstance(obj.get(k), str) for k in ('mcu', 'fpga', 'chromatic')):
+                        return obj
+                except (ValueError, UnicodeDecodeError):
+                    pass
+            if time.monotonic() - last > every:
+                last = time.monotonic()
+                try:
+                    # Ctrl-U clears a half-typed line; works on Magic Trick and stock consoles.
+                    p.write(b'\x15\rfwversion\r'); p.flush()
+                except (OSError, ValueError) as exc:   # a write timeout must not end the attempt
+                    if trace: trace(tag + f'write failed: {exc}')
+        return None
+    finally:
+        try:
+            p.close()
+        except (OSError, ValueError):
+            pass
 
 
 def known_running(v):
@@ -404,7 +428,7 @@ def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
                 if asked:
                     log('The Chromatic hasn\'t confirmed its version yet; asking again (up to 3 minutes).')
                 asked = True
-                waited += 20   # version() listens for up to about 20 s
+                waited += 50   # version() listens for up to about 50 s
                 after = version(ports[0])
             elif not said:
                 log('Waiting for the Chromatic to reconnect. The first time, Windows may set up drivers; '

@@ -432,7 +432,7 @@ class App:
         left_text = 'ABOUT %d MIN LEFT' % max(1, math.ceil(left)) if fraction < 0.95 else 'ALMOST THERE'
         if self.current == 'confirm' and time.monotonic() - self.step_started > 75:
             left_text = 'CHECKING…'
-        self.stats.configure(text='%d%%   ·   %d:%02d   ·   %s' % (int(fraction * 100), elapsed // 60, elapsed % 60, left_text))
+        self.stats.configure(text='%d%% · %d:%02d · %s' % (int(fraction * 100), elapsed // 60, elapsed % 60, left_text))
         key = self.current
         if key in STEPS:
             name, text, _ = STEPS[key]
