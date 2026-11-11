@@ -144,7 +144,7 @@ class App:
 
     def build_footer(self):
         bar = tk.Frame(self.root, bg=BG); bar.pack(fill='x', side='bottom', padx=28, pady=(6, 16))
-        for text, url in [('Installation & recovery', DOCS), ('Source & credits', SOURCE), ('Support on Ko-fi', KOFI)]:
+        for text, url in [('Installation & recovery', DOCS), ('Source & credits', SOURCE), ('Support my work', KOFI)]:
             link = self.label(bar, text, self.f_small, MUTED, cursor='hand2')
             link.pack(side='left', padx=(0, 18))
             link.bind('<Button-1>', lambda e, u=url: webbrowser.open(u))
@@ -526,6 +526,11 @@ class App:
         self.label(box, word, self.f_pixel_huge, colour).pack(anchor='w')
         self.label(box, lines, self.f_body_big, INK, wrap=820).pack(anchor='w', pady=(14, 0))
         self.label(box, extra, self.f_body, MUTED, wrap=820).pack(anchor='w', pady=(12, 0))
+        if error is None and stage != 'complete_unconfirmed' and self.operation == 'install':
+            support = self.label(box, 'Enjoying Magic Trick? It\'s free forever. If it made your Chromatic better, '
+                                 'support my work: ko-fi.com/ryansag', self.f_body, ACCENT, wrap=820, cursor='hand2')
+            support.pack(anchor='w', pady=(12, 0))
+            support.bind('<Button-1>', lambda e: webbrowser.open(KOFI))
         self.recheck_note = self.label(box, '', self.f_body, AMBER, wrap=820)
         self.recheck_note.pack(anchor='w', pady=(8, 0))
         row = tk.Frame(box, bg=BG); row.pack(anchor='w', pady=(22, 0))

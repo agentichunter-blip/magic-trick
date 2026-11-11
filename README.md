@@ -9,7 +9,7 @@
   <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.3">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
-  <a href="https://ko-fi.com/ryansag">Tip on Ko-fi</a>
+  <a href="https://ko-fi.com/ryansag">Support my work</a>
 </p>
 
 # Magic Trick
