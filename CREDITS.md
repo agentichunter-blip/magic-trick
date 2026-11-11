@@ -45,3 +45,4 @@ Additional authors are identified in the source headers. Those notices are prese
 See [mcu/LICENSE](mcu/LICENSE), [fpga/LICENSE](fpga/LICENSE), and individual source notices. This mod does not replace upstream license terms or remove upstream attribution.
 
 [SOURCE_SNAPSHOT.json](SOURCE_SNAPSHOT.json) records the upstream component revisions. This repository starts with a clean source import rather than reproducing the upstream Git history; the original ChroMagic repository linked above remains the reference for that history.
+- **Unscii** by viznut (public domain): the pixel font in the installer window (`installer/assets/unscii-8.ttf`).

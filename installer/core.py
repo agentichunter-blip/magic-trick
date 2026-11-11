@@ -19,6 +19,18 @@ STOCK_APP = (0x10000, 0x100000)
 THREE_SYSTEMS_APP = (0x260000, 0x1A0000)
 DATA_PARTITIONS = [(1, 2, 0x9000, 0x6000), (1, 1, 0xF000, 0x1000)]   # nvs, phy_init
 SLOT_GB, SLOT_GG = 0x000000, 0x100000
+# Progress events for the installer window: emit('plan', steps=[...]) and emit('step', key=...).
+EVENT_HOOK = None
+
+
+def emit(kind, **data):
+    if EVENT_HOOK is not None:
+        try:
+            EVENT_HOOK(kind, data)
+        except Exception:
+            pass
+
+
 TARGET = {'mcu': 'v' + RELEASE, 'fpga': '50.1', 'chromatic': 'Magic Trick 1.0 beta'}
 # A JTAG reset boots the slot the running core points to next, so after installation
 # either core may be running; a real power-on always starts the Game Boy core.
@@ -324,6 +336,7 @@ class Session:
         (self.folder / 'installation.json').write_text(json.dumps(self.state, indent=2))
 
     def backup(self):
+        emit('step', key='backup')
         self.folder.mkdir(parents=True, exist_ok=False)
         path = self.folder / 'mcu-backup.bin'
         self.log('Backing up the 4 MiB MCU flash. Keep USB and power connected.')
@@ -339,6 +352,7 @@ class Session:
 
 
 def preconditions(port, log, keys):
+    emit('step', key='check')
     files = check_images(keys)
     if device_ports() != [port]:
         raise ValueError('Connect exactly one Chromatic and select its USB port. Nothing was written.')
@@ -359,6 +373,7 @@ CONFIRM_WINDOW = 180   # seconds; Windows may install drivers for a new USB layo
 def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
     """Restart and wait for the expected versions. The serial port is looked up again each time:
     its name can change (Windows gives the stock firmware's USB layout a new COM number)."""
+    emit('step', key='confirm')
     fpga.reset(log)
     sleep(8)
     after, waited, said = None, 8, False
@@ -391,9 +406,12 @@ def install(port, backup_dir, log, sleep=time.sleep):
     # slot 1 is partly erased the engine keeps reading it and blocks further flash access,
     # so slot 1 must only be written while a non-multiboot image is in slot 0.
     multiboot_in_slot0 = layout == 'three-systems' or (running is not None and running.get('fpga', '').startswith('50.'))
+    emit('plan', steps=['check', 'backup', 'mcu'] + (['fpga_chromagic'] if multiboot_in_slot0 else []) +
+         ['fpga_gg', 'fpga_gb'] + (['table'] if layout == 'stock' else []) + ['confirm'])
 
     # 1. MCU application at 0x260000. On the stock layout this region is unused and
     #    the old table still boots the old app, so nothing changes yet.
+    emit('step', key='mcu')
     s.checkpoint('mcu_write_started')
     log('Writing the Magic Trick MCU application.')
     write_and_verify(port, THREE_SYSTEMS_APP[0], files['mcu'], log)
@@ -405,6 +423,7 @@ def install(port, backup_dir, log, sleep=time.sleep):
         steps.insert(0, ('fpga_chromagic', SLOT_GB, 'temporary ChroMagic'))
     try:
         for key, offset, label in steps:
+            emit('step', key=key)
             s.checkpoint(f'fpga_{key}_started')
             log(f'Writing the {label} FPGA core. This can take several attempts; keep USB and power connected.')
             attempts = fpga.flash(files[key], offset, log, sleep=sleep)
@@ -416,6 +435,7 @@ def install(port, backup_dir, log, sleep=time.sleep):
     port = wait_for_device(log, sleep)
     # 3. Partition table last: this switches the MCU to the new application.
     if layout == 'stock':
+        emit('step', key='table')
         s.checkpoint('table_write_started')
         log('Switching the MCU to the new partition layout.')
         write_and_verify(port, TABLE_OFFSET, files['table_three_systems'], log)
@@ -439,6 +459,8 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
         s.checkpoint('no_previous_app')
         raise ValueError('No earlier application was found at 0x10000 to restore. Nothing was written. '
                          'Open a GitHub issue with installation.json.')
+    emit('plan', steps=['check', 'backup', 'fpga_chromagic', 'table', 'confirm'])
+    emit('step', key='fpga_chromagic')
     s.checkpoint('fpga_started', restoring_app=previous[1])
     log('Writing the ChroMagic 1.0.1 FPGA to slot 0. This can take several attempts.')
     try:
@@ -448,6 +470,7 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
         raise ValueError('The FPGA write did not finish. Run the uninstaller again. ' + str(exc)) from exc
     s.checkpoint('fpga_verified', fpga_attempts=attempts)
     port = wait_for_device(log, sleep)
+    emit('step', key='table')
     log('Restoring the standard partition layout (application ' + previous[1] + ').')
     write_and_verify(port, TABLE_OFFSET, files['table_stock'], log)
     s.checkpoint('table_restored')
@@ -509,6 +532,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
     Unlike install and uninstall this does not require the device's current flash to be valid,
     so it also recovers an interrupted partition-table write. The USB serial port comes from the
     FPGA, so the FPGA is written first (over JTAG, which works whatever the FPGA flash holds)."""
+    emit('step', key='check')
     data, app = check_restore_backup(backup_file)
     files = check_images(['fpga_chromagic'])
     fpga.preflight(log)
@@ -524,7 +548,9 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
     ports = device_ports()
     if len(ports) > 1:
         raise ValueError('Connect exactly one Chromatic. Nothing was written.')
+    emit('plan', steps=['check'] + (['precopy'] if ports else []) + ['fpga_chromagic', 'mcu_restore', 'confirm'])
     if ports:
+        emit('step', key='precopy')
         # Keep a raw copy of the flash as it is now, valid or not, before overwriting it.
         log('Saving the current 4 MiB MCU flash (it may be damaged; it is kept only as a precaution).')
         try:
@@ -538,6 +564,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
         checkpoint('no_serial_port')
         log('No USB serial port yet (the FPGA is not running). Repairing the FPGA first.')
 
+    emit('step', key='fpga_chromagic')
     checkpoint('fpga_started')
     log('Writing the ChroMagic 1.0.1 FPGA to slot 0. This can take several attempts.')
     try:
@@ -551,6 +578,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
     # The bootloader (below 0x8000) is never changed by this installer, so leave it alone.
     image_path = folder / 'restore-0x8000.bin'
     image_path.write_bytes(data[TABLE_OFFSET:])
+    emit('step', key='mcu_restore')
     checkpoint('mcu_write_started')
     log('Writing the saved MCU flash (partition table, settings and application ' + app + '). '
         'This takes a few minutes; keep USB and power connected.')
