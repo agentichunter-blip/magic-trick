@@ -26,11 +26,14 @@ Every run of the installer saves a full MCU backup in a new folder: `Magic-Trick
 | The installer stopped with an error during install or update | Run **Back up & install / update** again. It picks up where it left off. |
 | An FPGA write failed after all its attempts | Unplug, power-cycle, reconnect, then run the same operation again. |
 | The screen stays dark after a failed FPGA write | Run the installer again. If no Chromatic port is listed, use **Restore backup** (it doesn't need one). |
+| "The USB programmer stopped responding" or "The FPGA isn't answering", or the screen goes dark while the cable is plugged in | Unplug the USB cable, wait 5 seconds, plug it back in with the Chromatic switched on, then run the same operation again. |
 | The installer refuses with "partition table checksum" or "unsupported layout" | Use **Restore backup**. |
 | The Chromatic starts but Status shows the wrong versions | Run **Back up & install / update** again, or **Uninstall**. |
 | You want Magic Trick gone | **Uninstall**, then ModRetro's updater if you want full stock. |
 | Uninstall refuses ("no earlier application") | Use **Restore backup**. |
 | ModRetro's updater or ChroMagician fails on the FPGA | Expected while Magic Trick is installed. **Uninstall** (or **Restore backup**) first. |
+
+**A faint high-pitched whine during install, update or restore is normal.** It starts while the MCU is held in programming mode (most likely the power circuitry) and stops when the installer finishes. Don't unplug because of it.
 
 ## The steps, in order
 
@@ -76,7 +79,9 @@ Please don't try `esptool erase_flash`, other people's flash dumps, or random FP
 | Restore backup from an installed Magic Trick 1.0 | Yes |
 | Restore backup after an interrupted partition-table write (installer refused the device) | Yes |
 | Restore backup with a blank FPGA slot 0 (dark screen, no USB serial port) | Yes |
-| Install from stock 4.x, and Uninstall/Restore back to stock firmware | Not yet |
+| Install from stock 4.6 | Yes |
+| Uninstall back to the stock application, then ModRetro's updater to full stock | Yes |
+| Restore backup, then ModRetro's updater to full stock | Yes |
 | Windows and Linux installers | Not yet |
 
 This is a beta tested on a small number of devices. If your situation isn't covered here, stop and open an issue before you try anything else.

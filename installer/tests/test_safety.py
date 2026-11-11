@@ -89,6 +89,10 @@ class Programmer(unittest.TestCase):
         with patch.object(fpga, 'run', side_effect=['1.1.1', '1 2 0x33aa:0x0120', 'GW5A-25']): fpga.preflight(lambda s: None)
         with patch.object(fpga, 'run', side_effect=['1.1.1', '1 2 0x33aa:0x0120\n1 3 0x33aa:0x0120']):
             with self.assertRaises(ValueError): fpga.preflight(lambda s: None)
+        for silent in ['User requested: 6000000 real frequency is 6000000', 'found 0 devices']:
+            with patch.object(fpga, 'run', side_effect=['1.1.1', '1 2 0x33aa:0x0120', silent]):
+                with self.assertRaises(ValueError) as ctx: fpga.preflight(lambda s: None)
+            self.assertIn('unplug', str(ctx.exception))
 
     def test_retries_until_success(self):
         calls = []
@@ -105,6 +109,24 @@ class Programmer(unittest.TestCase):
         with patch.object(fpga, 'run', side_effect=fpga.ProgrammerError('x')), patch.object(fpga, 'reset'):
             with self.assertRaises(fpga.ProgrammerError):
                 fpga.flash('img.fs', 0, lambda s: None, attempts=3, sleep=lambda s: None)
+
+    def test_stuck_programmer_stops_early(self):
+        calls = []
+        def run(args, log, timeout=0):
+            calls.append(args); raise fpga.ProgrammerError('x', 'Error: no device found')
+        with patch.object(fpga, 'run', side_effect=run), patch.object(fpga, 'reset'):
+            with self.assertRaises(fpga.ProgrammerStuck) as ctx:
+                fpga.flash('img.fs', 0, lambda s: None, sleep=lambda s: None)
+        self.assertEqual(len(calls), 2); self.assertIn('Unplug the USB cable', str(ctx.exception))
+
+    def test_ordinary_failures_still_retry(self):
+        outputs = ['Error: write to flash failed', 'Error: no device found', 'write to flash failed', 'ok']
+        def run(args, log, timeout=0):
+            out = outputs.pop(0)
+            if out != 'ok': raise fpga.ProgrammerError('x', out)
+            return out
+        with patch.object(fpga, 'run', side_effect=run), patch.object(fpga, 'reset'):
+            self.assertEqual(fpga.flash('img.fs', 0, lambda s: None, sleep=lambda s: None), 4)
 
     def test_rejects_unaligned_slot(self):
         with self.assertRaises(ValueError): fpga.flash('img.fs', 0x1000, lambda s: None)

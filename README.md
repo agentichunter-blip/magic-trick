@@ -41,7 +41,7 @@ Download **[Magic Trick Installer 1.0.0-beta.1](https://github.com/agentichunter
 
 - **Updates take 10–15 minutes.** FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
-- **Beta:** hardware-tested on one Chromatic (install from ChroMagic, updates, uninstall, core switching). A fresh install from stock 4.x and the Windows/Linux apps haven't been tested on hardware yet.
+- **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching). The Windows/Linux apps haven't been tested on hardware yet.
 
 ### Build from source
 

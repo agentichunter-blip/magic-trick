@@ -53,6 +53,6 @@ The full step-by-step is in the [recovery guide](../docs/recovery.md).
 
 ## Status
 
-**Beta.** Hardware-tested on one Chromatic: uninstall to ChroMagic, a fresh install from ChroMagic, and an update of an installed device, with switching between Game Boy and Game Gear games in both directions. A fresh install from stock 4.x firmware hasn't been tested on hardware. The packages are unsigned and the Mac apps aren't notarized. One Game Gear FPGA timing path is marginal; the core runs correctly on the test device.
+**Beta.** Hardware-tested on one Chromatic with the Mac app: install from stock 4.6 and from ChroMagic, updates, uninstall (to ChroMagic and to stock), Restore backup, and ModRetro's updater returning the device to stock afterwards, with switching between Game Boy and Game Gear games in both directions. The Windows and Linux apps haven't been tested on hardware. The packages are unsigned and the Mac apps aren't notarized. One Game Gear FPGA timing path is marginal; the core runs correctly on the test device.
 
 Source and credits: https://github.com/agentichunter-blip/magic-trick. Based on CursedToast's ChroMagic and ModRetro's open-source firmware. Installer source is GPL-3.0; bundled tools keep their own licenses (programmer/licenses). Optional donations: https://ko-fi.com/ryansag
