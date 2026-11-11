@@ -161,7 +161,20 @@ class App:
     def show_home(self):
         self.clear(); self.mode = 'home'
         self.label(self.screen, 'Game Boy, Game Boy Color and Game Gear on one Chromatic. What would you like to do?',
-                   self.f_body_big, INK, wrap=840).pack(anchor='w', pady=(4, 10))
+                   self.f_body_big, INK, wrap=840).pack(anchor='w', pady=(4, 8))
+        note = tk.Frame(self.screen, bg=BG); note.pack(fill='x')
+        self.label(note, '! BETA: installed at your own risk. Magic Trick isn\'t made or supported by ModRetro and may '
+                   'void your warranty. Read "Installation & recovery" first, and keep the backup folder from your '
+                   'first install somewhere safe (not a cloud folder).', self.f_body, AMBER, wrap=840).pack(anchor='w')
+        if sys.platform == 'win32':
+            self.label(note, 'Windows: before your first install, install ModRetro\'s Chromatic Firmware Updater, run '
+                       'its USB driver setup once, then close it completely.', self.f_body, MUTED,
+                       wrap=840).pack(anchor='w', pady=(6, 0))
+        self.consent = getattr(self, 'consent', False)
+        self.check = self.label(self.screen, '', self.f_pixel, INK, cursor='hand2')
+        self.check.pack(anchor='w', pady=(10, 8))
+        self.check.bind('<Button-1>', lambda e: self.toggle_consent())
+        self.draw_consent()
         self.tiles = {}
         for key, title, text, kind in [
                 ('install', 'INSTALL / UPDATE', 'Put Magic Trick 1.0 beta on your Chromatic, or update it. Works from '
@@ -179,21 +192,18 @@ class App:
             button = PixelButton(tile, 'START ▶', (lambda k=key: self.begin(k)), self.f_pixel, kind)
             button.pack(side='right', padx=16)
             self.tiles[key] = button
-
-        note = tk.Frame(self.screen, bg=BG); note.pack(fill='x', pady=(10, 0))
-        self.label(note, '! BETA: installed at your own risk. Magic Trick isn\'t made or supported by ModRetro and may '
-                   'void your warranty. Read "Installation & recovery" first, and keep the backup folder from your '
-                   'first install somewhere safe (not a cloud folder).', self.f_body, AMBER, wrap=840).pack(anchor='w')
-        if sys.platform == 'win32':
-            self.label(note, 'Windows: before your first install, install ModRetro\'s Chromatic Firmware Updater, run '
-                       'its USB driver setup once, then close it completely.', self.f_body, MUTED,
-                       wrap=840).pack(anchor='w', pady=(6, 0))
-        self.consent = getattr(self, 'consent', False)
-        self.check = self.label(self.screen, '', self.f_pixel, INK, cursor='hand2')
-        self.check.pack(anchor='w', pady=(12, 0))
-        self.check.bind('<Button-1>', lambda e: self.toggle_consent())
-        self.draw_consent()
         self.refresh_device()
+        self.fit_window()
+
+    def fit_window(self):
+        """Grow the window to fit its content (high-DPI Windows needs more room), within the screen."""
+        self.root.update_idletasks()
+        want_w = max(self.root.winfo_width(), self.root.winfo_reqwidth())
+        want_h = max(self.root.winfo_height(), self.root.winfo_reqheight())
+        max_h = self.root.winfo_screenheight() - 80
+        if want_h > self.root.winfo_height() or want_w > self.root.winfo_width():
+            self.root.geometry('%dx%d' % (want_w, min(want_h, max_h)))
+        self.root.minsize(min(want_w, self.root.winfo_screenwidth()), min(want_h, max_h))
 
     def toggle_consent(self):
         self.consent = not self.consent
