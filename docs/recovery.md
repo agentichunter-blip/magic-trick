@@ -23,6 +23,7 @@ Every run of the installer saves a full MCU backup in a new folder: `Magic-Trick
 
 | What you see | Do this |
 |---|---|
+| The installer ends on **ALMOST DONE** (common on Windows after Uninstall or Restore) | Everything was written and verified; only the final check couldn't reach the firmware. Turn the Chromatic off and on, wait for its menu, then press **CHECK AGAIN**. |
 | The installer stopped with an error during install or update | Run **Back up & install / update** again. It picks up where it left off. |
 | An FPGA write failed after all its attempts | Unplug, power-cycle, reconnect, then run the same operation again. |
 | The screen stays dark after a failed FPGA write | Run the installer again. If no Chromatic port is listed, use **Restore backup** (it doesn't need one). |
@@ -82,6 +83,8 @@ Please don't try `esptool erase_flash`, other people's flash dumps, or random FP
 | Install from stock 4.6 | Yes |
 | Uninstall back to the stock application, then ModRetro's updater to full stock | Yes |
 | Restore backup, then ModRetro's updater to full stock | Yes |
-| Windows and Linux installers | Not yet |
+| Windows x64: install from stock, update, uninstall to stock (needs ModRetro's USB driver setup first) | Yes |
+| Windows: CHECK AGAIN after an ALMOST DONE ending | Not yet |
+| Linux installer | Not yet |
 
 This is a beta tested on a small number of devices. If your situation isn't covered here, stop and open an issue before you try anything else.
