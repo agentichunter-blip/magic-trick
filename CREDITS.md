@@ -35,6 +35,7 @@ Additional authors are identified in the source headers. Those notices are prese
 
 - **Espressif ESP-IDF** and **LVGL** provide the firmware framework and UI library. Build dependencies retain their own licenses and notices.
 - The desktop installer bundles **[esptool](https://github.com/espressif/esptool)** (Espressif), **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)** (Gwenhael Goavec-Merou and contributors), **[libusb](https://libusb.info/)**, **Python** and **PyInstaller** output. Their licenses ship in the installer's `programmer/licenses` folder; corresponding sources are linked from each release.
+- **Unscii** by viznut (public domain): the pixel font in the installer window (`installer/assets/unscii-8.ttf`).
 - The system picker and boot animation name Game Boy, Game Boy Color and Game Gear in plain text; no Nintendo or Sega logo artwork is included. Nintendo and Sega trademarks remain theirs.
 - The Wi-Fi transfer page's pairing words come from the [EFF short wordlist](https://www.eff.org/files/2016/09/08/eff_short_wordlist_1.txt) (CC BY 4.0, Electronic Frontier Foundation). The Wi-Fi server uses ESP-IDF's HTTP server and cJSON (MIT).
 - **libretro-database contributors** provide the optional external cheat database used by the pack compiler. See [cheat preparation and attribution](docs/cheats.md). No database or generated cheat pack is bundled.
@@ -45,4 +46,3 @@ Additional authors are identified in the source headers. Those notices are prese
 See [mcu/LICENSE](mcu/LICENSE), [fpga/LICENSE](fpga/LICENSE), and individual source notices. This mod does not replace upstream license terms or remove upstream attribution.
 
 [SOURCE_SNAPSHOT.json](SOURCE_SNAPSHOT.json) records the upstream component revisions. This repository starts with a clean source import rather than reproducing the upstream Git history; the original ChroMagic repository linked above remains the reference for that history.
-- **Unscii** by viznut (public domain): the pixel font in the installer window (`installer/assets/unscii-8.ttf`).
