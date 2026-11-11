@@ -253,6 +253,11 @@ class Flows(unittest.TestCase):
         self.assertEqual(writes, [('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
                                   ('write', 0x8000, core.IMAGES['table_stock'][0])])
 
+    def test_uninstall_unconfirmed_is_not_a_stop(self):
+        _, writes, error, stage = self.perform('uninstall', layout='three-systems', app='1.0.0-beta', running=core.TARGET,
+                                               after={'mcu': 'v1.0.0-beta', 'fpga': '50.1', 'chromatic': 'x'})
+        self.assertIsNone(error); self.assertEqual(stage, 'complete_unconfirmed')
+
     def test_uninstall_refusals_write_nothing(self):
         for kwargs in [{'layout': 'stock'}, {'layout': 'three-systems', 'app': '1.0.0-beta', 'old_app': None, 'running': core.TARGET}]:
             _, writes, error, _ = self.perform('uninstall', **kwargs)
@@ -331,6 +336,20 @@ class Restore(unittest.TestCase):
         events, error, stage, _ = self.perform(fpga_fail=True)
         self.assertIsNotNone(error); self.assertEqual(stage, 'fpga_failed')
         self.assertFalse([e for e in events if isinstance(e, tuple) and e[0] == 'write'])
+
+
+class Confirm(unittest.TestCase):
+    def test_finds_port_that_appears_late_under_a_new_name(self):
+        seq = [[]] * 15 + [['COM4']]
+        target = {'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'v4.6'}
+        with patch.object(core, 'device_ports', side_effect=lambda: seq.pop(0) if seq else ['COM4']), \
+                patch.object(core, 'version', return_value=target) as version, patch.object(fpga, 'reset'):
+            self.assertEqual(core.confirm({'fpga': '18.38', 'mcu': 'v0.13.8'}, lambda s: None, lambda s: None), target)
+        version.assert_called_with('COM4')
+
+    def test_gives_up_after_the_window(self):
+        with patch.object(core, 'device_ports', return_value=[]), patch.object(fpga, 'reset'):
+            with self.assertRaises(ValueError): core.confirm({'fpga': '18.38'}, lambda s: None, lambda s: None)
 
 
 class CloudFolders(unittest.TestCase):

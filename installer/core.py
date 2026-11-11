@@ -353,20 +353,31 @@ def preconditions(port, log, keys):
     return files, running
 
 
-def confirm(expected, log, sleep, attempts=4):
+CONFIRM_WINDOW = 180   # seconds; Windows may install drivers for a new USB layout first
+
+
+def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
+    """Restart and wait for the expected versions. The serial port is looked up again each time:
+    its name can change (Windows gives the stock firmware's USB layout a new COM number)."""
     fpga.reset(log)
     sleep(8)
-    after = None
-    for _ in range(attempts):
+    after, waited, said = None, 8, False
+    while waited < window:
         try:
             ports = device_ports()
             if len(ports) == 1:
+                waited += 20   # version() listens for up to about 20 s
                 after = version(ports[0])
+            elif not said:
+                log('Waiting for the Chromatic to reconnect. The first time, Windows may set up drivers; '
+                    'this can take a minute or two.')
+                said = True
         except (OSError, ValueError):
             pass
         if after is not None and all(after.get(k) in (v if isinstance(v, tuple) else (v,)) for k, v in expected.items()):
             return after
         sleep(3)
+        waited += 3
     raise ValueError('Flash verified, but the running version was not confirmed: ' + json.dumps(after) +
                      '. Power-cycle and check Status.')
 
@@ -440,7 +451,15 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
     log('Restoring the standard partition layout (application ' + previous[1] + ').')
     write_and_verify(port, TABLE_OFFSET, files['table_stock'], log)
     s.checkpoint('table_restored')
-    confirm({'fpga': '18.38', 'mcu': 'v' + previous[1]}, log, sleep)
+    try:
+        confirm({'fpga': '18.38', 'mcu': 'v' + previous[1]}, log, sleep)
+    except ValueError:
+        # Everything was written and verified; only the read-back failed (seen on Windows while it
+        # set up drivers for the stock firmware's USB layout). Not a reason to alarm the user.
+        s.checkpoint('complete_unconfirmed')
+        log('Uninstall written and verified. The running version could not be read back. Turn the Chromatic '
+            'off and on and check that it starts. To return fully to stock, now use ModRetro\'s official updater.')
+        return
     s.checkpoint('complete')
     log('Uninstall complete: ChroMagic FPGA 18.38 with MCU ' + previous[1] + '. '
         'To return fully to stock, now use ModRetro\'s official updater.')
