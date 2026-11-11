@@ -205,9 +205,13 @@ class App:
             self.root.geometry('%dx%d' % (want_w, min(want_h, max_h)))
         self.root.minsize(min(want_w, self.root.winfo_screenwidth()), min(want_h, max_h))
         if sys.platform.startswith('linux'):
-            # A fixed size makes tiling window managers (Hyprland, sway, i3) float the window at its
-            # natural size instead of squeezing it into a tile that clips the lower screens.
+            # Tiling window managers squeeze a normal window into a tile that clips the lower screens.
+            # A fixed size and the dialog window type make most of them (Hyprland, sway, i3) float it.
             self.root.resizable(False, False)
+            try:
+                self.root.wm_attributes('-type', 'dialog')
+            except tk.TclError:
+                pass
 
     def toggle_consent(self):
         self.consent = not self.consent
@@ -724,11 +728,13 @@ if __name__ == '__main__':
             print('NO VERSION:', exc)
     elif '--self-test' in sys.argv:
         self_test()
-    elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall'):
-        # Command-line mode for hardware testing: app.py --install PORT BACKUP_DIR
-        getattr(core, sys.argv[1][2:])(sys.argv[2], sys.argv[3], print)
-    elif len(sys.argv) == 4 and sys.argv[1] == '--restore':
-        # app.py --restore path/to/mcu-backup.bin NEW_FOLDER
-        core.restore(sys.argv[2], sys.argv[3], print)
+    elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall', '--restore'):
+        # Command-line mode for hardware testing: app.py --install|--uninstall PORT BACKUP_DIR,
+        # or app.py --restore path/to/mcu-backup.bin NEW_FOLDER
+        try:
+            getattr(core, sys.argv[1][2:])(sys.argv[2], sys.argv[3], print)
+        except (ValueError, OSError) as exc:
+            print('ERROR: ' + str(exc), flush=True)
+            sys.exit(1)
     else:
         App().root.mainloop()

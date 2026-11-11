@@ -267,7 +267,8 @@ def run_child(cmd, idle_timeout=None):
     reader.start()
     def last_line():
         lines = [l for l in ''.join(tail).replace('\r', '\n').splitlines() if l.strip()]
-        return lines[-1] if lines else f'exit code {proc.returncode}'
+        fatal_lines = [l for l in lines if 'A fatal error occurred' in l]   # more useful than a trailing help link
+        return (fatal_lines or lines)[-1] if lines else f'exit code {proc.returncode}'
 
     while proc.poll() is None:
         quiet = time.monotonic() - last_output[0]
@@ -386,10 +387,17 @@ def wait_for_device(log, sleep, timeout=45):
                      'then run the installer again.')
 
 
+BACKUP_ROUNDS = 3
+BACKUP_SETTLE = 60   # seconds
+NOT_PROGRAMMABLE = ('The Chromatic did not enter its programming mode, so the backup could not be read. Nothing was '
+                    'written. Turn the Chromatic off and on, stay in its menu without starting a game, wait a minute, '
+                    'then run the installer again.')
+
+
 class Session:
     """Backup folder, checkpoints and the backup itself, shared by install and uninstall."""
-    def __init__(self, port, backup_dir, log, operation):
-        self.port, self.log = port, log
+    def __init__(self, port, backup_dir, log, operation, sleep=time.sleep):
+        self.port, self.log, self.sleep = port, log, sleep
         self.folder = Path(backup_dir)
         self.state = {'operation': operation, 'release': RELEASE, 'installer': INSTALLER_VERSION, 'stage': 'starting'}
 
@@ -402,7 +410,22 @@ class Session:
         self.folder.mkdir(parents=True, exist_ok=False)
         path = self.folder / 'mcu-backup.bin'
         self.log('Backing up the 4 MiB MCU flash. Keep USB and power connected.')
-        read_flash(self.port, 0, 0x400000, path, self.log)
+        for round_ in range(1, BACKUP_ROUNDS + 1):
+            try:
+                read_flash(self.port, 0, 0x400000, path, self.log)
+                break
+            except ValueError as exc:
+                text = str(exc).lower()
+                if 'connect' not in text and 'boot mode' not in text:
+                    raise
+                if round_ == BACKUP_ROUNDS:
+                    raise ValueError(NOT_PROGRAMMABLE) from exc
+                # Seen for about a minute after Magic Trick resumed a game on the other core at
+                # power-on: every reset left the MCU outside its programming mode. It passes on its own.
+                self.log('The MCU did not enter its programming mode (the Chromatic may still be starting a game). '
+                         f'Waiting {BACKUP_SETTLE} seconds and trying again. Nothing has been written.')
+                self.sleep(BACKUP_SETTLE)
+                self.port = wait_for_device(self.log, self.sleep)
         data = path.read_bytes()
         layout, app = validate_backup(data)
         run_tool(self.port, ['verify_flash', '0x0', str(path)])
@@ -500,8 +523,9 @@ def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
 def install(port, backup_dir, log, sleep=time.sleep):
     """Install or upgrade Magic Trick 1.0 beta (MCU, both FPGA cores, partition table)."""
     files, running = preconditions(port, log, ['mcu', 'table_three_systems', 'fpga_gb', 'fpga_gg', 'fpga_chromagic'])
-    s = Session(port, backup_dir, log, 'install')
+    s = Session(port, backup_dir, log, 'install', sleep)
     _, layout, app = s.backup()
+    port = s.port   # can change if the backup had to restart the FPGA
     # A multiboot core in slot 0 points the FPGA's configuration engine at slot 1. Once
     # slot 1 is partly erased the engine keeps reading it and blocks further flash access,
     # so slot 1 must only be written while a non-multiboot image is in slot 0.
@@ -549,8 +573,9 @@ def install(port, backup_dir, log, sleep=time.sleep):
 def uninstall(port, backup_dir, log, sleep=time.sleep):
     """Restore the ChroMagic 1.0.1 FPGA and the application kept at 0x10000."""
     files, running = preconditions(port, log, ['fpga_chromagic', 'table_stock'])
-    s = Session(port, backup_dir, log, 'uninstall')
+    s = Session(port, backup_dir, log, 'uninstall', sleep)
     data, layout, _ = s.backup()
+    port = s.port   # can change if the backup had to restart the FPGA
     if layout != 'three-systems':
         s.checkpoint('nothing_to_uninstall')
         raise ValueError('Magic Trick 1.0 is not installed (standard layout found). Nothing was written.')

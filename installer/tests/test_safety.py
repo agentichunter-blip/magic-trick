@@ -488,6 +488,55 @@ class LinuxPortAccess(unittest.TestCase):
             core.check_port_access(str(port), 'linux')   # accessible: fine
         core.check_port_access('/dev/does-not-exist', 'linux')   # missing: handled elsewhere
 
+class BackupWaitsOutProgrammingModeFailures(unittest.TestCase):
+    BOOT_MODE = ValueError('The MCU tool failed: A fatal error occurred: Failed to connect to Espressif device: '
+                           'Wrong boot mode detected (0x3f)!')
+
+    def _session(self, d, slept):
+        return core.Session('/dev/old', Path(d) / 'b', lambda *a: None, 'uninstall', sleep=slept.append)
+
+    def _patches(self, read):
+        return (patch.object(core, 'read_flash', side_effect=read), patch.object(core.fpga, 'reset'),
+                patch.object(core, 'wait_for_device', return_value='/dev/new'),
+                patch.object(core, 'validate_backup', return_value=('three-systems', 'x')),
+                patch.object(core, 'run_tool'))
+
+    def test_waits_and_retries_on_the_new_port_without_restarting_fpga(self):
+        calls, slept = [], []
+        def read(port, offset, size, path, log):
+            calls.append(port)
+            if len(calls) == 1:
+                raise self.BOOT_MODE
+            Path(path).write_bytes(b'x')
+        with tempfile.TemporaryDirectory() as d:
+            s = self._session(d, slept)
+            a, reset, c, e, f = self._patches(read)
+            with a, reset as r, c, e, f:
+                s.backup()
+            r.assert_not_called()
+            self.assertEqual(calls, ['/dev/old', '/dev/new'])
+            self.assertIn(core.BACKUP_SETTLE, slept)
+            self.assertEqual(s.port, '/dev/new')
+
+    def test_gives_clear_guidance_after_the_last_round(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = self._session(d, [])
+            a, b, c, e, f = self._patches(self.BOOT_MODE)
+            with a as read, b, c, e, f:
+                with self.assertRaisesRegex(ValueError, 'stay in its menu'):
+                    s.backup()
+            self.assertEqual(read.call_count, core.BACKUP_ROUNDS)
+
+    def test_other_read_failures_are_not_retried(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = self._session(d, [])
+            a, b, c, e, f = self._patches(ValueError('Reading the MCU flash did not complete.'))
+            with a as read, b, c, e, f:
+                with self.assertRaisesRegex(ValueError, 'did not complete'):
+                    s.backup()
+            self.assertEqual(read.call_count, 1)
+
+
 if __name__ == '__main__':
     unittest.main()
 

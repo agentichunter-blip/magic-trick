@@ -29,6 +29,7 @@ Every run of the installer saves a full MCU backup in a new folder: `Magic-Trick
 | The screen stays dark after a failed FPGA write | Run the installer again. If no Chromatic port is listed, use **Restore backup** (it doesn't need one). |
 | "The USB programmer stopped responding" or "The FPGA isn't answering", or the screen goes dark while the cable is plugged in | Unplug the USB cable, wait 5 seconds, plug it back in with the Chromatic switched on, then run the same operation again. |
 | Linux: "This user can't open the Chromatic's serial port" or "USB programmer isn't accessible" | Nothing was written. Add the udev rule from [Linux: USB permissions](../installer/README.md#linux-usb-permissions), replug the Chromatic, then run the same operation again. |
+| "The Chromatic did not enter its programming mode" | Nothing was written. Turn the Chromatic off and on, stay in its menu without starting a game, wait a minute, then run the same operation again. Seen once, within a minute after Magic Trick resumed a game on the other game system at power-on. The installer already waits and retries twice before showing this. |
 | The installer refuses with "partition table checksum" or "unsupported layout" | Use **Restore backup**. |
 | The Chromatic starts but Status shows the wrong versions | Run **Back up & install / update** again, or **Uninstall**. |
 | You want Magic Trick gone | **Uninstall**, then ModRetro's updater if you want full stock. |
@@ -87,6 +88,6 @@ Please don't try `esptool erase_flash`, other people's flash dumps, or random FP
 | Windows x64: install from stock, update, uninstall to stock (needs ModRetro's USB driver setup first) | Yes |
 | Windows: Restore backup (and refusing a Magic Trick backup) | Yes |
 | Windows: CHECK AGAIN after an ALMOST DONE ending | Not yet |
-| Linux installer | Not yet |
+| Linux x64 (Arch-based): install from stock, uninstall to stock (needs the udev rule first) | Yes |
 
 This is a beta tested on a small number of devices. If your situation isn't covered here, stop and open an issue before you try anything else.
