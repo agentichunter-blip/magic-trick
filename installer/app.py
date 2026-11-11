@@ -429,7 +429,9 @@ class App:
                 colour = PANEL
             self.bar.create_rectangle(x, 4, x + size, 30, fill=colour, outline=LINE)
         elapsed = int(time.monotonic() - self.started)
-        left_text = 'ABOUT %d MIN LEFT' % max(1, math.ceil(left)) if fraction < 0.98 else 'ALMOST THERE'
+        left_text = 'ABOUT %d MIN LEFT' % max(1, math.ceil(left)) if fraction < 0.95 else 'ALMOST THERE'
+        if self.current == 'confirm' and time.monotonic() - self.step_started > 75:
+            left_text = 'CHECKING…'
         self.stats.configure(text='%d%%   ·   %d:%02d   ·   %s' % (int(fraction * 100), elapsed // 60, elapsed % 60, left_text))
         key = self.current
         if key in STEPS:
@@ -459,6 +461,11 @@ class App:
             self.note = 'A few bytes got lost over USB, so that part is being read again. This is normal.'; return
         if 'MCU write at' in line and 'retrying' in line:
             self.note = 'The MCU write didn\'t verify, so it\'s being written again. That\'s safe.'; return
+        if 'hasn\'t confirmed its version yet' in line:
+            self.note = ('Waiting for the Chromatic to answer. This can take a few minutes the first time; '
+                         'everything has already been written and checked.')
+            self.step_fraction = None
+            return
         if 'Waiting for the Chromatic to reconnect' in line:
             self.note = 'Waiting for the Chromatic to reconnect. The first time, Windows may set up drivers; this can take a minute or two.'
 
@@ -659,6 +666,12 @@ if __name__ == '__main__':
             code = 2
         sys.stdout.flush()
         os._exit(code)
+    elif len(sys.argv) == 3 and sys.argv[1] == '--status':
+        # Read-only diagnostic: app.py --status PORT. Prints what the console says and the parsed versions.
+        try:
+            print('VERSIONS:', json.dumps(core.version(sys.argv[2], trace=lambda s: print(s, flush=True))))
+        except ValueError as exc:
+            print('NO VERSION:', exc)
     elif '--self-test' in sys.argv:
         self_test()
     elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall'):
