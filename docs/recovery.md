@@ -84,6 +84,7 @@ Please don't try `esptool erase_flash`, other people's flash dumps, or random FP
 | Uninstall back to the stock application, then ModRetro's updater to full stock | Yes |
 | Restore backup, then ModRetro's updater to full stock | Yes |
 | Windows x64: install from stock, update, uninstall to stock (needs ModRetro's USB driver setup first) | Yes |
+| Windows: Restore backup (and refusing a Magic Trick backup) | Yes |
 | Windows: CHECK AGAIN after an ALMOST DONE ending | Not yet |
 | Linux installer | Not yet |
 

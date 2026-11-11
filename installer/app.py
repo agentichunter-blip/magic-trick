@@ -488,7 +488,11 @@ class App:
                                   'to stock, use ModRetro\'s updater next.',
                      'restore': 'Your backup is back on the Chromatic. Turn it off and on. To go all the way back to '
                                 'stock, use ModRetro\'s updater next.'}[self.operation]
-            extra = 'Your backup is in: ' + folder + '\nKeep it somewhere safe and private (not a cloud folder).'
+            if self.operation == 'restore':
+                extra = ('A copy of what was on the Chromatic before the restore is in: ' + folder +
+                         '\nYour original backup stays where it was. Keep both private (not in a cloud folder).')
+            else:
+                extra = 'Your backup is in: ' + folder + '\nKeep it somewhere safe and private (not a cloud folder).'
             self.status_dot.configure(fg=GREEN); self.status_text.configure(text='ALL DONE')
         elif error is None:
             word, colour = 'ALMOST DONE', AMBER
