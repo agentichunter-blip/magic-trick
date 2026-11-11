@@ -212,6 +212,13 @@ class App:
                 self.root.wm_attributes('-type', 'dialog')
             except tk.TclError:
                 pass
+            # Without an explicit position some window managers put a floating window at 0,0,
+            # under a desktop's top bar. Centre it instead.
+            self.root.update_idletasks()
+            w, h = self.root.winfo_width(), self.root.winfo_height()
+            x = max(0, (self.root.winfo_screenwidth() - w) // 2)
+            y = max(0, (self.root.winfo_screenheight() - h) // 2)
+            self.root.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
     def toggle_consent(self):
         self.consent = not self.consent
