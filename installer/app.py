@@ -95,6 +95,12 @@ class App:
         parent = filedialog.askdirectory(title='Choose where to keep your private device backup')
         if not parent:
             return
+        service = core.cloud_service(parent)
+        if service and not messagebox.askyesno('Magic Trick', (
+                'This folder looks like it syncs to ' + service + '.\n\nThe backup holds your Chromatic\'s settings, '
+                'including any saved Wi-Fi password, and would be uploaded there. A folder that stays on this '
+                'computer (or a USB drive) is safer.\n\nUse this folder anyway?')):
+            return
         if operation == 'install':
             question = ('Install Magic Trick ' + core.RELEASE + '?\n\nThe app backs up your MCU, then writes the MCU '
                         'application, both FPGA cores and the partition table. FPGA writes often need several '
@@ -143,13 +149,28 @@ class App:
         def worker():
             try:
                 class Sink(io.TextIOBase):
-                    def write(_, s):
-                        self.log(s)
-                        return len(s)
-                    def flush(_):
+                    """Joins tool output fragments into whole lines for the log box."""
+                    def __init__(sink):
+                        sink.buffer = ''
+                    def write(sink, text):
+                        sink.buffer += text.replace('\r', '\n')
+                        *lines, sink.buffer = sink.buffer.split('\n')
+                        for line in lines:
+                            if line.strip():
+                                self.log(line)
+                        return len(text)
+                    def flush(sink):
                         pass
-                with contextlib.redirect_stdout(Sink()), contextlib.redirect_stderr(Sink()):
-                    operation()
+                    def finish(sink):
+                        if sink.buffer.strip():
+                            self.log(sink.buffer)
+                        sink.buffer = ''
+                out, err = Sink(), Sink()
+                try:
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                        operation()
+                finally:
+                    out.finish(); err.finish()
             except (Exception, SystemExit) as exc:
                 self.log('STOPPED: ' + str(exc) + '\nDo not erase the device. Your private backup: ' + str(folder) +
                          '\nSee "Installation & recovery". If install, update and uninstall keep refusing, '

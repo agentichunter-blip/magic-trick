@@ -446,6 +446,21 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
         'To return fully to stock, now use ModRetro\'s official updater.')
 
 
+CLOUD_FOLDERS = {'onedrive': 'OneDrive', 'dropbox': 'Dropbox', 'icloud': 'iCloud Drive',
+                 'mobile documents': 'iCloud Drive', 'google drive': 'Google Drive', 'googledrive': 'Google Drive',
+                 'cloudstorage': 'a cloud service', 'box sync': 'Box', 'pcloud': 'pCloud', 'mega': 'MEGA'}
+
+
+def cloud_service(path):
+    """Name of the cloud service a folder probably syncs to, or None."""
+    for part in Path(path).expanduser().parts:
+        name = part.lower()
+        for key, service in CLOUD_FOLDERS.items():
+            if name == key or name.startswith(key + ' ') or name.startswith(key + '-') or (key in ('onedrive', 'dropbox', 'icloud', 'cloudstorage', 'mobile documents') and key in name):
+                return service
+    return None
+
+
 def check_restore_backup(path):
     """Validate a backup chosen for Restore. Only a standard-layout backup (the one made before
     Magic Trick 1.0 was first installed) can be restored. Returns (data, app version)."""

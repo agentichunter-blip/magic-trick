@@ -333,6 +333,22 @@ class Restore(unittest.TestCase):
         self.assertFalse([e for e in events if isinstance(e, tuple) and e[0] == 'write'])
 
 
+class CloudFolders(unittest.TestCase):
+    def test_detects_synced_folders(self):
+        for path, service in [(r'C:\Users\a\OneDrive\Documents\backup', 'OneDrive'),
+                              (r'C:\Users\a\OneDrive - Contoso\x', 'OneDrive'),
+                              ('/Users/a/Dropbox/chromatic', 'Dropbox'),
+                              ('/Users/a/Library/Mobile Documents/com~apple~CloudDocs/x', 'iCloud Drive'),
+                              ('/Users/a/Library/CloudStorage/GoogleDrive-a@b.c/x', 'a cloud service'),
+                              ('/Users/a/Google Drive/x', 'Google Drive')]:
+            self.assertEqual(core.cloud_service(path), service, path)
+
+    def test_local_folders_pass(self):
+        for path in [r'C:\MagicTrickTest\backups', '/Users/a/Documents/chromatic', '/Volumes/USB/backup',
+                     '/home/a/megamix/backups']:
+            self.assertIsNone(core.cloud_service(path), path)
+
+
 class UsbIds(unittest.TestCase):
     def test_any_player_number_and_unbooted_mcu(self):
         for pid in (0x0100, 0x0101, 0x0102, 0x01FF):
