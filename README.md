@@ -27,7 +27,7 @@ This is an independent community project with no guaranteed support or release s
 - **Three systems:** Game Boy, Game Boy Color and Game Gear (with sound) on FPGA cores. Opening a game for the other system reloads the right core automatically.
 - **Native save states** for Game Boy and Game Boy Color: full FPGA snapshots from System → Save States, plus Menu+Up to save and Menu+Down (hold) to load. Game Gear has no save states yet.
 - **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
-- **Game Genie cheats** for Game Boy and Game Boy Color SD games. Game Gear cheats are new and not yet verified on hardware. See [cheats](docs/cheats.md).
+- **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
 - **Recent games** and **last-game startup** (hold B at power-on to skip).
 - **Wi-Fi file transfers** to and from the SD card in a web browser.
 - **Boot animation** with the Magic Trick logo.
