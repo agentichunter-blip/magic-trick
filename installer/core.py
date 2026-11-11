@@ -160,8 +160,18 @@ def esptool_command():
     return [sys.executable, '-m', 'esptool']
 
 
+def reader_command():
+    """Our resilient flash reader (read_flash_session), run as a child process."""
+    if getattr(sys, 'frozen', False):
+        return [sys.executable, '--read-flash']
+    return [sys.executable, str(Path(__file__).with_name('app.py')), '--read-flash']
+
+
 def run_tool(port, args, idle_timeout=None):
-    cmd = esptool_command() + ['--chip', 'esp32', '--port', port, '--baud', '115200'] + list(args)
+    run_child(esptool_command() + ['--chip', 'esp32', '--port', port, '--baud', '115200'] + list(args), idle_timeout)
+
+
+def run_child(cmd, idle_timeout=None):
     idle_timeout = ESPTOOL_IDLE_TIMEOUT if idle_timeout is None else idle_timeout
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if sys.platform == 'win32' else 0)
@@ -201,32 +211,73 @@ def run_tool(port, args, idle_timeout=None):
 
 
 TOOL_ATTEMPTS = 3
-READ_CHUNK = 0x40000   # 256 KiB: a dropped byte (seen over Windows USB serial) costs one short re-read
+READ_CHUNK = 0x10000      # 64 KiB per read; a failed chunk is re-read on a fresh connection
+READ_ATTEMPTS = 6
 
 
 def read_flash(port, offset, size, path, log):
-    """Read flash in chunks, retrying each, into path. Raises if a chunk keeps failing."""
+    """Read flash into path through the resilient reader child. Over Windows USB serial the
+    Chromatic's link drops the odd byte during long reads, so a single esptool read_flash of
+    4 MiB fails at a random point; reading in chunks and retrying a failed one fixes that."""
     path = Path(path)
-    parts = []
-    for start in range(offset, offset + size, READ_CHUNK):
-        length = min(READ_CHUNK, offset + size - start)
-        part = path.with_name(path.name + f'.part-{start:06x}')
-        for attempt in range(1, TOOL_ATTEMPTS + 1):
+    if path.exists():
+        path.unlink()
+    run_child(reader_command() + [port, hex(offset), hex(size), str(path)])
+    if not path.is_file() or path.stat().st_size != size:
+        raise ValueError('Reading the MCU flash did not complete. Nothing was written.')
+
+
+def read_flash_session(port, offset, size, out, chunk=READ_CHUNK, attempts=READ_ATTEMPTS, baud=115200):
+    """Runs in the child process: connect once, read chunk by chunk, reconnect and re-read a chunk
+    that fails. Writes out only when every byte has been read."""
+    import serial
+    from esptool.cmds import detect_chip
+    from esptool.util import FatalError
+    esp, data, pos, end = None, bytearray(), offset, offset + size
+
+    def connect():
+        e = detect_chip(port, baud, 'default_reset').run_stub()
+        e.flash_spi_attach(0)
+        e.flash_set_parameters(0x400000)
+        return e
+
+    def drop(e):
+        try:
+            e._port.close()
+        except Exception:
+            pass
+
+    try:
+        while pos < end:
+            n = min(chunk, end - pos)
+            for attempt in range(1, attempts + 1):
+                try:
+                    if esp is None:
+                        esp = connect()
+                    block = esp.read_flash(pos, n)
+                    if len(block) != n:
+                        raise FatalError(f'short read ({len(block)} of {n} bytes)')
+                    break
+                except (FatalError, OSError, serial.SerialException, struct.error) as exc:
+                    print(f'Read at 0x{pos:06x} failed ({exc}); reconnecting and retrying '
+                          f'(attempt {attempt} of {attempts}).', flush=True)
+                    if esp is not None:
+                        drop(esp)
+                    esp = None
+                    if attempt == attempts:
+                        raise
+                    time.sleep(1)
+            data += block
+            pos += n
+            print(f'Read {round(100 * (pos - offset) / size)}% of the MCU flash.', flush=True)
+        Path(out).write_bytes(bytes(data))
+    finally:
+        if esp is not None:
             try:
-                run_tool(port, ['read_flash', hex(start), hex(length), str(part)])
-                if part.stat().st_size != length:
-                    raise ValueError(f'short read at 0x{start:06x}')
-                break
-            except (ValueError, OSError) as exc:
-                if attempt == TOOL_ATTEMPTS:
-                    raise ValueError(f'Reading the MCU flash failed at 0x{start:06x} after {TOOL_ATTEMPTS} attempts: '
-                                     f'{exc}') from exc
-                log(f'Read at 0x{start:06x} failed ({exc}); retrying.')
-        parts.append(part)
-        log(f'Read {min(100, round(100 * (start + length - offset) / size))}% of the MCU flash.')
-    path.write_bytes(b''.join(p.read_bytes() for p in parts))
-    for part in parts:
-        part.unlink()
+                esp.hard_reset()
+            except Exception:
+                pass
+            drop(esp)
 
 
 def write_and_verify(port, offset, path, log=print):

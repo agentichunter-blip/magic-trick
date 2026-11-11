@@ -208,6 +208,17 @@ def run_esptool(args):
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == '--esptool':
         run_esptool(sys.argv[2:])
+    elif len(sys.argv) == 6 and sys.argv[1] == '--read-flash':
+        # Child process used by core.read_flash: --read-flash PORT OFFSET SIZE OUT
+        import os
+        code = 0
+        try:
+            core.read_flash_session(sys.argv[2], int(sys.argv[3], 16), int(sys.argv[4], 16), sys.argv[5])
+        except BaseException as exc:
+            print('A fatal error occurred: ' + str(exc), flush=True)
+            code = 2
+        sys.stdout.flush()
+        os._exit(code)
     elif '--self-test' in sys.argv:
         self_test()
     elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall'):

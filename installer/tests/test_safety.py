@@ -168,6 +168,7 @@ class Flows(unittest.TestCase):
                 fw_patch = patch.object(core, 'FIRMWARE_DIR', tmpfw)
             with fw_patch, patch.object(core, 'device_ports', return_value=['test'] if ports is None else ports), \
                     patch.object(core, 'version', side_effect=version), patch.object(core, 'run_tool', side_effect=tool), \
+                    patch.object(core, 'read_flash', side_effect=lambda port, off, size, path, log: tool(port, ['read_flash', hex(off), hex(size), str(path)])), \
                     patch.object(fpga, 'preflight'), patch.object(fpga, 'flash', side_effect=flash), \
                     patch.object(fpga, 'reset', side_effect=lambda log: events.append('reset')):
                 error = None
@@ -290,6 +291,7 @@ class Restore(unittest.TestCase):
             with patch.object(core, 'FIRMWARE_DIR', FW), \
                     patch.object(core, 'device_ports', side_effect=lambda: seq.pop(0) if seq else ['test']), \
                     patch.object(core, 'version', side_effect=version), patch.object(core, 'run_tool', side_effect=tool), \
+                    patch.object(core, 'read_flash', side_effect=lambda port, off, size, path, log: tool(port, ['read_flash', hex(off), hex(size), str(path)])), \
                     patch.object(fpga, 'preflight'), patch.object(fpga, 'flash', side_effect=flash), \
                     patch.object(fpga, 'reset'):
                 error = None
@@ -339,25 +341,52 @@ class UsbIds(unittest.TestCase):
             self.assertFalse(core.is_chromatic(vid, pid), (vid, pid))
 
 
-class ChunkedRead(unittest.TestCase):
-    def test_short_chunk_is_retried_then_assembled(self):
+class ResilientRead(unittest.TestCase):
+    def session(self, fail_at=(), always_fail=False):
+        from esptool.util import FatalError
         data = bytes(range(256)) * (0x400000 // 256)
-        calls = []
-        def tool(port, args):
-            start, length = int(args[-3], 16), int(args[-2], 16)
-            calls.append(start)
-            short = start == 0x80000 and calls.count(start) == 1
-            Path(args[-1]).write_bytes(data[start:start + length - (1 if short else 0)])
-        with tempfile.TemporaryDirectory() as tmp, patch.object(core, 'run_tool', side_effect=tool):
-            out = Path(tmp) / 'mcu-backup.bin'
-            core.read_flash('p', 0, 0x400000, out, lambda s: None)
-            self.assertEqual(out.read_bytes(), data)
-            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ['mcu-backup.bin'])
-        self.assertEqual(calls.count(0x80000), 2); self.assertEqual(len(calls), 17)
+        state = {'connects': 0, 'reads': []}
+        class Esp:
+            _port = type('P', (), {'close': lambda self: None})()
+            def run_stub(self): return self
+            def flash_spi_attach(self, v): pass
+            def flash_set_parameters(self, n): pass
+            def hard_reset(self): pass
+            def read_flash(self, pos, n):
+                state['reads'].append(pos)
+                if always_fail or (pos in fail_at and state['reads'].count(pos) == 1):
+                    raise FatalError('Corrupt data, expected 0x1000 bytes but received 0xfff bytes')
+                return data[pos:pos + n]
+        def detect(port, baud, mode):
+            state['connects'] += 1; return Esp()
+        import io, contextlib
+        with tempfile.TemporaryDirectory() as tmp, patch('esptool.cmds.detect_chip', side_effect=detect), \
+                patch.object(core.time, 'sleep'), contextlib.redirect_stdout(io.StringIO()):
+            out = Path(tmp) / 'b.bin'
+            try:
+                core.read_flash_session('COM3', 0, 0x400000, out)
+                return data, out.read_bytes(), state, None
+            except FatalError as exc:
+                return data, out.exists(), state, exc
 
-    def test_persistent_failure_raises(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(core, 'run_tool', side_effect=ValueError('Corrupt data')):
-            with self.assertRaises(ValueError): core.read_flash('p', 0, 0x400000, Path(tmp) / 'b.bin', lambda s: None)
+    def test_failed_chunks_are_reread_on_a_new_connection(self):
+        data, got, state, err = self.session(fail_at=(0x80000, 0x3F0000))
+        self.assertIsNone(err); self.assertEqual(got, data)
+        self.assertEqual(state['connects'], 3)
+        self.assertEqual(len(state['reads']), 64 + 2)
+
+    def test_persistent_failure_writes_nothing(self):
+        _, exists, state, err = self.session(always_fail=True)
+        self.assertIsNotNone(err); self.assertFalse(exists)
+        self.assertEqual(state['connects'], core.READ_ATTEMPTS)
+
+    def test_parent_checks_size(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 'b.bin'
+            with patch.object(core, 'run_child', side_effect=lambda cmd, t=None: Path(cmd[-1]).write_bytes(bytes(0x400000))):
+                core.read_flash('COM3', 0, 0x400000, out, print)
+            with patch.object(core, 'run_child', side_effect=lambda cmd, t=None: Path(cmd[-1]).write_bytes(bytes(10))):
+                with self.assertRaises(ValueError): core.read_flash('COM3', 0, 0x400000, out, print)
 
 
 class EsptoolProcess(unittest.TestCase):
