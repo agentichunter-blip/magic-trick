@@ -141,8 +141,10 @@ class Flows(unittest.TestCase):
             folder = Path(tmp) / 'backup'
             def tool(port, args):
                 if 'read_flash' in args:
-                    Path(args[-1]).write_bytes(b'partial' if corrupt_backup else bytes(backup(layout, app, old_app)))
-                    events.append('read_flash'); return
+                    start, length = int(args[-3], 16), int(args[-2], 16)
+                    Path(args[-1]).write_bytes(b'partial' if corrupt_backup else bytes(backup(layout, app, old_app))[start:start + length])
+                    if start == 0: events.append('read_flash')
+                    return
                 if args[0] == 'verify_flash':
                     if verify_backup_fail and args[1] == '0x0': raise ValueError('backup verify failed')
                     events.append(('verify', int(args[1], 16))); return
@@ -229,7 +231,7 @@ class Flows(unittest.TestCase):
     def test_mcu_failure_stops_before_fpga(self):
         _, writes, error, stage = self.perform(mcu_fail=True)
         self.assertIsNotNone(error); self.assertEqual(stage, 'mcu_write_started')
-        self.assertEqual([w[0] for w in writes], ['write'])
+        self.assertEqual([w[0] for w in writes], ['write'] * core.TOOL_ATTEMPTS)   # retried, never reaches the FPGA
 
     def test_fpga_failure_leaves_old_table(self):
         _, writes, error, stage = self.perform(fpga_fail=True)
@@ -270,7 +272,11 @@ class Restore(unittest.TestCase):
             folder = Path(tmp) / 'restore'
             seq = list(ports)
             def tool(port, args):
-                if 'read_flash' in args: events.append('read_flash'); return
+                if 'read_flash' in args:
+                    start, length = int(args[-3], 16), int(args[-2], 16)
+                    Path(args[-1]).write_bytes(bytes(length))
+                    if start == 0: events.append('read_flash')
+                    return
                 if args[0] == 'verify_flash': events.append(('verify', int(args[1], 16))); return
                 offset = int(args[args.index('write_flash') + 7], 16)
                 events.append(('write', offset, len(Path(args[-1]).read_bytes())))
@@ -331,6 +337,62 @@ class UsbIds(unittest.TestCase):
             self.assertTrue(core.is_chromatic(0x374e, pid), hex(pid))
         for vid, pid in ((0x374e, 0x0200), (0x33aa, 0x0120), (0x374e, None), (None, None)):
             self.assertFalse(core.is_chromatic(vid, pid), (vid, pid))
+
+
+class ChunkedRead(unittest.TestCase):
+    def test_short_chunk_is_retried_then_assembled(self):
+        data = bytes(range(256)) * (0x400000 // 256)
+        calls = []
+        def tool(port, args):
+            start, length = int(args[-3], 16), int(args[-2], 16)
+            calls.append(start)
+            short = start == 0x80000 and calls.count(start) == 1
+            Path(args[-1]).write_bytes(data[start:start + length - (1 if short else 0)])
+        with tempfile.TemporaryDirectory() as tmp, patch.object(core, 'run_tool', side_effect=tool):
+            out = Path(tmp) / 'mcu-backup.bin'
+            core.read_flash('p', 0, 0x400000, out, lambda s: None)
+            self.assertEqual(out.read_bytes(), data)
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ['mcu-backup.bin'])
+        self.assertEqual(calls.count(0x80000), 2); self.assertEqual(len(calls), 17)
+
+    def test_persistent_failure_raises(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(core, 'run_tool', side_effect=ValueError('Corrupt data')):
+            with self.assertRaises(ValueError): core.read_flash('p', 0, 0x400000, Path(tmp) / 'b.bin', lambda s: None)
+
+
+class EsptoolProcess(unittest.TestCase):
+    def fake(self, code):
+        import sys
+        return patch.object(core, 'esptool_command', return_value=[sys.executable, '-c', code])
+
+    def test_success_streams_output(self):
+        import io, contextlib
+        buf = io.StringIO()
+        with self.fake('import sys; print("args", sys.argv[1:]); print("Hash of data verified.")'), contextlib.redirect_stdout(buf):
+            core.run_tool('COM3', ['flash_id'])
+        self.assertIn('Hash of data verified.', buf.getvalue())
+        self.assertIn("'--port', 'COM3'", buf.getvalue())
+
+    def test_failure_raises_with_last_line(self):
+        with self.fake('print("A fatal error occurred: Failed to connect"); raise SystemExit(2)'):
+            with self.assertRaises(ValueError) as ctx: core.run_tool('COM3', ['flash_id'])
+        self.assertIn('Failed to connect', str(ctx.exception))
+
+    def test_tool_hanging_after_fatal_error_is_stopped(self):
+        import time
+        start = time.monotonic()
+        with self.fake('import time; print("A fatal error occurred: Corrupt data", flush=True); time.sleep(60)'), \
+                patch.object(core, 'FATAL_EXIT_GRACE', 1):
+            with self.assertRaises(ValueError) as ctx: core.run_tool('COM3', ['read_flash'])
+        self.assertIn('Corrupt data', str(ctx.exception)); self.assertLess(time.monotonic() - start, 10)
+
+    def test_silent_tool_is_stopped(self):
+        import time
+        start = time.monotonic()
+        with self.fake('import time; print("Connecting...", flush=True); time.sleep(60)'):
+            with self.assertRaises(ValueError) as ctx: core.run_tool('COM3', ['flash_id'], idle_timeout=1)
+        self.assertIn('stopped responding', str(ctx.exception))
+        self.assertLess(time.monotonic() - start, 10)
 
 
 class Reconnect(unittest.TestCase):

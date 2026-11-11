@@ -1,10 +1,10 @@
 """Magic Trick installer: three-system firmware install, upgrade and uninstall with backup gates."""
-import hashlib, json, re, struct, sys, time
+import hashlib, json, re, struct, subprocess, sys, threading, time
 from pathlib import Path
 import fpga
 
 RELEASE = '1.0.0-beta'            # firmware this installer installs
-INSTALLER_VERSION = '1.0.0-beta.2'
+INSTALLER_VERSION = '1.0.0-beta.3'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
     'mcu': ('magic-trick-1.0.0-beta-mcu.bin', 'cfbb6af4e16f5574fd6d159691e35c2cf2d6a111670e526078a286ec0cfdd23f'),
@@ -145,15 +145,102 @@ def validate_backup(data):
     return layout, info[1]
 
 
-def run_tool(port, args):
-    import esptool
-    esptool.main(['--chip', 'esp32', '--port', port, '--baud', '115200'] + args)
+# esptool runs in its own process so a stuck serial port can never hang the installer: if it prints
+# nothing for this long it is stopped. Its progress output arrives at least every few seconds.
+ESPTOOL_IDLE_TIMEOUT = 120
+FATAL_EXIT_GRACE = 15
+ESPTOOL_STUCK = ('The MCU tool stopped responding. Unplug the USB cable, wait 5 seconds, plug it back in '
+                 '(keep the Chromatic switched on), then run the same operation again.')
 
 
-def write_and_verify(port, offset, path):
-    run_tool(port, ['--before', 'default_reset', '--after', 'hard_reset', 'write_flash',
-                    '--flash_mode', 'dio', '--flash_freq', '40m', '--flash_size', '4MB', hex(offset), str(path)])
-    run_tool(port, ['verify_flash', hex(offset), str(path)])
+def esptool_command():
+    """The bundled esptool, run as a child process (app.py handles --esptool in the packaged app)."""
+    if getattr(sys, 'frozen', False):
+        return [sys.executable, '--esptool']
+    return [sys.executable, '-m', 'esptool']
+
+
+def run_tool(port, args, idle_timeout=None):
+    cmd = esptool_command() + ['--chip', 'esp32', '--port', port, '--baud', '115200'] + list(args)
+    idle_timeout = ESPTOOL_IDLE_TIMEOUT if idle_timeout is None else idle_timeout
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if sys.platform == 'win32' else 0)
+    last_output, tail, fatal = [time.monotonic()], [], []
+
+    def pump():
+        while True:
+            chunk = proc.stdout.read1(4096)
+            if not chunk:
+                return
+            last_output[0] = time.monotonic()
+            text = chunk.decode('utf-8', errors='replace')
+            tail.append(text); del tail[:-40]
+            if 'A fatal error occurred' in text or 'FatalError' in text or 'Traceback' in text:
+                fatal.append(text)
+            sys.stdout.write(text); sys.stdout.flush()
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    def last_line():
+        lines = [l for l in ''.join(tail).replace('\r', '\n').splitlines() if l.strip()]
+        return lines[-1] if lines else f'exit code {proc.returncode}'
+
+    while proc.poll() is None:
+        quiet = time.monotonic() - last_output[0]
+        if fatal and quiet > FATAL_EXIT_GRACE:
+            # Seen on Windows: after an error the tool can hang while closing the serial port.
+            proc.kill(); proc.wait(); reader.join(5)
+            raise ValueError('The MCU tool failed: ' + last_line())
+        if quiet > idle_timeout:
+            proc.kill(); proc.wait()
+            raise ValueError(ESPTOOL_STUCK)
+        time.sleep(0.2)
+    reader.join(5)
+    if proc.returncode:
+        raise ValueError('The MCU tool failed: ' + last_line())
+
+
+TOOL_ATTEMPTS = 3
+READ_CHUNK = 0x40000   # 256 KiB: a dropped byte (seen over Windows USB serial) costs one short re-read
+
+
+def read_flash(port, offset, size, path, log):
+    """Read flash in chunks, retrying each, into path. Raises if a chunk keeps failing."""
+    path = Path(path)
+    parts = []
+    for start in range(offset, offset + size, READ_CHUNK):
+        length = min(READ_CHUNK, offset + size - start)
+        part = path.with_name(path.name + f'.part-{start:06x}')
+        for attempt in range(1, TOOL_ATTEMPTS + 1):
+            try:
+                run_tool(port, ['read_flash', hex(start), hex(length), str(part)])
+                if part.stat().st_size != length:
+                    raise ValueError(f'short read at 0x{start:06x}')
+                break
+            except (ValueError, OSError) as exc:
+                if attempt == TOOL_ATTEMPTS:
+                    raise ValueError(f'Reading the MCU flash failed at 0x{start:06x} after {TOOL_ATTEMPTS} attempts: '
+                                     f'{exc}') from exc
+                log(f'Read at 0x{start:06x} failed ({exc}); retrying.')
+        parts.append(part)
+        log(f'Read {min(100, round(100 * (start + length - offset) / size))}% of the MCU flash.')
+    path.write_bytes(b''.join(p.read_bytes() for p in parts))
+    for part in parts:
+        part.unlink()
+
+
+def write_and_verify(port, offset, path, log=print):
+    """Write and verify one image. A failed attempt is retried: rewriting the same data is safe."""
+    for attempt in range(1, TOOL_ATTEMPTS + 1):
+        try:
+            run_tool(port, ['--before', 'default_reset', '--after', 'hard_reset', 'write_flash',
+                            '--flash_mode', 'dio', '--flash_freq', '40m', '--flash_size', '4MB', hex(offset), str(path)])
+            run_tool(port, ['verify_flash', hex(offset), str(path)])
+            return
+        except ValueError as exc:
+            if attempt == TOOL_ATTEMPTS:
+                raise
+            log(f'MCU write at 0x{offset:06x} failed ({exc}); retrying.')
 
 
 def wait_for_device(log, sleep, timeout=45):
@@ -189,7 +276,7 @@ class Session:
         self.folder.mkdir(parents=True, exist_ok=False)
         path = self.folder / 'mcu-backup.bin'
         self.log('Backing up the 4 MiB MCU flash. Keep USB and power connected.')
-        run_tool(self.port, ['read_flash', '0x0', '0x400000', str(path)])
+        read_flash(self.port, 0, 0x400000, path, self.log)
         data = path.read_bytes()
         layout, app = validate_backup(data)
         run_tool(self.port, ['verify_flash', '0x0', str(path)])
@@ -247,7 +334,7 @@ def install(port, backup_dir, log, sleep=time.sleep):
     #    the old table still boots the old app, so nothing changes yet.
     s.checkpoint('mcu_write_started')
     log('Writing the Magic Trick MCU application.')
-    write_and_verify(port, THREE_SYSTEMS_APP[0], files['mcu'])
+    write_and_verify(port, THREE_SYSTEMS_APP[0], files['mcu'], log)
     s.checkpoint('mcu_verified')
 
     # 2. FPGA: Game Gear slot first (never booted at power-on), Game Boy slot 0 last.
@@ -269,7 +356,7 @@ def install(port, backup_dir, log, sleep=time.sleep):
     if layout == 'stock':
         s.checkpoint('table_write_started')
         log('Switching the MCU to the new partition layout.')
-        write_and_verify(port, TABLE_OFFSET, files['table_three_systems'])
+        write_and_verify(port, TABLE_OFFSET, files['table_three_systems'], log)
     s.checkpoint('all_images_verified')
     log('All images verified. Restarting and checking versions…')
     confirm(INSTALLED, log, sleep)
@@ -300,7 +387,7 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
     s.checkpoint('fpga_verified', fpga_attempts=attempts)
     port = wait_for_device(log, sleep)
     log('Restoring the standard partition layout (application ' + previous[1] + ').')
-    write_and_verify(port, TABLE_OFFSET, files['table_stock'])
+    write_and_verify(port, TABLE_OFFSET, files['table_stock'], log)
     s.checkpoint('table_restored')
     confirm({'fpga': '18.38', 'mcu': 'v' + previous[1]}, log, sleep)
     s.checkpoint('complete')
@@ -356,7 +443,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
         # Keep a raw copy of the flash as it is now, valid or not, before overwriting it.
         log('Saving the current 4 MiB MCU flash (it may be damaged; it is kept only as a precaution).')
         try:
-            run_tool(ports[0], ['read_flash', '0x0', '0x400000', str(folder / 'pre-restore-flash.bin')])
+            read_flash(ports[0], 0, 0x400000, folder / 'pre-restore-flash.bin', log)
             checkpoint('pre_restore_saved')
         except (Exception, SystemExit) as exc:
             checkpoint('pre_restore_unreadable', error=str(exc))
@@ -382,7 +469,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
     checkpoint('mcu_write_started')
     log('Writing the saved MCU flash (partition table, settings and application ' + app + '). '
         'This takes a few minutes; keep USB and power connected.')
-    write_and_verify(port, TABLE_OFFSET, image_path)
+    write_and_verify(port, TABLE_OFFSET, image_path, log)
     image_path.unlink()
     checkpoint('mcu_verified')
     try:

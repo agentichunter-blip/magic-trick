@@ -14,7 +14,7 @@ class App:
     def __init__(self):
         self.root = tk.Tk(); self.root.title('Magic Trick Installer ' + core.INSTALLER_VERSION)
         self.root.geometry('780x680'); self.root.minsize(700, 600)
-        self.events = queue.Queue(); self.busy = False
+        self.events = queue.Queue(); self.busy = False; self.history = []
         body = ttk.Frame(self.root, padding=28); body.pack(fill='both', expand=True)
         ttk.Label(body, text='MAGIC TRICK', font=('Helvetica', 28, 'bold')).pack(anchor='w')
         ttk.Label(body, text='1.0 beta for the ModRetro Chromatic · built on CursedToast\'s ChroMagic',
@@ -33,6 +33,11 @@ class App:
             'Beta firmware, installed at your own risk. Not made or supported by ModRetro; it may void your '
             'warranty. Read "Installation & recovery" first, and keep the backup folder from your first install.'
         )).pack(anchor='w', pady=(0, 8))
+        if sys.platform == 'win32':
+            ttk.Label(body, wraplength=700, text=(
+                'Windows: before your first install, install ModRetro\'s Chromatic Firmware Updater, run its USB '
+                'driver setup once, then close it completely. Magic Trick uses the same programmer driver.'
+            )).pack(anchor='w', pady=(0, 8))
         ttk.Checkbutton(body, text='I understand the risk, backed up my SD card, and will keep power and USB connected.',
                         variable=self.consent).pack(anchor='w')
         actions = ttk.Frame(body); actions.pack(anchor='w', pady=14)
@@ -49,6 +54,7 @@ class App:
                            ('Source & credits', 'https://github.com/agentichunter-blip/magic-trick'),
                            ('Support on Ko-fi ↗', 'https://ko-fi.com/ryansag')]:
             ttk.Button(footer, text=label, command=lambda u=url: webbrowser.open(u)).pack(side='left', padx=(0, 8))
+        ttk.Button(footer, text='Copy log', command=self.copy_log).pack(side='right')
         self.root.protocol('WM_DELETE_WINDOW', self.close); self.refresh(); self.root.after(100, self.poll)
 
     def refresh(self):
@@ -57,7 +63,22 @@ class App:
 
     def log(self, text):
         if text and text.strip():
+            self.history.append(text.rstrip())
             self.events.put(('log', text.rstrip()))
+
+    def copy_log(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.output.get('1.0', 'end-1c'))
+
+    def save_log(self, folder):
+        """Keep a log on disk for every run, even one that stopped before the backup folder existed."""
+        folder = Path(folder)
+        target = folder / 'installer-log.txt' if folder.is_dir() else folder.parent / (folder.name + '-log.txt')
+        try:
+            target.write_text('\n'.join(self.history) + '\n', encoding='utf-8')
+            self.log('Log saved: ' + str(target))
+        except OSError:
+            pass
 
     def set_busy(self, busy):
         self.busy = busy
@@ -116,6 +137,8 @@ class App:
 
     def run(self, operation, folder):
         self.set_busy(True)
+        self.history = ['Magic Trick Installer ' + core.INSTALLER_VERSION + ' on ' + sys.platform,
+                        'Started ' + datetime.datetime.now().isoformat(timespec='seconds')]
 
         def worker():
             try:
@@ -132,6 +155,7 @@ class App:
                          '\nSee "Installation & recovery". If install, update and uninstall keep refusing, '
                          'use Restore backup with mcu-backup.bin from your first install.')
             finally:
+                self.save_log(folder)
                 self.events.put(('done', ''))
         threading.Thread(target=worker, daemon=True).start()
 
@@ -155,12 +179,36 @@ def self_test():
     core.check_images()
     assert core.known_running(core.TARGET)
     import esptool, serial   # noqa: F401  (bundled dependencies)
+    import subprocess
+    out = subprocess.run(core.esptool_command() + ['version'], capture_output=True, text=True, timeout=60).stdout
+    assert 'esptool' in out, 'bundled esptool did not run: ' + out
     fpga.run(['--version'], print)
     print('Magic Trick installer ' + core.INSTALLER_VERSION + ' (firmware ' + core.RELEASE + '): bundled firmware and dependencies OK')
 
 
+def run_esptool(args):
+    """Child-process entry point used by core.run_tool in the packaged app."""
+    import os, esptool
+    sys.argv = ['esptool'] + args
+    code = 0
+    try:
+        esptool._main()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        code = 1
+    finally:
+        sys.stdout.flush(); sys.stderr.flush()
+        # Exit at once: closing the serial port during interpreter shutdown can hang on Windows.
+        os._exit(code)
+
+
 if __name__ == '__main__':
-    if '--self-test' in sys.argv:
+    if len(sys.argv) > 1 and sys.argv[1] == '--esptool':
+        run_esptool(sys.argv[2:])
+    elif '--self-test' in sys.argv:
         self_test()
     elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall'):
         # Command-line mode for hardware testing: app.py --install PORT BACKUP_DIR

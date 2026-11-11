@@ -61,7 +61,9 @@ def preflight(log):
     run(['--version'], log)
     scan = run(['--scan-usb'], log)
     if len(re.findall(r'^\s*\d+\s+\d+\s+0x33aa:0x0120\b', scan, re.M | re.I)) != 1:
-        raise ValueError('Connect exactly one Chromatic. Its programmer must be accessible. On Windows complete MRUpdater USB driver setup; on Linux check USB permissions.')
+        raise ValueError('The Chromatic\'s USB programmer isn\'t accessible. Connect exactly one Chromatic. On Windows, install '
+                         'ModRetro\'s Chromatic Firmware Updater and run its USB driver setup once, then close it. On Linux, '
+                         'allow USB access to the programmer (see the installer guide). Nothing was written.')
     try:
         found = run(['--cable', 'gwu2x', '--detect'], log)
     except ProgrammerError as exc:
