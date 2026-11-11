@@ -1,6 +1,6 @@
-# Magic Trick Installer 1.0.0-beta.1
+# Magic Trick Installer 1.0.0-beta.2
 
-Installs Magic Trick firmware 1.0 beta. New in installer 1.0.0-beta.1: **Restore backup** for recovery, and the Chromatic is now found whatever its player number, or when its MCU can't start.
+Installs Magic Trick firmware 1.0 beta. New in installer 1.0.0-beta.2: if the USB programmer stops responding, the installer stops at once and tells you to unplug and reconnect. Since 1.0.0-beta.1: **Restore backup** for recovery, and the Chromatic is found whatever its player number, or when its MCU can't start.
 
 > **Beta firmware, installed at your own risk.** Magic Trick is an independent community mod, not made, endorsed or supported by ModRetro. It rewrites your Chromatic's MCU and FPGA firmware and may void your warranty. Read the [recovery guide](../docs/recovery.md) before you install.
 
