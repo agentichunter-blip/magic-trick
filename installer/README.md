@@ -13,8 +13,22 @@ One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlie
 - Back up your SD card yourself, especially saves.
 - After your first install, copy its backup folder somewhere safe. Its `mcu-backup.bin` is your way back to how the device was (see [recovery](../docs/recovery.md)).
 - Use a data-capable USB cable. Power the Chromatic on and close other device apps (ModRetro's updater, ChroMagician, serial monitors).
-- **Windows:** you may need ModRetro's MRUpdater USB driver setup before the programmer can reach the device. **Linux:** you may need serial and USB permissions (udev rules). The app checks access before it writes anything.
+- **Windows:** you may need ModRetro's MRUpdater USB driver setup before the programmer can reach the device. **Linux:** allow USB access once first (see [Linux: USB permissions](#linux-usb-permissions)). The app checks access before it writes anything.
 - Supported starting points: stock 4.2, 4.5 and 4.6, ChroMagic 1.0.1 and art-series firmware, or Magic Trick 1.0 beta. Anything else is refused before anything is written.
+
+## Linux: USB permissions
+
+Most Linux systems don't let a normal user open the Chromatic's serial port or its FPGA programmer. Without access, the installer stops before writing anything. To allow it once, run these in a terminal (sudo asks for your password):
+
+```bash
+sudo tee /etc/udev/rules.d/70-modretro-chromatic.rules <<'EOF'
+SUBSYSTEM=="usb", ATTR{idVendor}=="33aa", ATTR{idProduct}=="0120", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="374e", MODE="0660", TAG+="uaccess"
+EOF
+sudo udevadm control --reload && sudo udevadm trigger
+```
+
+Then unplug the Chromatic and plug it back in. You don't need to log out, reboot or join a group. The rule gives the person signed in at the computer access to the Chromatic's FPGA programmer (USB ID 33aa:0120) and its serial port (USB vendor 374e).
 
 ## Install or update
 

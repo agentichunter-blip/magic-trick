@@ -204,6 +204,10 @@ class App:
         if want_h > self.root.winfo_height() or want_w > self.root.winfo_width():
             self.root.geometry('%dx%d' % (want_w, min(want_h, max_h)))
         self.root.minsize(min(want_w, self.root.winfo_screenwidth()), min(want_h, max_h))
+        if sys.platform.startswith('linux'):
+            # A fixed size makes tiling window managers (Hyprland, sway, i3) float the window at its
+            # natural size instead of squeezing it into a tile that clips the lower screens.
+            self.root.resizable(False, False)
 
     def toggle_consent(self):
         self.consent = not self.consent
@@ -224,7 +228,7 @@ class App:
             ports = []
         self.ports = ports
         if len(ports) == 1:
-            dot, text = GREEN, 'CHROMATIC FOUND  ' + Path(ports[0]).name.upper()
+            dot, text = GREEN, 'CHROMATIC FOUND  ' + Path(ports[0]).name
         elif len(ports) > 1:
             dot, text = AMBER, 'UNPLUG ALL BUT ONE CHROMATIC'
         else:

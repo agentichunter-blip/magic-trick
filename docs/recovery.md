@@ -28,6 +28,7 @@ Every run of the installer saves a full MCU backup in a new folder: `Magic-Trick
 | An FPGA write failed after all its attempts | Unplug, power-cycle, reconnect, then run the same operation again. |
 | The screen stays dark after a failed FPGA write | Run the installer again. If no Chromatic port is listed, use **Restore backup** (it doesn't need one). |
 | "The USB programmer stopped responding" or "The FPGA isn't answering", or the screen goes dark while the cable is plugged in | Unplug the USB cable, wait 5 seconds, plug it back in with the Chromatic switched on, then run the same operation again. |
+| Linux: "This user can't open the Chromatic's serial port" or "USB programmer isn't accessible" | Nothing was written. Add the udev rule from [Linux: USB permissions](../installer/README.md#linux-usb-permissions), replug the Chromatic, then run the same operation again. |
 | The installer refuses with "partition table checksum" or "unsupported layout" | Use **Restore backup**. |
 | The Chromatic starts but Status shows the wrong versions | Run **Back up & install / update** again, or **Uninstall**. |
 | You want Magic Trick gone | **Uninstall**, then ModRetro's updater if you want full stock. |

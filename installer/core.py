@@ -1,5 +1,5 @@
 """Magic Trick installer: three-system firmware install, upgrade and uninstall with backup gates."""
-import hashlib, json, re, struct, subprocess, sys, threading, time
+import hashlib, json, os, re, struct, subprocess, sys, threading, time
 from pathlib import Path
 import fpga
 
@@ -413,11 +413,22 @@ class Session:
         return data, layout, app
 
 
+LINUX_ACCESS_HELP = ('On Linux, allow access to the Chromatic once: see "Linux: USB permissions" in the installer guide, '
+                     'then unplug and replug the Chromatic. Nothing was written.')
+
+
+def check_port_access(port, platform=sys.platform):
+    """Linux: a serial port the user can't open would otherwise look like old firmware that doesn't answer."""
+    if platform.startswith('linux') and os.path.exists(port) and not os.access(port, os.R_OK | os.W_OK):
+        raise ValueError(f'This user can\'t open the Chromatic\'s serial port ({port}). ' + LINUX_ACCESS_HELP)
+
+
 def preconditions(port, log, keys):
     emit('step', key='check')
     files = check_images(keys)
     if device_ports() != [port]:
         raise ValueError('Connect exactly one Chromatic and select its USB port. Nothing was written.')
+    check_port_access(port)
     try:
         running = version(port)
     except ValueError:

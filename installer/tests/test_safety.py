@@ -473,6 +473,20 @@ class Reconnect(unittest.TestCase):
             with self.assertRaises(ValueError): core.wait_for_device(lambda s: None, lambda s: None)
             reset.assert_called_once()
 
+class LinuxPortAccess(unittest.TestCase):
+    def test_unreadable_port_gets_a_clear_message_on_linux(self):
+        with tempfile.TemporaryDirectory() as d:
+            port = Path(d) / 'ttyACM0'
+            port.write_bytes(b'')
+            port.chmod(0)
+            try:
+                with self.assertRaisesRegex(ValueError, 'USB permissions'):
+                    core.check_port_access(str(port), 'linux')
+                core.check_port_access(str(port), 'darwin')   # other systems: left to the normal path
+            finally:
+                port.chmod(0o600)
+            core.check_port_access(str(port), 'linux')   # accessible: fine
+        core.check_port_access('/dev/does-not-exist', 'linux')   # missing: handled elsewhere
 
 if __name__ == '__main__':
     unittest.main()
