@@ -255,6 +255,11 @@ OSD_Result_t Firmware_OnButton(const Button_t Button, const ButtonState_t State,
     return kOSD_Result_Ok;
 }
 
+bool Firmware_HasFPGAVersion(void)
+{
+    return _Ctx.FPGAVersionMajor != 0;
+}
+
 void Firmware_SetFPGAVersion(uint8_t VersionMajor, uint8_t VersionMinor, uint8_t IsDebug)
 {
     _Ctx.FPGAVersionMajor = VersionMajor;

@@ -11,6 +11,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "fpga_common.h"
+#include "fw.h"
 #include "frameblend.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -47,6 +48,8 @@ typedef enum {
     kTxFlag_RequestBGPD      = (1 << kFlag_RequestBGPD),
     kTxFlag_AllFlags         = ((1 << kNumFlags) - 1),
 } TxFlags_t;
+
+enum { kVersionRetry_ms = 500 };
 
 typedef enum {
     kTxCmd_Reserved0        = 0x0,
@@ -87,6 +90,7 @@ void FPGA_TxTask(void *arg)
     FPGA_Tx_Resume();
 
     uint8_t TxBuffer[14] = {0};
+    TickType_t LastVersionRequest = xTaskGetTickCount();
 
     while (1)
     {
@@ -99,7 +103,7 @@ void FPGA_TxTask(void *arg)
             portMAX_DELAY
         );
 
-        const EventBits_t EventBits = xEventGroupWaitBits(
+        EventBits_t EventBits = xEventGroupWaitBits(
             xEventGroupHandle,
             (kTxFlag_WriteBrightness | kTxFlag_SetSysCtl | kTxFlag_RequestFWVer | kTxFlag_PokeButton | kTxFlag_SetPaletteStyle | kTxFlag_RequestBGPD),
             pdTRUE, // DO clear the flags to complete the request
@@ -136,8 +140,19 @@ void FPGA_TxTask(void *arg)
             (void) uart_write_bytes(UART_NUM_1, TxBuffer, Size);
         }
 
+        /* The cores stream their version only while the menu is open; otherwise they
+         * answer a request. A request can go unanswered (the core hides its version
+         * while a cartridge maintenance session is open), so keep asking every 500 ms
+         * until a version arrives. */
+        if (!Firmware_HasFPGAVersion() &&
+            (xTaskGetTickCount() - LastVersionRequest) >= pdMS_TO_TICKS(kVersionRetry_ms))
+        {
+            EventBits |= kTxFlag_RequestFWVer;
+        }
+
         if ((EventBits & kTxFlag_RequestFWVer) == kTxFlag_RequestFWVer)
         {
+            LastVersionRequest = xTaskGetTickCount();
             uint16_t dummy = 0;
             const size_t Size = SetupTxBuffer(TxBuffer, kTxCmd_ReqFWVer, sizeof(dummy), &dummy);
             (void) uart_write_bytes(UART_NUM_1, TxBuffer, Size);
@@ -207,6 +222,11 @@ void FPGA_Tx_Pause(void)
 void FPGA_Tx_SendAll(void)
 {
    (void) xEventGroupSetBits(xEventGroupHandle, kTxFlag_AllFlags);
+}
+
+void FPGA_Tx_RequestFWVer(void)
+{
+   (void) xEventGroupSetBits(xEventGroupHandle, kTxFlag_RequestFWVer);
 }
 
 void FPGA_Tx_WriteBrightness(void)

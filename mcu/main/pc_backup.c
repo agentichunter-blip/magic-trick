@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "esp_rom_crc.h"
 #include "fpga_tx.h"
+#include "fw.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -33,6 +34,8 @@ enum {
     kKeepalivePeriod_ms = 250,
     kKeepaliveStack = 6 * 1024,
     kKeepalivePriority = 3,
+    kVersionWait_ms = 1500,
+    kVersionPoll_ms = 20,
 };
 
 typedef struct {
@@ -133,6 +136,34 @@ static void SetConsoleBaud(uint32_t Baud)
     }
 }
 
+/* The cores hide their version while a cartridge maintenance session is open.
+ * After an MCU-only restart (macOS raises DTR/RTS when it opens the serial port)
+ * the FPGA is still in the session PC mode opened before, so the version never
+ * arrived and fwversion said "0.0". Close a stale session and read the version
+ * before opening a new one. */
+static void ReadFPGAVersionLocked(void)
+{
+    if (Firmware_HasFPGAVersion() || CartBackup_IsPCModeActive())
+    {
+        return;
+    }
+    if (CartBackup_SetPCMode(false) != ESP_OK)
+    {
+        return;
+    }
+    FPGA_Tx_RequestFWVer();
+    for (int Waited_ms = 0;
+         !Firmware_HasFPGAVersion() && Waited_ms < kVersionWait_ms;
+         Waited_ms += kVersionPoll_ms)
+    {
+        vTaskDelay(pdMS_TO_TICKS(kVersionPoll_ms));
+    }
+    if (!Firmware_HasFPGAVersion())
+    {
+        ESP_LOGW(TAG, "FPGA version not received before PC mode");
+    }
+}
+
 static esp_err_t EnableLocked(void)
 {
     if (VirtualCart_IsBusy())
@@ -149,6 +180,7 @@ static esp_err_t EnableLocked(void)
         ESP_RETURN_ON_ERROR(VirtualCart_Stop(), TAG,
                             "stop virtual cartridge for PC mode");
     }
+    ReadFPGAVersionLocked();
     return CartBackup_SetPCMode(true);
 }
 

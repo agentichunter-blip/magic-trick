@@ -23,6 +23,10 @@ int xTaskCreate(void (*fn)(void *), const char *name, unsigned stack, void *arg,
 }
 void xTaskNotifyGive(TaskHandle_t task) { assert(task); ++Wakeups; }
 void FPGA_Tx_SendSysCtl(void) { ++SettingsQueued; }
+static bool HasVersion = true; static int VersionRequests, Delays, ArriveAfter;
+bool Firmware_HasFPGAVersion(void) { return HasVersion; }
+void FPGA_Tx_RequestFWVer(void) { assert(!PhysicalActive); ++VersionRequests; }
+void vTaskDelay(TickType_t t) { assert(!PhysicalActive); ++Delays; if (ArriveAfter && Delays >= ArriveAfter) HasVersion = true; }
 uint32_t ulTaskNotifyTake(int clear, TickType_t timeout) {
     assert(timeout == 250); if (Ticks-- == 0) longjmp(StopWorker, 1); return Wakeups ? Wakeups-- : 0;
 }
@@ -86,6 +90,25 @@ int main(void) {
     ModeResult = ESP_OK;
     assert(PCBackup_BeginWireless() == ESP_OK);
     assert(PCBackup_EndWireless() == ESP_OK);
-    puts("PASS: idle RX, immediate toggles, persistent keepalive, transfer contention, rapid changes, retry");
+    /* Version unknown (stale FPGA session after an MCU-only restart): close the
+     * session and read the version before entering PC mode. */
+    assert(VersionRequests == 0 && Delays == 0);
+    HasVersion = false; ArriveAfter = 3;
+    int exits = ExitCalls; calls = EnterCalls;
+    assert(PCBackup_BeginWireless() == ESP_OK);
+    assert(ExitCalls == exits + 1 && VersionRequests == 1 && Delays == 3 && HasVersion);
+    assert(EnterCalls == calls + 1 && PhysicalActive);
+    assert(PCBackup_EndWireless() == ESP_OK);
+    /* A core that never answers: bounded wait, then PC mode starts anyway. */
+    HasVersion = false; ArriveAfter = 0; Delays = 0;
+    assert(PCBackup_BeginWireless() == ESP_OK);
+    assert(Delays == kVersionWait_ms / kVersionPoll_ms && PhysicalActive);
+    assert(PCBackup_EndWireless() == ESP_OK);
+    /* Version known: no extra exit, request or wait. */
+    HasVersion = true; Delays = 0; VersionRequests = 0; exits = ExitCalls;
+    assert(PCBackup_BeginWireless() == ESP_OK);
+    assert(Delays == 0 && VersionRequests == 0 && ExitCalls == exits && PhysicalActive);
+    assert(PCBackup_EndWireless() == ESP_OK);
+    puts("PASS: idle RX, immediate toggles, persistent keepalive, transfer contention, rapid changes, retry, FPGA version before PC mode");
     return 0;
 }
