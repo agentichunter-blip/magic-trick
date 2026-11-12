@@ -1,12 +1,12 @@
-# Magic Trick Installer 1.0.0-beta.5
+# Magic Trick Installer 1.0.0-beta.6
 
-Installs Magic Trick firmware 1.0 beta (MCU 1.0.0-beta.2). New in installer 1.0.0-beta.5: the firmware reports its FPGA version with USB TRANSFERS on (on a Mac the installer's final check used to fail in that mode), and an update skips FPGA cores that are already the bundled version. Since 1.0.0-beta.4: ChroMagician recognises Magic Trick, so its SD file manager works over USB; Wi-Fi uploads skip files already on the SD card, retry a failed file and keep going; and the Wi-Fi Files page has the Magic Trick look. Since 1.0.0-beta.3: tested on Windows and Linux, a clearer retro-style app, an **ALMOST DONE** ending with **CHECK AGAIN** when the final check can't reach the firmware, and Linux USB permission instructions. Since 1.0.0-beta.1: **Restore backup** for recovery, a stop when the USB programmer stops responding, and the Chromatic is found whatever its player number, or when its MCU can't start.
+Installs Magic Trick firmware 1.0 beta (MCU 1.0.0-beta.3). New in installer 1.0.0-beta.6: save states are kept on the SD card, so they survive turning the Chromatic off; each game has three save-state slots; and MBC3 games such as Pokémon Gold, Silver and Crystal can use save states, clock included. This updates the Game Boy / Game Boy Color FPGA core, so an update from 1.0.0-beta.5 takes about 15 minutes. Since 1.0.0-beta.5: the firmware reports its FPGA version with USB TRANSFERS on (on a Mac the installer's final check used to fail in that mode), and an update skips FPGA cores that are already the bundled version. Since 1.0.0-beta.4: ChroMagician recognises Magic Trick, so its SD file manager works over USB; Wi-Fi uploads skip files already on the SD card, retry a failed file and keep going; and the Wi-Fi Files page has the Magic Trick look. Since 1.0.0-beta.3: tested on Windows and Linux, a clearer retro-style app, an **ALMOST DONE** ending with **CHECK AGAIN** when the final check can't reach the firmware, and Linux USB permission instructions. Since 1.0.0-beta.1: **Restore backup** for recovery, a stop when the USB programmer stops responding, and the Chromatic is found whatever its player number, or when its MCU can't start.
 
 > **Beta firmware, installed at your own risk.** Magic Trick is an independent community mod, not made, endorsed or supported by ModRetro. It rewrites your Chromatic's MCU and FPGA firmware and may void your warranty. Read the [recovery guide](../docs/recovery.md) before you install.
 
 One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlier Magic Trick 1.0 install, or uninstalls it. Python, esptool, openFPGALoader and all firmware are bundled. No internet connection is needed.
 
-**What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native Game Boy / Game Boy Color save states, Wi-Fi file transfers and the Magic Trick boot animation. Game Gear has no save states yet.
+**What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native Game Boy / Game Boy Color save states (three slots per game, kept on the SD card), Wi-Fi file transfers and the Magic Trick boot animation. Game Gear has no save states yet.
 
 ## Before you start
 
@@ -43,7 +43,7 @@ The installer:
 5. Switches the MCU partition table to the new layout, last.
 6. Restarts the Chromatic and checks the running versions.
 
-It never writes the SD card or the bootloader, and never erases the whole flash. When it says it's done, turn the Chromatic off and on once. Status shows **Magic Trick 1.0 beta** and MCU **v1.0.0-beta.2**.
+It never writes the SD card or the bootloader, and never erases the whole flash. When it says it's done, turn the Chromatic off and on once. Status shows **Magic Trick 1.0 beta** and MCU **v1.0.0-beta.3**.
 
 ## Uninstall
 

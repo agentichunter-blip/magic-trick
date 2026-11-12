@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.5">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.6">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Support my work</a>
@@ -18,7 +18,7 @@
 
 > **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.3`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
 
 This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo or Sega. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
@@ -38,7 +38,7 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
-Download **[Magic Trick Installer 1.0.0-beta.5](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.5)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
+Download **[Magic Trick Installer 1.0.0-beta.6](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.6)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
 - **Updates take 10–15 minutes.** FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
