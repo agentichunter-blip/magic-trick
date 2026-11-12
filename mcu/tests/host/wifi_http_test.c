@@ -35,8 +35,10 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *R, const char *B, size_t S) {
     assert(Output+S < sizeof(Response)); if(S)memcpy(Response+Output,B,S); Output+=S; Response[Output]=0; return ESP_OK;
 }
 esp_err_t httpd_resp_sendstr(httpd_req_t *R, const char *V) { return httpd_resp_send_chunk(R,V,strlen(V)); }
+static unsigned Stalls;   /* timeouts to report before the next chunk */
 int httpd_req_recv(httpd_req_t *R, char *B, size_t S) {
     if (Disconnect && Position) return -1;
+    if (Stalls && Position) { --Stalls; return HTTPD_SOCK_ERR_TIMEOUT; }
     size_t N=InputSize-Position; if(N>S)N=S; if(N>1024)N=1024;
     memcpy(B,Input+Position,N); Position+=N;
     if(Cancel)StopRequested=true;
@@ -45,7 +47,7 @@ int httpd_req_recv(httpd_req_t *R, char *B, size_t S) {
 int64_t esp_timer_get_time(void) { return Now; }
 uint32_t esp_rom_crc32_le(uint32_t C,const uint8_t *B,size_t N) { C=~C; for(size_t I=0;I<N;++I) { C^=B[I]; for(unsigned J=0;J<8;++J)C=(C>>1)^(C&1?0xedb88320u:0); }return ~C; }
 uint32_t esp_random(void) { static unsigned N; return ++N; }
-static void Reset(void) { Output=Position=0; Response[0]=0; strcpy(Code,"200 OK"); Disconnect=Cancel=StopRequested=false; }
+static void Reset(void) { Output=Position=0; Response[0]=0; strcpy(Code,"200 OK"); Disconnect=Cancel=StopRequested=false; Stalls=0; }
 static void NotExists(const char *Name) { char P[768]; snprintf(P,sizeof(P),"%s/%s",Root,Name); assert(access(P,F_OK)!=0); }
 int main(void) {
     Reset(); Auth=NULL; httpd_req_t ScanReq={.uri="/api/networks"};assert(StartScan(&ScanReq)==ESP_FAIL);Auth="test-token";
@@ -83,6 +85,11 @@ int main(void) {
     R.uri="/api/file?path=%2Fgame.gbc"; Reset(); Disconnect=true;
     assert(Upload(&R)==ESP_FAIL); NotExists("game.gbc");
     Reset(); Cancel=true; assert(Upload(&R)==ESP_FAIL); NotExists("game.gbc");
+    /* A Wi-Fi pause longer than one receive timeout ends the upload only
+     * after about 30 s without data. */
+    Reset(); Stalls=kUploadStallLimit; assert(Upload(&R)==ESP_FAIL); NotExists("game.gbc");
+    Reset(); Stalls=kUploadStallLimit-1; assert(Upload(&R)==ESP_OK && !strcmp(Code,"201 Created"));
+    { char P[768]; snprintf(P,sizeof(P),"%s/game.gbc",Root); assert(unlink(P)==0); }
     Reset(); assert(Upload(&R)==ESP_OK && !strcmp(Code,"201 Created"));
     Reset(); assert(Upload(&R)==ESP_FAIL && !strcmp(Code,"409 Conflict"));
     Reset(); R.content_len=0; assert(Download(&R)==ESP_OK); assert(Output==sizeof(Input) && !memcmp(Response,Input,sizeof(Input)));
@@ -96,5 +103,5 @@ int main(void) {
     while((E=readdir(D)))if(strcmp(E->d_name,".")&&strcmp(E->d_name,"..")){assert(!WifiFile_IsInternal(E->d_name));++Entries;}
     closedir(D); assert(Entries==2);
     char P[768]; snprintf(P,sizeof(P),"%s/game.gbc",Root); unlink(P); snprintf(P,sizeof(P),"%s/Covers",Root); rmdir(P); assert(rmdir(Root)==0);
-    puts("PASS: HTTP authorization, origin/host checks, traversal, disconnect/cancel, binary upload/download, collision, list, mkdir");
+    puts("PASS: HTTP authorization, origin/host checks, traversal, disconnect/cancel, receive stalls, binary upload/download, collision, list, mkdir");
 }

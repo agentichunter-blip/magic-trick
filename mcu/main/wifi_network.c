@@ -186,7 +186,7 @@ esp_err_t WifiNetwork_Start(bool Unused)
     }
     STA=esp_netif_create_default_wifi_sta();
     if(!STA) { R=ESP_ERR_NO_MEM; goto Fail; }
-    (void)esp_netif_set_hostname(STA,"chromagic");
+    (void)esp_netif_set_hostname(STA,"magic-trick");
     wifi_init_config_t Init=WIFI_INIT_CONFIG_DEFAULT();
     R=esp_wifi_init(&Init); if(R != ESP_OK) goto Fail; Driver=true;
     R=esp_wifi_set_storage(WIFI_STORAGE_RAM); if(R != ESP_OK) goto Fail;

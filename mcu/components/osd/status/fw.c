@@ -74,6 +74,14 @@ static Firmware_t _Ctx;
 static const char* TAG = "fw";
 
 #if defined(ESP_PLATFORM)
+/* The fwversion "chromatic" value, when it differs from the name on Status.
+ * PC apps such as ChroMagician recognise ChroMagic firmware by it. */
+#ifdef CONFIG_CHROMATIC_FW_ID_STR
+static const char kFirmwareIdStr[] = CONFIG_CHROMATIC_FW_ID_STR;
+#else
+static const char kFirmwareIdStr[] = "";
+#endif
+
 static int version_command(int argc, char **argv);
 static OSD_Result_t register_version_dump(void);
 #endif
@@ -282,7 +290,7 @@ static int version_command(int argc, char **argv)
         _Ctx.AppFWVerStr,
         _Ctx.FPGAVersionMajor,
         _Ctx.FPGAVersionMinor,
-        _Ctx.ChromaticFWVerStr
+        kFirmwareIdStr[0] ? kFirmwareIdStr : _Ctx.ChromaticFWVerStr
     );
 
     return 0;

@@ -238,7 +238,7 @@ static esp_err_t Home(httpd_req_t *Req)
     httpd_resp_set_type(Req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(Req, "Cache-Control", "no-store");
     httpd_resp_set_hdr(Req, "X-Frame-Options", "DENY");
-    httpd_resp_set_hdr(Req, "Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+    httpd_resp_set_hdr(Req, "Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' blob: data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
     /* The public page contains no credentials or access tokens. */
     return httpd_resp_send(Req,(const char *)PageStart,PageEnd-PageStart-1);
 }
@@ -302,6 +302,8 @@ static esp_err_t Download(httpd_req_t *Req)
     free(Buffer);
     return Result == ESP_OK ? httpd_resp_send_chunk(Req, NULL, 0) : Result;
 }
+enum { kUploadStallLimit = 6 };   /* about 30 s without data ends an upload */
+
 static esp_err_t Upload(httpd_req_t *Req)
 {
     if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
@@ -314,11 +316,16 @@ static esp_err_t Upload(httpd_req_t *Req)
     char *Buffer = malloc(4096);
     if (!Transfer || !Buffer) { free(Transfer); free(Buffer); return Error(Req, "503 Service Unavailable", "Not enough memory."); }
     bool Ok = WifiFile_Begin(Transfer, Name, Req->content_len, esp_random());
+    unsigned Stalls = 0;
     while (Ok && Transfer->Written < Transfer->Expected && !Stopping())
     {
         size_t Left = Transfer->Expected - Transfer->Written;
         int Count = httpd_req_recv(Req, Buffer, Left < 4096 ? Left : 4096);
+        /* Each receive waits recv_wait_timeout (5 s). Weak Wi-Fi or a slow SD
+         * write can pause a batch that long, so allow a few quiet periods. */
+        if (Count == HTTPD_SOCK_ERR_TIMEOUT && ++Stalls < kUploadStallLimit) continue;
         if (Count <= 0) { Ok = false; break; }
+        Stalls = 0;
         Ok = WifiFile_Write(Transfer, Buffer, Count); Touch();
     }
     Ok = Ok && !Stopping();

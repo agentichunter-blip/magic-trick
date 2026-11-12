@@ -5,6 +5,17 @@ config CHROMATIC_FW_VER_STR
 	help
 		The Major.Minor pair which describes a Chromatic firmware release package.
 		It shall be updated any time the Chromatic microcontroller or FPGA is revised.
+
+config CHROMATIC_FW_ID_STR
+	string "Firmware name reported to PC apps"
+	default ""
+	help
+		The "chromatic" value printed by the fwversion console command. Empty
+		means the Firmware Version above. ChroMagician only manages SD files
+		on firmware whose value contains "ChroMagic" (or "CM", or has the form
+		"1.0.1 (4.2)"), and accepts at most 32 characters. Set this when the
+		Firmware Version shown on Status names a ChroMagic-based mod without
+		saying so, for example "Magic Trick 1.0 beta (ChroMagic)".
 endmenu
 
 menu "ChroMagic experimental features"
