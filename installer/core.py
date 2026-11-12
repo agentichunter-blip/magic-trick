@@ -3,11 +3,11 @@ import hashlib, json, os, re, struct, subprocess, sys, threading, time
 from pathlib import Path
 import fpga
 
-RELEASE = '1.0.0-beta'            # firmware this installer installs
-INSTALLER_VERSION = '1.0.0-beta.3'
+RELEASE = '1.0.0-beta.1'          # firmware this installer installs
+INSTALLER_VERSION = '1.0.0-beta.4'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
-    'mcu': ('magic-trick-1.0.0-beta-mcu.bin', 'cfbb6af4e16f5574fd6d159691e35c2cf2d6a111670e526078a286ec0cfdd23f'),
+    'mcu': ('magic-trick-1.0.0-beta.1-mcu.bin', '061c78e245b1ad9e7f555b1ee4ac3d9d7e451353444372f03d0a873371678f37'),
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '9ac2459b9fd62d9f7be8e6f0a4b514db8a582334ff7418db657abea14f10f795'),
@@ -31,7 +31,7 @@ def emit(kind, **data):
             pass
 
 
-TARGET = {'mcu': 'v' + RELEASE, 'fpga': '50.1', 'chromatic': 'Magic Trick 1.0 beta'}
+TARGET = {'mcu': 'v' + RELEASE, 'fpga': '50.1', 'chromatic': 'Magic Trick 1.0 beta (ChroMagic)'}
 # A JTAG reset boots the slot the running core points to next, so after installation
 # either core may be running; a real power-on always starts the Game Boy core.
 INSTALLED = dict(TARGET, fpga=('50.1', '50.2'))
@@ -119,6 +119,7 @@ def _ask_version(port, baud, reset, listen, trace):
             _set_rts(p, True); time.sleep(.1); _set_rts(p, False)
         every = .3 if reset else 1
         data = b''; last = 0; deadline = time.monotonic() + listen
+        early = None
         while time.monotonic() < deadline:
             try:
                 chunk = p.read(4096)
@@ -136,7 +137,12 @@ def _ask_version(port, baud, reset, listen, trace):
                 try:
                     obj = json.loads(match)
                     if all(isinstance(obj.get(k), str) for k in ('mcu', 'fpga', 'chromatic')):
-                        return obj
+                        if obj['fpga'] != '0.0':
+                            return obj
+                        # Just after the MCU starts (on macOS, opening the port restarts it), the
+                        # console can answer before the FPGA has reported its version. Ask again.
+                        early, data = obj, b''
+                        break
                 except (ValueError, UnicodeDecodeError):
                     pass
             if time.monotonic() - last > every:
@@ -146,7 +152,7 @@ def _ask_version(port, baud, reset, listen, trace):
                     p.write(b'\x15\rfwversion\r'); p.flush()
                 except (OSError, ValueError) as exc:   # a write timeout must not end the attempt
                     if trace: trace(tag + f'write failed: {exc}')
-        return None
+        return early
     finally:
         try:
             p.close()

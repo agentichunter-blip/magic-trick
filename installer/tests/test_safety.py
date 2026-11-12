@@ -587,6 +587,17 @@ class StockConsoleWindow(unittest.TestCase):
         self.assertEqual(v['fpga'], '18.38')
         self.assertNotIn('restart', log)
 
+    def test_waits_for_the_fpga_version_after_a_restart(self):
+        Port, log = self.fake_serial(answers_without_reset=True)
+        replies = [b'{ "mcu": "v1.0.0-beta.1", "fpga": "0.0", "chromatic": "Magic Trick 1.0 beta (ChroMagic)" }\r\n',
+                   b'{ "mcu": "v1.0.0-beta.1", "fpga": "50.2", "chromatic": "Magic Trick 1.0 beta (ChroMagic)" }\r\n']
+        def write(port, data):
+            if replies:
+                port.pending += replies.pop(0)
+        with patch('serial.Serial', Port), patch.object(Port, 'write', write):
+            v = core.version('COM4', timeout=3)
+        self.assertEqual(v['fpga'], '50.2')
+
     def test_trace_failure_does_not_end_attempt(self):
         Port, log = self.fake_serial(answers_without_reset=False)
         def bad_trace(text):
