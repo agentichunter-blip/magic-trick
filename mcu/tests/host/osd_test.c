@@ -238,9 +238,9 @@ static void WifiToggle(bool Enabled) { WifiEnabled = Enabled; }
 static void WifiSnapshot(WifiFilesStatus *Out) { *Out = WifiStatus; }
 #include "native_state_ui.h"
 static NativeStateView StateView;
-static unsigned StateSaves, StateLoads;
+static unsigned StateSaves, StateLoads, StateSlot;
 static void StateRead(NativeStateView *V) { *V=StateView; }
-static bool StateRequest(bool Load) { if(Load)StateLoads++;else StateSaves++;return true; }
+static bool StateRequest(bool Load,unsigned Slot) { if(Load)StateLoads++;else StateSaves++;StateSlot=Slot;StateView.Slot=(uint8_t)Slot;return true; }
 static void StateShortcuts(bool Enabled) { StateView.Shortcuts=Enabled; }
 int main(void) {
     lv_init(); OSD_Common_Init(); Firmware_Initialize();
@@ -881,35 +881,48 @@ int main(void) {
     for(unsigned I=0;I<7;I++){StateItems[I].Widget.Name=StateNames[I];assert(Tab_AddItem(&StateList,&StateItems[I],Screen)==kOSD_Result_Ok);}
     StateItems[0].Widget.fnDraw=NativeStateUI_Draw;StateItems[0].Widget.fnOnButton=NativeStateUI_OnButton;StateItems[0].Widget.fnOnTransition=NativeStateUI_OnTransition;
     StateList.pCurrent=&StateItems[0];SystemTab->Menu=&StateList;
-    StateView=(NativeStateView){.Available=true,.Supported=true};
+    StateView=(NativeStateView){.Available=true,.Supported=true,.Slot=1};
     NativeStateUI_Register(StateRead,StateRequest,StateShortcuts);
     DrawScreen(&Menu,Screen);Snapshot("state-system-list");
     assert(lv_obj_get_y(StateItems[6].DataObj)+lv_obj_get_height(StateItems[6].DataObj)<=137);
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
     assert(NativeStateUI_IsOpen());Snapshot("state-empty");
-    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==0);
-    StateView.Valid=true;DrawScreen(&Menu,Screen);Snapshot("state-ready");
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);Snapshot("state-confirm");
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==0); /* Default Cancel. */
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
-    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==1);
-    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==1);
+    /* An empty slot opens on Save; Load is skipped; Cancel and B change nothing. */
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);Snapshot("state-slot-empty");
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==0 && StateLoads==0);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);
+    assert(NativeStateUI_IsOpen() && StateSaves==0);
+    /* Save into slot 1, then slot 2 (Up from Cancel skips the empty Load). */
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    assert(StateSaves==1 && StateSlot==1);
+    StateView.ValidMask=1;StateView.Valid=true;DrawScreen(&Menu,Screen);Snapshot("state-ready");
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==2 && StateSlot==2);
+    StateView.ValidMask=3;StateView.Valid=true;DrawScreen(&Menu,Screen);Snapshot("state-two-slots");
+    /* A saved slot opens on Load, so A, A never overwrites it. */
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    DrawScreen(&Menu,Screen);Snapshot("state-slot-saved");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==1 && StateSlot==1 && StateSaves==2);
+    /* Slot 3 is empty: it opens on Save, and Load cannot be chosen. */
+    Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateLoads==1 && StateSaves==2);
+    Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
     StateView.Phase=kStateUIWaiting;DrawScreen(&Menu,Screen);Snapshot("state-waiting");
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);
-    assert(StateSaves==1 && NativeStateUI_IsOpen());
+    assert(StateSaves==2 && NativeStateUI_IsOpen());
     StateView.Phase=kStateUISaved;DrawScreen(&Menu,Screen);Snapshot("state-saved");
     StateView.Phase=kStateUILoaded;DrawScreen(&Menu,Screen);Snapshot("state-restored");
     StateView.Available=false;StateView.Phase=kStateUIError;strcpy(StateView.Message,"Power off to recover");DrawScreen(&Menu,Screen);Snapshot("state-error");
     StateView.Available=true;StateView.Phase=kStateUIIdle;
     Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateView.Shortcuts);
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateView.Shortcuts && StateSaves==2 && StateLoads==1);
     DrawScreen(&Menu,Screen);Snapshot("state-shortcuts");
     Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);assert(!NativeStateUI_IsOpen());
-    NativeStateUI_RequestOpen();Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==1 && !NativeStateUI_IsOpen());DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());
+    NativeStateUI_RequestOpen();Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==2 && !NativeStateUI_IsOpen());DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());
     /* The panel stays expanded after shortcut feedback closes the menu.
      * Gameplay presses must neither operate it nor queue actions for reopening. */
     MenuVisible=false;
@@ -928,11 +941,12 @@ int main(void) {
             assert(Button_GetState((Button_t)Key)==kButtonState_Pressed);
         }
     }
-    assert(StateSaves==1 && StateLoads==1 && StateView.Shortcuts && NativeStateUI_IsOpen());
+    assert(StateSaves==2 && StateLoads==1 && StateView.Shortcuts && NativeStateUI_IsOpen());
     assert(StateList.pCurrent==&StateItems[0]);
     Button_ResetAll();MenuVisible=true;
-    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==2);
-    StateView.Supported=false;StateView.Valid=false;DrawScreen(&Menu,Screen);Snapshot("state-unsupported");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
+    assert(StateLoads==2 && StateSlot==1);
+    StateView.Supported=false;StateView.Valid=false;StateView.ValidMask=0;DrawScreen(&Menu,Screen);Snapshot("state-unsupported");
     Menu.fnOnTransition(NULL);
     puts("PASS: menu routing, list scrolling, exact file selection, progress, immediate completion, errors, cleanup, firmware layout");
     return 0;

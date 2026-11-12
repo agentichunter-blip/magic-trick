@@ -25,7 +25,7 @@ This is an independent community project with no guaranteed support or release s
 ## Features
 
 - **Three systems:** Game Boy, Game Boy Color and Game Gear (with sound) on FPGA cores. Opening a game for the other system reloads the right core automatically.
-- **Native save states** for Game Boy and Game Boy Color: full FPGA snapshots from System → Save States, plus Menu+Up to save and Menu+Down (hold) to load. Each save is also written to the SD card next to the game (`<game>.state`), so you can load it again after turning the Chromatic off. MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) and MBC5 games are supported. Game Gear has no save states yet.
+- **Native save states** for Game Boy and Game Boy Color: three slots per game in System → Save States, plus Menu+Up to save and Menu+Down (hold) to load the slot you used last. Each slot is written to the SD card next to the game (`<game>.state`, `.state2`, `.state3`), so you can load it again after turning the Chromatic off. MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) and MBC5 games are supported. Game Gear has no save states yet.
 - **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
 - **Recent games** and **last-game startup** (hold B at power-on to skip).

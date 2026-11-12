@@ -29,6 +29,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
@@ -113,8 +114,11 @@ static VirtualCartInfo_t ActiveInfo;
 static char ActiveSavePath[kPathSize];
 static char ActiveRtcPath[kPathSize];
 /* SD copy of the native state ("<rom>.state"); empty when unavailable. */
-static char ActiveStatePath[kPathSize];
-static bool ActiveStateOnSd;
+/* Three save-state slots per game: "<rom>.state", ".state2", ".state3". The
+ * FPGA has one working slot; FpgaStateOwner names the slot it holds (0: none). */
+enum { kStateSlots = 3 };
+static char ActiveStatePath[kStateSlots][kPathSize];
+static uint8_t StateOnSdMask, FpgaStateOwner;
 static bool LastStateSdFailed;
 static uint32_t ActiveRtcPersistedState;
 static bool ActiveRtcPersistedValid;
@@ -578,17 +582,20 @@ static esp_err_t MakeSavePath(const char *pRomPath, bool Lowercase,
                              SavePath);
 }
 
-static esp_err_t MakeStatePath(const char *pRomPath, char StatePath[kPathSize])
+static esp_err_t MakeStatePath(const char *pRomPath, unsigned Slot,
+                               char StatePath[kPathSize])
 {
+    static const char *const Extensions[kStateSlots] = {".state", ".state2", ".state3"};
     const int Length = snprintf(StatePath, kPathSize, "%s", pRomPath);
     char *pDot = Length > 0 && Length < kPathSize ? strrchr(StatePath, '.') : NULL;
     /* Leave room for the ".tmp"/".old" publication sidecars. */
-    if (pDot == NULL || (size_t)(pDot - StatePath) + sizeof(".state") + 4 > kPathSize)
+    if (Slot < 1 || Slot > kStateSlots || pDot == NULL ||
+        (size_t)(pDot - StatePath) + strlen(Extensions[Slot - 1]) + 1 + 4 > kPathSize)
     {
         StatePath[0] = '\0';
         return ESP_ERR_INVALID_SIZE;
     }
-    memcpy(pDot, ".state", sizeof(".state"));
+    strcpy(pDot, Extensions[Slot - 1]);
     return ESP_OK;
 }
 
@@ -1248,8 +1255,9 @@ static void ClearActiveSave(void)
     StateCanonicalPath[0] = 0;
     ActiveSavePath[0] = '\0';
     ActiveRtcPath[0] = '\0';
-    ActiveStatePath[0] = '\0';
-    ActiveStateOnSd = false;
+    memset(ActiveStatePath, 0, sizeof(ActiveStatePath));
+    StateOnSdMask = 0;
+    FpgaStateOwner = 0;
     ActiveSavePending = false;
     ActiveRtcPersistedState = 0;
     ActiveRtcPersistedValid = false;
@@ -1490,12 +1498,17 @@ static esp_err_t RunLoad(const char *pPath)
     ActiveInfo = Info;
     (void)snprintf(ActiveSavePath, sizeof(ActiveSavePath), "%s",
                    SelectedSavePath);
-    ActiveStateOnSd = false;
-    if (!Info.GameGear && MakeStatePath(pPath, ActiveStatePath) == ESP_OK)
+    StateOnSdMask = 0;
+    FpgaStateOwner = 0;
+    for (unsigned Slot = 1; Slot <= kStateSlots; ++Slot)
     {
+        char *pState = ActiveStatePath[Slot - 1];
         struct stat StateStat;
-        ActiveStateOnSd = stat(ActiveStatePath, &StateStat) == 0 &&
-                          S_ISREG(StateStat.st_mode);
+        if (!Info.GameGear && MakeStatePath(pPath, Slot, pState) == ESP_OK &&
+            stat(pState, &StateStat) == 0 && S_ISREG(StateStat.st_mode))
+        {
+            StateOnSdMask |= 1u << (Slot - 1);
+        }
     }
     (void)snprintf(ActiveRtcPath, sizeof(ActiveRtcPath), "%s",
                    SelectedRtcPath);
@@ -1784,14 +1797,15 @@ static esp_err_t WaitNativeIdle(uint32_t *pStatus)
 
 /* Game paused, SD mounted, bulk session open, FPGA slot valid. Copies the slot
  * to "<rom>.state" through a temporary file and the .old publication scheme. */
-static esp_err_t ExportStateToSd(void)
+static esp_err_t ExportStateToSd(unsigned Slot)
 {
-    if (!ActiveStatePath[0]) return ESP_ERR_INVALID_STATE;
+    const char *const pPath = ActiveStatePath[Slot - 1];
+    if (!pPath[0]) return ESP_ERR_INVALID_STATE;
     StateFileGame_t Game;
     ActiveStateGame(&Game);
     const uint32_t Length = StateFile_PayloadLength(Game.RamSize);
     char Temp[kPathSize];
-    ESP_RETURN_ON_ERROR(MakeSidecarPath(ActiveStatePath, ".tmp", Temp), TAG,
+    ESP_RETURN_ON_ERROR(MakeSidecarPath(pPath, ".tmp", Temp), TAG,
                         "state temporary path");
     if (unlink(Temp) != 0 && errno != ENOENT) return ESP_FAIL;
     FILE *pFile = fopen(Temp, "wb");
@@ -1832,15 +1846,15 @@ static esp_err_t ExportStateToSd(void)
     if (Result == ESP_OK) Result = FinishSaveFile(&pFile);
     else (void)fclose(pFile);
     if (Result == ESP_OK)
-        Result = PublishSaveTemp(ActiveStatePath, Temp, kStateFileHeaderSize + Length);
+        Result = PublishSaveTemp(pPath, Temp, kStateFileHeaderSize + Length);
     if (Result != ESP_OK)
     {
         (void)unlink(Temp);
-        printf("STATE_FILE_SAVE=FAIL path=%s error=%s\n", ActiveStatePath,
+        printf("STATE_FILE_SAVE=FAIL path=%s error=%s\n", pPath,
                esp_err_to_name(Result));
         return Result;
     }
-    printf("STATE_FILE_SAVE=PASS path=%s bytes=%lu crc=%08lx\n", ActiveStatePath,
+    printf("STATE_FILE_SAVE=PASS path=%s bytes=%lu crc=%08lx\n", pPath,
            (unsigned long)Length, (unsigned long)Crc);
     return ESP_OK;
 }
@@ -1848,12 +1862,13 @@ static esp_err_t ExportStateToSd(void)
 /* Game paused, SD mounted, bulk session open, FPGA slot not valid (after power-on
  * or a game change). Validates "<rom>.state", writes it into the FPGA slot and
  * marks the slot valid. The engine checks its own header again on load. */
-static esp_err_t ImportStateFromSd(void)
+static esp_err_t ImportStateFromSd(unsigned Slot)
 {
-    if (!ActiveStatePath[0]) return ESP_ERR_NOT_FOUND;
-    ESP_RETURN_ON_ERROR(RecoverSavePublish(ActiveStatePath), TAG,
+    const char *const pPath = ActiveStatePath[Slot - 1];
+    if (!pPath[0]) return ESP_ERR_NOT_FOUND;
+    ESP_RETURN_ON_ERROR(RecoverSavePublish(pPath), TAG,
                         "recover state publication");
-    FILE *pFile = fopen(ActiveStatePath, "rb");
+    FILE *pFile = fopen(pPath, "rb");
     if (pFile == NULL) return errno == ENOENT ? ESP_ERR_NOT_FOUND : ESP_FAIL;
 
     StateFileGame_t Game;
@@ -1872,7 +1887,7 @@ static esp_err_t ImportStateFromSd(void)
         if (Check != kStateFile_Ok)
         {
             printf("STATE_FILE_REJECT=%s path=%s\n", StateFile_ResultName(Check),
-                   ActiveStatePath);
+                   pPath);
             Result = ESP_ERR_INVALID_VERSION;
         }
     }
@@ -1901,7 +1916,7 @@ static esp_err_t ImportStateFromSd(void)
     if (fclose(pFile) != 0 && Result == ESP_OK) Result = ESP_FAIL;
     if (Result == ESP_OK && Crc != Expected)
     {
-        printf("STATE_FILE_REJECT=bad_crc path=%s\n", ActiveStatePath);
+        printf("STATE_FILE_REJECT=bad_crc path=%s\n", pPath);
         Result = ESP_ERR_INVALID_CRC;
     }
     if (Result != ESP_OK) return Result;
@@ -1912,7 +1927,7 @@ static esp_err_t ImportStateFromSd(void)
     uint32_t Status = 0;
     ESP_RETURN_ON_ERROR(WaitNativeIdle(&Status), TAG, "state import status");
     if ((Status & 6) != 2) return ESP_ERR_INVALID_RESPONSE;
-    printf("STATE_FILE_LOAD=PASS path=%s bytes=%lu\n", ActiveStatePath,
+    printf("STATE_FILE_LOAD=PASS path=%s bytes=%lu\n", pPath,
            (unsigned long)Length);
     return ESP_OK;
 }
@@ -1921,7 +1936,14 @@ bool VirtualCart_LastStateSdFailed(void) { return LastStateSdFailed; }
 
 esp_err_t VirtualCart_NativeInfo(bool *Supported,bool *Valid,bool *Uncertain,uint32_t *Session)
 {
-    *Supported=*Valid=false;*Session=0;
+    uint8_t mask=0;
+    const esp_err_t result=VirtualCart_NativeSlotInfo(Supported,&mask,Uncertain,Session);
+    *Valid=(mask&1)!=0;
+    return result;
+}
+esp_err_t VirtualCart_NativeSlotInfo(bool *Supported,uint8_t *ValidMask,bool *Uncertain,uint32_t *Session)
+{
+    *Supported=false;*ValidMask=0;*Session=0;
     portENTER_CRITICAL(&StateLock);*Uncertain=StateUncertain;portEXIT_CRITICAL(&StateLock);
     if(!SetRunning(true))return ESP_ERR_NOT_FINISHED;
     *Session=NativeSession;
@@ -1931,7 +1953,10 @@ esp_err_t VirtualCart_NativeInfo(bool *Supported,bool *Valid,bool *Uncertain,uin
         result=ReadNativeStatus(&status);
         *Supported=result==ESP_OK && (status&8)!=0;
         /* Valid in the FPGA slot, or loadable from the SD card copy. */
-        *Valid=*Supported && ((status&7)==2 || ((status&5)==0 && ActiveStateOnSd));
+        if(*Supported) {
+            if((status&7)==2 && FpgaStateOwner) *ValidMask|=1u<<(FpgaStateOwner-1);
+            if(!(status&5)) *ValidMask|=StateOnSdMask;
+        }
     }
     (void)SetRunning(false);return result;
 }
@@ -1954,10 +1979,16 @@ static esp_err_t ResumeNativeGameChecked(void)
 // Local prototype: one volatile PSRAM slot. All control and persistence serialized.
 esp_err_t VirtualCart_StateCapture(bool load)
 {
-    return VirtualCart_StateCaptureForSession(load,0);
+    return VirtualCart_StateCaptureSlot(load,1,0);
 }
 esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
 {
+    return VirtualCart_StateCaptureSlot(load,1,Session);
+}
+esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
+{
+    if(slot<1 || slot>kStateSlots) return ESP_ERR_INVALID_ARG;
+    const uint8_t bit=1u<<(slot-1);
     const esp_err_t acquire = BeginNativeOperation();
     if (acquire != ESP_OK) return acquire;
     if(Session && Session!=NativeSession) {
@@ -1974,8 +2005,9 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
     }
     result=ReadNativeStatus(&status);
     if(result!=ESP_OK) goto cleanup;
-    const bool from_sd=load && !(status&2);
-    if((status&13)!=8 || (from_sd && !ActiveStateOnSd)) {
+    // The FPGA slot is used directly only when it holds this very slot.
+    const bool from_sd=load && !((status&2) && FpgaStateOwner==slot);
+    if((status&13)!=8 || (from_sd && !(StateOnSdMask&bit))) {
         printf("STATE_REJECT=snapshot_status value=%08lx\n", (unsigned long)status);
         result=ESP_ERR_INVALID_STATE;goto cleanup;
     }
@@ -1987,7 +2019,10 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
     paused=true;
     if(from_sd) {
         // Nothing is submitted yet: a bad file just resumes the game unchanged.
-        result=ImportStateFromSd();if(result!=ESP_OK) goto cleanup;
+        // A failed import may leave the FPGA slot half overwritten.
+        FpgaStateOwner=0;
+        result=ImportStateFromSd(slot);if(result!=ESP_OK) goto cleanup;
+        FpgaStateOwner=slot;
     }
     if(load && battery) {
         // Force a complete current battery save even when its dirty flag is clear.
@@ -2005,6 +2040,7 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
     }
     // Any lost acknowledgement may conceal a partial restore. Keep paused/isolated.
     StateUncertain=true;submitted=true;
+    if(!load) FpgaStateOwner=0; // A capture replaces the FPGA slot.
     result=VirtualCommand(load?11:10,NULL,&response);
     if(result!=ESP_OK) goto cleanup;
     for(unsigned poll=0;poll<6000;++poll) {
@@ -2016,8 +2052,9 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
             result=ESP_OK;
             if(!load) {
                 // The native state is valid even if the SD copy fails.
-                LastStateSdFailed=ExportStateToSd()!=ESP_OK;
-                if(!LastStateSdFailed) ActiveStateOnSd=true;
+                FpgaStateOwner=slot;
+                LastStateSdFailed=ExportStateToSd(slot)!=ESP_OK;
+                if(!LastStateSdFailed) StateOnSdMask|=bit;
             }
             goto cleanup;
         }
@@ -2043,16 +2080,18 @@ cleanup:
     return result;
 }
 
+static unsigned ConsoleSlot(int argc,char **argv)
+{
+    return argc>1 ? (unsigned)strtoul(argv[1],NULL,10) : 1;
+}
 static int NativeSaveCommand(int argc,char **argv)
 {
-    (void)argc;(void)argv;
-    esp_err_t result=VirtualCart_StateCapture(false);
+    esp_err_t result=VirtualCart_StateCaptureSlot(false,ConsoleSlot(argc,argv),0);
     printf("STATE_SAVE=%s\n",esp_err_to_name(result));return result!=ESP_OK;
 }
 static int NativeLoadCommand(int argc,char **argv)
 {
-    (void)argc;(void)argv;
-    esp_err_t result=VirtualCart_StateCapture(true);
+    esp_err_t result=VirtualCart_StateCaptureSlot(true,ConsoleSlot(argc,argv),0);
     printf("STATE_LOAD=%s\n",esp_err_to_name(result));return result!=ESP_OK;
 }
 static int NativeStatusCommand(int argc,char **argv)
@@ -2103,8 +2142,8 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
         .argtable = NULL,
     };
     const esp_console_cmd_t NativeCommands[]={
-      {.command="statesave",.help="Capture volatile native state (experimental)",.func=NativeSaveCommand},
-      {.command="stateload",.help="Restore native state into a separate battery-save branch",.func=NativeLoadCommand},
+      {.command="statesave",.help="Save native state to slot 1-3 (default 1)",.hint="[slot]",.func=NativeSaveCommand},
+      {.command="stateload",.help="Load native state from slot 1-3 (default 1) into a separate battery-save branch",.hint="[slot]",.func=NativeLoadCommand},
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand}
     };
     for(unsigned i=0;i<3;++i) {
