@@ -50,12 +50,12 @@ OSD_Result_t NativeStateUI_Draw(void *Screen) {
     lv_obj_move_foreground(Panel);
     if(!Expanded) {
         lv_label_set_text_static(Title,"ONE SLOT");lv_label_set_text(Status,S.Valid?"STATE READY":"NO STATE YET");
-        lv_label_set_text_static(Note,"Temporary\nPower off\nclears state");lv_label_set_text_static(Footer,"A: OPEN");return kOSD_Result_Ok;
+        lv_label_set_text_static(Note,"Kept on\nSD card");lv_label_set_text_static(Footer,"A: OPEN");return kOSD_Result_Ok;
     }
     bool InFlight=Busy(&S);
     for(unsigned I=0;I<3;I++)Show(Rows[I],!InFlight);
     lv_label_set_text_static(Title,Confirm?"LOAD STATE?":"SAVE STATES");
-    lv_label_set_text_static(Note,"Lost on power off,\nreset or game change.");
+    lv_label_set_text_static(Note,"Kept on the SD card,\nalso after power off.");
     lv_label_set_text_static(Footer,"A: CHOOSE   B: BACK");
     if(InFlight) {
         Confirm=false;lv_obj_set_pos(Status,6,30);lv_obj_set_width(Status,120);
@@ -70,7 +70,7 @@ OSD_Result_t NativeStateUI_Draw(void *Screen) {
         lv_label_set_text_static(Note,"Newer game saves\nwill be kept separately.");return kOSD_Result_Ok;
     }
     const char *StatusText=S.Phase==kStateUISaved?"State saved":S.Phase==kStateUILoaded?"State restored":
-        S.Phase==kStateUIError?S.Message:!S.Available?"Unavailable right now":!S.Supported?"No supported game":S.Valid?"Temporary state ready":"No state saved yet";
+        S.Phase==kStateUIError?S.Message:!S.Available?"Unavailable right now":!S.Supported?"No supported game":S.Valid?"State ready":"No state saved yet";
     lv_label_set_text(Status,StatusText);
     Row(0,"Save State",S.Available && S.Supported,Choice==0);
     Row(1,"Load State",S.Available && S.Supported && S.Valid,Choice==1);

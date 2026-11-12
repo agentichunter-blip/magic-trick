@@ -4,7 +4,7 @@
 #include <string.h>
 #include "../../main/native_state_control.c"
 static unsigned Clock, Saves, Loads, Pulses, Opens;
-static bool Valid, Supported=true, PC, Uncertain, Wait;
+static bool Valid, Supported=true, PC, Uncertain, Wait, SdFailed;
 static uint32_t Game=1;
 static esp_err_t Result=ESP_OK, SettingResult=ESP_OK;
 static bool HasStoredSetting;
@@ -27,6 +27,7 @@ esp_err_t FPGA_Tx_PulseButtons(uint16_t B){assert(B==0x100);++Pulses;return ESP_
 void NativeStateUI_Register(NativeStateRead R,NativeStateRequest Q,NativeStateShortcuts H){}
 void NativeStateUI_RequestOpen(void){++Opens;}
 void VirtualCart_RegisterStateWait(void(*F)(void)){WaitCallback=F;}
+bool VirtualCart_LastStateSdFailed(void){return SdFailed;}
 esp_err_t VirtualCart_NativeInfo(bool*S,bool*V,bool*U,uint32_t*G){*S=Supported;*V=Valid;*U=Uncertain;*G=Game;return ESP_OK;}
 esp_err_t VirtualCart_StateCaptureForSession(bool L,uint32_t G){
  assert(InFlight);assert(!Request(false));
@@ -43,6 +44,14 @@ int main(void){
  Refresh();assert(View.Supported && !View.Valid);assert(!Request(true));
  assert(Request(false));assert(!Request(false));Step();assert(Saves==1 && View.Phase==kStateUISaved);
  Wait=true;assert(Request(true));Step();assert(Loads==1 && View.Phase==kStateUILoaded);
+ /* A save that could not reach the SD card is reported, but the state is usable. */
+ Wait=false;SdFailed=true;assert(Request(false));Step();
+ assert(Saves==2 && View.Phase==kStateUIError && View.Valid && strstr(View.Message,"not on"));
+ SdFailed=false;
+ /* A damaged SD file is named as such. */
+ Result=ESP_ERR_INVALID_CRC;assert(Request(true));Step();assert(Loads==2 && strstr(View.Message,"damaged"));
+ Result=ESP_ERR_NOT_FOUND;assert(Request(true));Step();assert(Loads==3 && !strcmp(View.Message,"No state available"));
+ Result=ESP_OK;Saves=1;Loads=1;Wait=true;
  Result=ESP_ERR_TIMEOUT;assert(Request(true));Step();assert(View.Phase==kStateUIError && View.Valid);
  Result=ESP_OK;assert(Request(true));++Game;Step();assert(Loads==2); /* Previous timeout counted, stale session not executed. */
  Refresh();assert(View.Phase==kStateUIIdle);

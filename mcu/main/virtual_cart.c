@@ -3,6 +3,7 @@
 #include "virtual_cart.h"
 #include "gg_rom.h"
 #include "state_save_branch.h"
+#include "state_file.h"
 #include "last_game.h"
 #include "recent_games.h"
 #include "cheats.h"
@@ -53,6 +54,10 @@ enum {
     kVirtualCommandRtcSnapshot = 7,
     kVirtualCommandQuiesce = 8,
     kVirtualCommandResume = 9,
+    /* Native states: 10 save, 11 load, 12 status, 13 debug (below). */
+    kVirtualCommandStateBlock = 14,
+    kVirtualCommandStateImport = 15,
+    kStateSlotBase = 0x440000,
     kVirtualCapabilityRtcState = 1 << 7,
     kVirtualStartMbc1m = 0x80,
     kVirtualStatusEnabled = 1 << 0,
@@ -107,6 +112,10 @@ static bool ActiveSavePending;
 static VirtualCartInfo_t ActiveInfo;
 static char ActiveSavePath[kPathSize];
 static char ActiveRtcPath[kPathSize];
+/* SD copy of the native state ("<rom>.state"); empty when unavailable. */
+static char ActiveStatePath[kPathSize];
+static bool ActiveStateOnSd;
+static bool LastStateSdFailed;
 static uint32_t ActiveRtcPersistedState;
 static bool ActiveRtcPersistedValid;
 static bool ActiveRtcSupported;
@@ -567,6 +576,20 @@ static esp_err_t MakeSavePath(const char *pRomPath, bool Lowercase,
 {
     return MakeCompanionPath(pRomPath, Lowercase ? ".sav" : ".SAV",
                              SavePath);
+}
+
+static esp_err_t MakeStatePath(const char *pRomPath, char StatePath[kPathSize])
+{
+    const int Length = snprintf(StatePath, kPathSize, "%s", pRomPath);
+    char *pDot = Length > 0 && Length < kPathSize ? strrchr(StatePath, '.') : NULL;
+    /* Leave room for the ".tmp"/".old" publication sidecars. */
+    if (pDot == NULL || (size_t)(pDot - StatePath) + sizeof(".state") + 4 > kPathSize)
+    {
+        StatePath[0] = '\0';
+        return ESP_ERR_INVALID_SIZE;
+    }
+    memcpy(pDot, ".state", sizeof(".state"));
+    return ESP_OK;
 }
 
 static esp_err_t MakeRtcPath(const char *pRomPath, bool Lowercase,
@@ -1225,6 +1248,8 @@ static void ClearActiveSave(void)
     StateCanonicalPath[0] = 0;
     ActiveSavePath[0] = '\0';
     ActiveRtcPath[0] = '\0';
+    ActiveStatePath[0] = '\0';
+    ActiveStateOnSd = false;
     ActiveSavePending = false;
     ActiveRtcPersistedState = 0;
     ActiveRtcPersistedValid = false;
@@ -1465,6 +1490,13 @@ static esp_err_t RunLoad(const char *pPath)
     ActiveInfo = Info;
     (void)snprintf(ActiveSavePath, sizeof(ActiveSavePath), "%s",
                    SelectedSavePath);
+    ActiveStateOnSd = false;
+    if (!Info.GameGear && MakeStatePath(pPath, ActiveStatePath) == ESP_OK)
+    {
+        struct stat StateStat;
+        ActiveStateOnSd = stat(ActiveStatePath, &StateStat) == 0 &&
+                          S_ISREG(StateStat.st_mode);
+    }
     (void)snprintf(ActiveRtcPath, sizeof(ActiveRtcPath), "%s",
                    SelectedRtcPath);
     ActiveSavePending = false;
@@ -1712,19 +1744,194 @@ static void PrintNativeDebug(const char *phase)
         (unsigned)(data>>2)&1,(unsigned)(data>>1)&1,(unsigned)data&1);
 }
 
+/* Games whose mapper the native state engine captures and restores. */
+static bool NativeMapperSupported(const VirtualCartInfo_t *pInfo)
+{
+    if (pInfo->GameGear) return false;
+    switch (pInfo->Mapper.Kind)
+    {
+    case kCartMapper_Mbc1:
+    case kCartMapper_Mbc5:
+        return !pInfo->Mapper.HasRtc;
+    case kCartMapper_Mbc3:
+        /* MBC30 (64 KiB RAM, Japanese Crystal) is untested; the FPGA refuses it. */
+        return !pInfo->Mapper.IsMbc30 && pInfo->RamSize <= 32u * 1024u;
+    default:
+        return false;
+    }
+}
+
+static void ActiveStateGame(StateFileGame_t *pGame)
+{
+    memset(pGame, 0, sizeof(*pGame));
+    memcpy(pGame->Title, ActiveInfo.Title, sizeof(pGame->Title));
+    pGame->RomSize = ActiveInfo.RomSize;
+    pGame->RamSize = ActiveInfo.RamSize;
+    pGame->GlobalChecksum = ActiveInfo.GlobalChecksum;
+    pGame->CartType = ActiveInfo.Mapper.Type;
+}
+
+static esp_err_t WaitNativeIdle(uint32_t *pStatus)
+{
+    for (unsigned Poll = 0; Poll < 200; ++Poll)
+    {
+        ESP_RETURN_ON_ERROR(ReadNativeStatus(pStatus), TAG, "native status");
+        if (!(*pStatus & 1)) return ESP_OK;
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    return ESP_ERR_TIMEOUT;
+}
+
+/* Game paused, SD mounted, bulk session open, FPGA slot valid. Copies the slot
+ * to "<rom>.state" through a temporary file and the .old publication scheme. */
+static esp_err_t ExportStateToSd(void)
+{
+    if (!ActiveStatePath[0]) return ESP_ERR_INVALID_STATE;
+    StateFileGame_t Game;
+    ActiveStateGame(&Game);
+    const uint32_t Length = StateFile_PayloadLength(Game.RamSize);
+    char Temp[kPathSize];
+    ESP_RETURN_ON_ERROR(MakeSidecarPath(ActiveStatePath, ".tmp", Temp), TAG,
+                        "state temporary path");
+    if (unlink(Temp) != 0 && errno != ENOENT) return ESP_FAIL;
+    FILE *pFile = fopen(Temp, "wb");
+    if (pFile == NULL) return ESP_FAIL;
+
+    uint8_t Header[kStateFileHeaderSize] = {0};
+    esp_err_t Result = fwrite(Header, 1, sizeof(Header), pFile) == sizeof(Header)
+        ? ESP_OK : ESP_FAIL;
+    uint32_t Crc = 0;
+    for (uint32_t Offset = 0; Result == ESP_OK && Offset < Length;
+         Offset += kCartBulkBlockSize)
+    {
+        if (++SaveSequence == 0) ++SaveSequence;
+        CartLinkResponse_t Response = {0};
+        Result = VirtualCommandRaw(kVirtualCommandStateBlock, SaveSequence,
+                                   (uint8_t)(Offset / kCartBulkBlockSize), &Response);
+        if (Result == ESP_OK)
+            Result = CartBulk_ReadVirtualBlock(SaveSequence, TransferBuffer);
+        if (Result != ESP_OK) break;
+        if (Offset == 0 &&
+            !StateFile_PayloadSignatureOk(TransferBuffer, sizeof(TransferBuffer)))
+        {
+            Result = ESP_ERR_INVALID_RESPONSE;
+            break;
+        }
+        const size_t Count = Length - Offset < kCartBulkBlockSize
+            ? Length - Offset : kCartBulkBlockSize;
+        Crc = StateFile_Crc32(Crc, TransferBuffer, Count);
+        if (fwrite(TransferBuffer, 1, Count, pFile) != Count) Result = ESP_FAIL;
+    }
+    if (Result == ESP_OK)
+    {
+        StateFile_EncodeHeader(&Game, Length, Crc, Header);
+        if (fseek(pFile, 0, SEEK_SET) != 0 ||
+            fwrite(Header, 1, sizeof(Header), pFile) != sizeof(Header))
+            Result = ESP_FAIL;
+    }
+    if (Result == ESP_OK) Result = FinishSaveFile(&pFile);
+    else (void)fclose(pFile);
+    if (Result == ESP_OK)
+        Result = PublishSaveTemp(ActiveStatePath, Temp, kStateFileHeaderSize + Length);
+    if (Result != ESP_OK)
+    {
+        (void)unlink(Temp);
+        printf("STATE_FILE_SAVE=FAIL path=%s error=%s\n", ActiveStatePath,
+               esp_err_to_name(Result));
+        return Result;
+    }
+    printf("STATE_FILE_SAVE=PASS path=%s bytes=%lu crc=%08lx\n", ActiveStatePath,
+           (unsigned long)Length, (unsigned long)Crc);
+    return ESP_OK;
+}
+
+/* Game paused, SD mounted, bulk session open, FPGA slot not valid (after power-on
+ * or a game change). Validates "<rom>.state", writes it into the FPGA slot and
+ * marks the slot valid. The engine checks its own header again on load. */
+static esp_err_t ImportStateFromSd(void)
+{
+    if (!ActiveStatePath[0]) return ESP_ERR_NOT_FOUND;
+    ESP_RETURN_ON_ERROR(RecoverSavePublish(ActiveStatePath), TAG,
+                        "recover state publication");
+    FILE *pFile = fopen(ActiveStatePath, "rb");
+    if (pFile == NULL) return errno == ENOENT ? ESP_ERR_NOT_FOUND : ESP_FAIL;
+
+    StateFileGame_t Game;
+    ActiveStateGame(&Game);
+    uint8_t Header[kStateFileHeaderSize];
+    uint32_t Length = 0, Expected = 0, Crc = 0;
+    esp_err_t Result = ESP_OK;
+    if (fread(Header, 1, sizeof(Header), pFile) != sizeof(Header))
+    {
+        Result = ESP_ERR_INVALID_SIZE;
+    }
+    else
+    {
+        const StateFileResult_t Check =
+            StateFile_DecodeHeader(Header, &Game, &Length, &Expected);
+        if (Check != kStateFile_Ok)
+        {
+            printf("STATE_FILE_REJECT=%s path=%s\n", StateFile_ResultName(Check),
+                   ActiveStatePath);
+            Result = ESP_ERR_INVALID_VERSION;
+        }
+    }
+    for (uint32_t Offset = 0; Result == ESP_OK && Offset < Length;
+         Offset += kCartBulkBlockSize)
+    {
+        const size_t Count = Length - Offset < kCartBulkBlockSize
+            ? Length - Offset : kCartBulkBlockSize;
+        if (fread(TransferBuffer, 1, Count, pFile) != Count)
+        {
+            Result = ESP_ERR_INVALID_SIZE;
+            break;
+        }
+        if (Count < kCartBulkBlockSize)
+            memset(TransferBuffer + Count, 0, kCartBulkBlockSize - Count);
+        if (Offset == 0 &&
+            !StateFile_PayloadSignatureOk(TransferBuffer, sizeof(TransferBuffer)))
+        {
+            Result = ESP_ERR_INVALID_VERSION;
+            break;
+        }
+        Crc = StateFile_Crc32(Crc, TransferBuffer, Count);
+        Result = CartBulk_WritePSRAMBlock(kStateSlotBase + Offset, TransferBuffer);
+    }
+    if (Result == ESP_OK && fgetc(pFile) != EOF) Result = ESP_ERR_INVALID_SIZE;
+    if (fclose(pFile) != 0 && Result == ESP_OK) Result = ESP_FAIL;
+    if (Result == ESP_OK && Crc != Expected)
+    {
+        printf("STATE_FILE_REJECT=bad_crc path=%s\n", ActiveStatePath);
+        Result = ESP_ERR_INVALID_CRC;
+    }
+    if (Result != ESP_OK) return Result;
+
+    CartLinkResponse_t Response = {0};
+    ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStateImport, NULL, &Response),
+                        TAG, "state import");
+    uint32_t Status = 0;
+    ESP_RETURN_ON_ERROR(WaitNativeIdle(&Status), TAG, "state import status");
+    if ((Status & 6) != 2) return ESP_ERR_INVALID_RESPONSE;
+    printf("STATE_FILE_LOAD=PASS path=%s bytes=%lu\n", ActiveStatePath,
+           (unsigned long)Length);
+    return ESP_OK;
+}
+
+bool VirtualCart_LastStateSdFailed(void) { return LastStateSdFailed; }
+
 esp_err_t VirtualCart_NativeInfo(bool *Supported,bool *Valid,bool *Uncertain,uint32_t *Session)
 {
     *Supported=*Valid=false;*Session=0;
     portENTER_CRITICAL(&StateLock);*Uncertain=StateUncertain;portEXIT_CRITICAL(&StateLock);
     if(!SetRunning(true))return ESP_ERR_NOT_FINISHED;
     *Session=NativeSession;
-    *Supported=Active && !ActiveInfo.GameGear && !ActiveInfo.Mapper.HasRtc &&
-        (ActiveInfo.Mapper.Kind==kCartMapper_Mbc1 || ActiveInfo.Mapper.Kind==kCartMapper_Mbc5);
+    *Supported=Active && NativeMapperSupported(&ActiveInfo);
     uint32_t status=0;esp_err_t result=ESP_OK;
     if(*Supported) {
         result=ReadNativeStatus(&status);
         *Supported=result==ESP_OK && (status&8)!=0;
-        *Valid=*Supported && (status&7)==2;
+        /* Valid in the FPGA slot, or loadable from the SD card copy. */
+        *Valid=*Supported && ((status&7)==2 || ((status&5)==0 && ActiveStateOnSd));
     }
     (void)SetRunning(false);return result;
 }
@@ -1762,23 +1969,26 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
     sdmmc_card_t *card=NULL;
     uint32_t status=0;
     CartLinkResponse_t response={0};
-    if(!Active || ActiveInfo.GameGear || ActiveInfo.Mapper.HasRtc ||
-       (ActiveInfo.Mapper.Kind!=kCartMapper_Mbc1 && ActiveInfo.Mapper.Kind!=kCartMapper_Mbc5)) {
+    if(!Active || !NativeMapperSupported(&ActiveInfo)) {
         printf("STATE_REJECT=unsupported_or_inactive\n");goto cleanup;
     }
     result=ReadNativeStatus(&status);
     if(result!=ESP_OK) goto cleanup;
-    if((status&13)!=8 || (load && !(status&2))) {
+    const bool from_sd=load && !(status&2);
+    if((status&13)!=8 || (from_sd && !ActiveStateOnSd)) {
         printf("STATE_REJECT=snapshot_status value=%08lx\n", (unsigned long)status);
         result=ESP_ERR_INVALID_STATE;goto cleanup;
     }
     const bool battery=ActiveInfo.Mapper.HasBattery && ActiveInfo.RamSize;
-    if(battery) {
-        result=SDCard_Mount(&card);if(result!=ESP_OK) goto cleanup;mounted=true;
-        result=CartBulk_Begin();if(result!=ESP_OK) goto cleanup;bulk=true;
-    }
+    // SD is needed for the state file even without battery RAM.
+    result=SDCard_Mount(&card);if(result!=ESP_OK) goto cleanup;mounted=true;
+    result=CartBulk_Begin();if(result!=ESP_OK) goto cleanup;bulk=true;
     result=PersistActiveDataForTransition();if(result!=ESP_OK) goto cleanup;
     paused=true;
+    if(from_sd) {
+        // Nothing is submitted yet: a bad file just resumes the game unchanged.
+        result=ImportStateFromSd();if(result!=ESP_OK) goto cleanup;
+    }
     if(load && battery) {
         // Force a complete current battery save even when its dirty flag is clear.
         ActiveSavePending=true;
@@ -1803,7 +2013,13 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
         if(!(status&1)) {
             if(!(status&2)) { result=ESP_ERR_INVALID_RESPONSE;goto cleanup; }
             StateUncertain=false;
-            result=ESP_OK;goto cleanup;
+            result=ESP_OK;
+            if(!load) {
+                // The native state is valid even if the SD copy fails.
+                LastStateSdFailed=ExportStateToSd()!=ESP_OK;
+                if(!LastStateSdFailed) ActiveStateOnSd=true;
+            }
+            goto cleanup;
         }
         vTaskDelay(pdMS_TO_TICKS(5));
     }

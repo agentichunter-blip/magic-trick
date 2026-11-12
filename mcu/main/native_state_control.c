@@ -86,8 +86,15 @@ static void Step(void) {
         if(Operation) {
             esp_err_t R=VirtualCart_StateCaptureForSession(Operation==2,OperationSession);
             portENTER_CRITICAL(&Lock);InFlight=false;
-            if(R==ESP_OK){View.Phase=Operation==2?kStateUILoaded:kStateUISaved;View.Valid=true;}
-            else {View.Phase=kStateUIError;snprintf(View.Message,sizeof(View.Message),"%s",R==ESP_ERR_TIMEOUT?"Save busy - try again":"State action failed");}
+            if(R==ESP_OK && Operation==1 && VirtualCart_LastStateSdFailed()){
+                View.Phase=kStateUIError;View.Valid=true;
+                snprintf(View.Message,sizeof(View.Message),"Saved, but not on\nthe SD card");
+            }
+            else if(R==ESP_OK){View.Phase=Operation==2?kStateUILoaded:kStateUISaved;View.Valid=true;}
+            else {View.Phase=kStateUIError;snprintf(View.Message,sizeof(View.Message),"%s",
+                R==ESP_ERR_TIMEOUT?"Save busy - try again":
+                (R==ESP_ERR_INVALID_CRC || R==ESP_ERR_INVALID_VERSION || R==ESP_ERR_INVALID_SIZE)?"State file on SD\ncard is damaged":
+                R==ESP_ERR_NOT_FOUND?"No state available":"State action failed");}
             if(FromShortcut && R==ESP_OK)DismissAt=Millis()+1200;
             FromShortcut=false;portEXIT_CRITICAL(&Lock);
         }

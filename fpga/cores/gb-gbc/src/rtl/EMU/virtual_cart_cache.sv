@@ -26,7 +26,8 @@ module virtual_cart_cache (
     input      [15:0] xreaddata,
 
     input             xsnapshot_request_toggle,
-    input       [6:0] xsnapshot_block,
+    // [8]=1: native state slot at STATE_BASE (256 blocks); else battery RAM.
+    input       [8:0] xsnapshot_block,
     input      [15:0] xsnapshot_sequence,
     output reg        xsnapshot_ready,
     output reg [15:0] xsnapshot_ready_sequence,
@@ -36,6 +37,7 @@ module virtual_cart_cache (
 );
     localparam [10:0] LINE_BYTES = 11'd64;
     localparam [22:0] SAVE_BASE = 23'h420000;
+    localparam [22:0] STATE_BASE = 23'h440000;
 
     wire [15:0] tag_way0_data;
     wire [15:0] tag_way1_data;
@@ -442,7 +444,7 @@ module virtual_cart_cache (
     reg flush_done_meta_x;
     reg flush_done_sync_x;
     reg flush_done_seen_x;
-    reg [6:0] snapshot_block_x;
+    reg [8:0] snapshot_block_x;
     reg [15:0] snapshot_sequence_x;
     assign xfill_write = xread_valid && xstate == X_FILL_WAIT;
 
@@ -478,7 +480,7 @@ module virtual_cart_cache (
             flush_done_meta_x <= 1'b0;
             flush_done_sync_x <= 1'b0;
             flush_done_seen_x <= 1'b0;
-            snapshot_block_x <= 7'd0;
+            snapshot_block_x <= 9'd0;
             snapshot_sequence_x <= 16'd0;
             snapshot_chunk_x <= 4'd0;
             xsnapshot_ready <= 1'b0;
@@ -547,7 +549,7 @@ module virtual_cart_cache (
                             snapshot_block_x <= xsnapshot_block;
                             snapshot_sequence_x <= xsnapshot_sequence;
                             xsnapshot_ready <= 1'b0;
-                            if (xsnapshot_block == 0) begin
+                            if (xsnapshot_block == 9'd0) begin
                                 snapshot_pending_x <= 1'b1;
                                 flush_request_toggle_x <=
                                     !flush_request_toggle_x;
@@ -602,9 +604,11 @@ module virtual_cart_cache (
                     X_SNAPSHOT_REQUEST: begin
                         xread <= 1'b1;
                         xword <= 5'd0;
-                        xaddress <= SAVE_BASE +
-                            {6'd0, snapshot_block_x,
-                             snapshot_chunk_x, 6'd0};
+                        xaddress <= snapshot_block_x[8]
+                            ? STATE_BASE + {5'd0, snapshot_block_x[7:0],
+                                            snapshot_chunk_x, 6'd0}
+                            : SAVE_BASE + {6'd0, snapshot_block_x[6:0],
+                                           snapshot_chunk_x, 6'd0};
                         xlength <= LINE_BYTES;
                         xrequest <= 1'b1;
                         xstate <= X_SNAPSHOT_WAIT;

@@ -1,5 +1,6 @@
 module virtual_cart_mapper (
     input ss_load, input [15:0] ss_data, output [15:0] ss_back,
+    input [63:0] ss_ext_data, output [63:0] ss_ext_back,
     input clk_sys, reset, ce_cpu, ce_32k,
     input [2:0] mapper_select,
     input mbc1m, mbc30, has_ram,
@@ -22,6 +23,9 @@ module virtual_cart_mapper (
     output cart_oe, ram_enabled, has_battery, rumbling
 );
     assign ss_back=savestate_back_b;
+    // Only MBC3 uses the extension slot (RTC latch state).
+    wire [63:0] mbc3_ext_back;
+    assign ss_ext_back=en_mbc3 ? mbc3_ext_back : 64'd0;
     wire en_mbc1 = mapper_select == 3'd1;
     wire en_mbc2 = mapper_select == 3'd2;
     wire en_mbc3 = mapper_select == 3'd3;
@@ -62,6 +66,7 @@ module virtual_cart_mapper (
     mbc3 map_mbc3 (
         .enable(en_mbc3), .reset(reset), .mbc30(mbc30), .clk_sys(clk_sys), .ce_cpu(ce_cpu),
         .savestate_load(ss_load), .savestate_data(ss_data), .savestate_back_b(savestate_back_b),
+        .savestate_ext_data(ss_ext_data), .savestate_ext_back(mbc3_ext_back),
         .ce_32k(ce_32k), .RTC_time(RTC_time), .RTC_timestampOut_b(RTC_timestampOut_b),
         .RTC_savedtimeOut_b(RTC_savedtimeOut_b), .RTC_inuse_b(RTC_inuse_b),
         .bk_wr(bk_wr), .bk_rtc_wr(bk_rtc_wr), .bk_addr(bk_addr), .bk_data(bk_data),

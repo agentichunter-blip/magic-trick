@@ -21,13 +21,24 @@ esp_err_t SDCard_Unmount(sdmmc_card_t *p){assert(Mounted && p==&Card);
  Mounted=false;return ESP_OK;}
 esp_err_t CartBulk_Begin(void){assert(Mounted && !Bulk);Bulk=true;return ESP_OK;}
 void CartBulk_End(void){assert(Bulk);Bulk=false;}
+esp_err_t CartBulk_WritePSRAMBlock(uint32_t a,const uint8_t *d){(void)a;(void)d;assert(Bulk);
+#ifdef NATIVE_TEST_SLOT_HOOKS
+ NativeWritePsramHook(a,d);
+#endif
+ return ESP_OK;}
 esp_err_t CartBulk_ReadVirtualBlock(uint16_t seq,uint8_t *data){assert(Bulk && seq==Sequence);
+#ifdef NATIVE_TEST_SLOT_HOOKS
+ if(NativeReadBlockHook(data))return ESP_OK;
+#endif
 #ifdef NATIVE_TEST_SAVE_BLOCK_HOOK
  NativeSaveBlockHook();
 #endif
  memcpy(data,Frozen+Block*1024,1024);return ESP_OK;}
 esp_err_t CartLink_VirtualCommand(uint8_t cmd,uint16_t conf,uint8_t high,CartLinkResponse_t *r){
  memset(r,0,sizeof(*r));r->Count=4;
+#ifdef NATIVE_TEST_SLOT_HOOKS
+ if(NativeCommandHook(cmd,conf,high,r))return ESP_OK;
+#endif
  if(cmd==8) Paused=true;
  if(cmd==9){ResumeIssued=true;++Resumes;
   if(ResumeFailure==1)return ESP_ERR_TIMEOUT;

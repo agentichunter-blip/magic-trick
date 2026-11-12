@@ -14,6 +14,8 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void);
 
 esp_err_t VirtualCart_StateCapture(bool load);
 
+/* True when the last successful native save could not be written to the SD card. */
+bool VirtualCart_LastStateSdFailed(void);
 esp_err_t VirtualCart_NativeInfo(bool *Supported, bool *Valid, bool *Uncertain, uint32_t *Session);
 void VirtualCart_RegisterStateWait(void (*Callback)(void));
 

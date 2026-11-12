@@ -640,6 +640,9 @@ module top #(parameter ISSIMU=0)
     localparam [7:0]  VIRTUAL_CART_QUIESCE = 8'd8;
     localparam [7:0]  VIRTUAL_CART_RESUME = 8'd9;
     localparam [7:0] VIRTUAL_STATE_SAVE=10, VIRTUAL_STATE_LOAD=11, VIRTUAL_STATE_STATUS=12, VIRTUAL_STATE_DEBUG=13;
+    // 14: read 1 KiB block N (aux value) of the native state slot, same readback as 4.
+    // 15: mark a slot written by firmware (from an SD state file) as valid.
+    localparam [7:0] VIRTUAL_STATE_BLOCK=14, VIRTUAL_STATE_IMPORT=15;
     wire state_hold_h;
     wire [6:0] state_debug_h;
     reg [3:0] state_frames_h;
@@ -665,6 +668,7 @@ module top #(parameter ISSIMU=0)
        state_status_g[3] && !state_status_g[2] && !state_busy_g;
     wire state_request_g=virtual_request_accepted && state_allowed_g &&
        (cart_request_value[6:0]==VIRTUAL_STATE_SAVE ||
+        cart_request_value[6:0]==VIRTUAL_STATE_IMPORT ||
         (cart_request_value[6:0]==VIRTUAL_STATE_LOAD && state_status_g[1]));
     wire virtual_request_selected = cart_request_operation == 3'h7 &&
                                     cart_request_address == VIRTUAL_CART_MAGIC;
@@ -700,7 +704,7 @@ module top #(parameter ISSIMU=0)
     reg [8:0] virtual_rom_mask_g;
     reg virtual_rtc_timestamp_toggle_g;
     reg virtual_snapshot_request_toggle_g;
-    reg [6:0] virtual_snapshot_block_g;
+    reg [8:0] virtual_snapshot_block_g;
     reg [15:0] virtual_snapshot_sequence_g;
     wire [28:0] virtual_rtc_state_h;
     wire [28:0] virtual_rtc_snapshot_g;
@@ -857,7 +861,7 @@ module top #(parameter ISSIMU=0)
             virtual_rom_mask_g <= 9'd0;
             virtual_rtc_timestamp_toggle_g <= 1'b0;
             virtual_snapshot_request_toggle_g <= 1'b0;
-            virtual_snapshot_block_g <= 7'd0;
+            virtual_snapshot_block_g <= 9'd0;
             virtual_snapshot_sequence_g <= 16'd0;
         end else begin
             if (virtual_response_valid && cart_response_ready)
@@ -918,7 +922,7 @@ module top #(parameter ISSIMU=0)
                     VIRTUAL_CART_STATUS: ;
                     VIRTUAL_STATE_STATUS: virtual_response_data<=state_status_g;
                     VIRTUAL_STATE_DEBUG: virtual_response_data<=32'h53440000 | {20'd0,state_debug_sync_g};
-                    VIRTUAL_STATE_SAVE, VIRTUAL_STATE_LOAD: begin
+                    VIRTUAL_STATE_SAVE, VIRTUAL_STATE_LOAD, VIRTUAL_STATE_IMPORT: begin
                       virtual_response_data<=state_status_g | 32'd1;
                       if(!state_request_g) virtual_response_status<=4'h3;
                     end
@@ -932,7 +936,21 @@ module top #(parameter ISSIMU=0)
                             virtual_response_status <= 4'h3;
                         end else begin
                             virtual_snapshot_block_g <=
-                                cart_request_aux_value[6:0];
+                                {2'b00, cart_request_aux_value[6:0]};
+                            virtual_snapshot_sequence_g <=
+                                cart_request_aux_address;
+                            virtual_snapshot_request_toggle_g <=
+                                !virtual_snapshot_request_toggle_g;
+                        end
+                    end
+                    VIRTUAL_STATE_BLOCK: begin
+                        // Only while paused: the slot must not change mid-read.
+                        if (!virtual_enable_g || !virtual_quiesced_g ||
+                            state_busy_g || state_status_g[2]) begin
+                            virtual_response_status <= 4'h3;
+                        end else begin
+                            virtual_snapshot_block_g <=
+                                {1'b1, cart_request_aux_value};
                             virtual_snapshot_sequence_g <=
                                 cart_request_aux_address;
                             virtual_snapshot_request_toggle_g <=
@@ -1154,6 +1172,7 @@ module top #(parameter ISSIMU=0)
     emu_system_top u_emu_system_top(
         .state_gclk(gClk),.state_greset(~lock_o),.state_request_g(state_request_g),
         .state_load_g(cart_request_value[6:0]==VIRTUAL_STATE_LOAD),
+        .state_import_g(cart_request_value[6:0]==VIRTUAL_STATE_IMPORT),
         .state_debug_h(state_debug_h),.state_hold_h(state_hold_h),.state_busy_g(state_busy_g),.state_status_g(state_status_g),
         .hclk(hClk),
         .pclk(pClk),

@@ -2,7 +2,7 @@
 
 module emu_system_top
 (
-    input state_gclk, state_greset, state_request_g, state_load_g,
+    input state_gclk, state_greset, state_request_g, state_load_g, state_import_g,
     output state_busy_g, output state_hold_h, output [31:0] state_status_g,
     output [6:0] state_debug_h,
     input               hclk,
@@ -72,7 +72,8 @@ module emu_system_top
     input               virtual_xread_valid,
     input  [15:0]       virtual_xreaddata,
     input               virtual_snapshot_request_toggle,
-    input   [6:0]       virtual_snapshot_block,
+    // [8]=1 reads the native state slot (256 KiB) instead of battery RAM.
+    input   [8:0]       virtual_snapshot_block,
     input   [15:0]      virtual_snapshot_sequence,
     output              virtual_snapshot_ready,
     output  [15:0]      virtual_snapshot_ready_sequence,
@@ -378,21 +379,27 @@ module emu_system_top
     wire [7:0] state_be;
     wire [63:0] ss_din; wire [9:0] ss_adr; wire ss_wr,ss_rst;
     wire [15:0] mapper_back;reg [15:0] mapper_restore=16'h0001;
+    // Slot 39: mapper extension (MBC3 RTC latch state). Zero for other mappers.
+    wire [63:0] mapper_ext_back;reg [63:0] mapper_ext_restore=64'd0;
     always @(posedge hclk) begin
-      if(ss_rst) mapper_restore<=16'h0001;
-      else if(ss_wr && ss_adr==32) mapper_restore<=ss_din[15:0];
+      if(ss_rst) begin mapper_restore<=16'h0001;mapper_ext_restore<=64'd0;end
+      else begin
+        if(ss_wr && ss_adr==32) mapper_restore<=ss_din[15:0];
+        if(ss_wr && ss_adr==39) mapper_ext_restore<=ss_din;
+      end
     end
-    wire [63:0] mapper_bus=ss_adr==32 ? {48'd0,mapper_back} : 64'd0;
+    wire [63:0] mapper_bus=ss_adr==32 ? {48'd0,mapper_back} : ss_adr==39 ? mapper_ext_back : 64'd0;
     wire cram_request,cram_done,cram_write;
     wire [19:0] cram_addr;wire [7:0] cram_wdata,cram_rdata;
     wire [7:0] state_ram_size=!virtual_has_ram ? 8'hff :
        virtual_ram_mask==1 ? 8'd1 : virtual_ram_mask==0 ? 8'd2 :
        virtual_ram_mask==3 ? 8'd3 : virtual_ram_mask==7 ? 8'd5 : 8'd4;
     wire state_supported=virtual_enable && virtual_initialized &&
-       (virtual_mapper_select==1 || virtual_mapper_select==4);
+       (virtual_mapper_select==1 || virtual_mapper_select==4 ||
+        (virtual_mapper_select==3 && !virtual_mbc30)); // MBC30 (64 KiB RAM) untested
     snapshot_control state_control(
       .gclk(state_gclk),.greset(state_greset),.hclk(hclk),.hreset(~reset_n),
-      .request_g(state_request_g),.load_g(state_load_g),.busy_g(state_busy_g),.status_g(state_status_g),
+      .request_g(state_request_g),.load_g(state_load_g),.import_g(state_import_g),.busy_g(state_busy_g),.status_g(state_status_g),
       .enabled_h(virtual_enable),.reset_core_h(gbreset_effective),.supported_h(state_supported),
       .quiesced_h(virtual_quiesced_h),.engine_busy_h(state_engine_busy),.engine_loaded_h(state_loaded),
       .memory_fault_h(state_fault),.save_h(state_save),.load_h(state_load),.hold_h(state_hold));
@@ -412,6 +419,7 @@ module emu_system_top
         .ss_mode(sleep_savestate),.ss_request(cram_request),.ss_write(cram_write),
         .ss_address(cram_addr),.ss_wdata(cram_wdata),.ss_rdata(cram_rdata),.ss_done(cram_done),
         .ss_load(state_loaded),.ss_mapper_data(mapper_restore),.ss_mapper_back(mapper_back),
+        .ss_mapper_ext_data(mapper_ext_restore),.ss_mapper_ext_back(mapper_ext_back),
         .hclk(hclk),
         .xclk(xclk),
         .hreset(~reset_n),

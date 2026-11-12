@@ -2,6 +2,7 @@ module virtual_cart_runtime (
     input ss_mode, ss_request, ss_write, ss_load, quiesce_requested,
     input [19:0] ss_address, input [7:0] ss_wdata,
     input [15:0] ss_mapper_data, output [15:0] ss_mapper_back,
+    input [63:0] ss_mapper_ext_data, output [63:0] ss_mapper_ext_back,
     output reg ss_done, output reg [7:0] ss_rdata,
     input         hclk,
     input         xclk,
@@ -47,7 +48,7 @@ module virtual_cart_runtime (
     input  [15:0] xreaddata,
 
     input         xsnapshot_request_toggle,
-    input   [6:0] xsnapshot_block,
+    input   [8:0] xsnapshot_block,
     input  [15:0] xsnapshot_sequence,
     output        xsnapshot_ready,
     output [15:0] xsnapshot_ready_sequence,
@@ -83,6 +84,7 @@ module virtual_cart_runtime (
 
     virtual_cart_mapper u_mapper (
         .ss_load(ss_load),.ss_data(ss_mapper_data),.ss_back(ss_mapper_back),
+        .ss_ext_data(ss_mapper_ext_data),.ss_ext_back(ss_mapper_ext_back),
         .clk_sys(hclk),
         .reset(hreset | !enable),
         .ce_cpu(ce_cpu),

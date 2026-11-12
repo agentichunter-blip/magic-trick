@@ -1,14 +1,16 @@
 // Command mailbox. H-domain status is captured only when the request completes.
 // Status: [31:16]=0x5353, bit0=busy,1=valid,2=fault,3=supported.
 // A failed/ambiguous operation holds pause until board reset; no unsafe resume.
+// Import marks a slot that firmware wrote into PSRAM (from an SD state file) as
+// valid without running the engine; the engine still checks its header on load.
 module snapshot_control #(parameter TIMEOUT_BITS=28)(
- input gclk,greset,hclk,hreset,input request_g,load_g,
+ input gclk,greset,hclk,hreset,input request_g,load_g,import_g,
  output busy_g,output [31:0] status_g,
  input enabled_h,reset_core_h,supported_h,quiesced_h,
  input engine_busy_h,engine_loaded_h,memory_fault_h,
  output reg save_h,load_h, output hold_h
 );
- reg req,op,ack,ack1,ack2,req1,req2;
+ reg req,op,imp,ack,ack1,ack2,req1,req2;
  reg valid_h,failed_h,active_h,started_h,loaded_h;
  reg [2:0] phase;reg [TIMEOUT_BITS-1:0] timer;
  reg [2:0] stat1,stat2;
@@ -16,10 +18,10 @@ module snapshot_control #(parameter TIMEOUT_BITS=28)(
  assign status_g={16'h5353,12'd0,stat2[2],stat2[1],stat2[0],busy_g};
  assign hold_h=active_h || failed_h;
  always @(posedge gclk) begin
-  if(greset) begin req<=0;op<=0;ack1<=0;ack2<=0;stat1<=0;stat2<=0;end
+  if(greset) begin req<=0;op<=0;imp<=0;ack1<=0;ack2<=0;stat1<=0;stat2<=0;end
   else begin
    ack1<=ack;ack2<=ack1;stat1<={supported_h,failed_h,valid_h};stat2<=stat1;
-   if(request_g && !busy_g) begin op<=load_g;req<=!req;end
+   if(request_g && !busy_g) begin op<=load_g;imp<=import_g;req<=!req;end
   end
  end
  always @(posedge hclk) begin
@@ -53,6 +55,7 @@ module snapshot_control #(parameter TIMEOUT_BITS=28)(
     endcase
    end else if(req2!=ack) begin
     if(failed_h || !enabled_h || reset_core_h || !supported_h || (op && !valid_h)) ack<=req2;
+    else if(imp) begin valid_h<=1;ack<=req2;end
     else begin active_h<=1;phase<=0;timer<=0;started_h<=0;loaded_h<=0;end
    end
   end
