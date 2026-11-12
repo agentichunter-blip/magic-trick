@@ -132,17 +132,53 @@ class Programmer(unittest.TestCase):
         with self.assertRaises(ValueError): fpga.flash('img.fs', 0x1000, lambda s: None)
 
 
+GB, GG = core.IMAGES['fpga_gb'][1], core.IMAGES['fpga_gg'][1]
+BOTH_CORES = {core.SLOT_GB: GB, core.SLOT_GG: GG}
+
+
+class CoreRecord(unittest.TestCase):
+    def flash(self, sector):
+        data = bytearray(b'\xff' * 0x400000)
+        data[core.CORE_RECORD_OFFSET:core.CORE_RECORD_OFFSET + len(sector)] = sector
+        return bytes(data)
+
+    def test_round_trip(self):
+        sector = core.core_record(BOTH_CORES)
+        self.assertEqual(len(sector), core.CORE_RECORD_SIZE)
+        self.assertEqual(core.parse_core_record(self.flash(sector)), BOTH_CORES)
+
+    def test_anything_unexpected_reads_as_empty(self):
+        good = core.core_record(BOTH_CORES)
+        flipped = bytearray(good); flipped[20] ^= 1
+        for sector in [b'', b'\x00' * 4096, good[:30], bytes(flipped),
+                       core.CORE_RECORD_MAGIC + b'\xff\xff' + b'x' * 100]:
+            self.assertEqual(core.parse_core_record(self.flash(sector)), {})
+
+    def test_sector_is_outside_every_partition(self):
+        for name in ['partition-table-stock.bin', 'partition-table-three-systems.bin']:
+            for _, _, offset, size in core.parse_table((FW / name).read_bytes()[:0xC00]):
+                self.assertTrue(core.CORE_RECORD_OFFSET + core.CORE_RECORD_SIZE <= offset or
+                                core.CORE_RECORD_OFFSET >= offset + size, name)
+        self.assertLessEqual(0x10000 + 0x100000, core.CORE_RECORD_OFFSET)   # beyond the kept stock app
+
+
 class Flows(unittest.TestCase):
     def perform(self, op='install', *, layout='stock', app='0.13.4-art31', old_app='0.13.4-art31', running=ART31,
                 corrupt_backup=False, verify_backup_fail=False, mcu_fail=False, fpga_fail=False, ports=None,
-                after=None, damaged_image=False):
+                after=None, damaged_image=False, record=None):
         events = []
+        self.records = []   # contents of each core record written, in order
+        def flash_image():
+            data = backup(layout, app, old_app)
+            if record is not None:
+                data[core.CORE_RECORD_OFFSET:core.CORE_RECORD_OFFSET + core.CORE_RECORD_SIZE] = core.core_record(record)
+            return bytes(data)
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / 'backup'
             def tool(port, args):
                 if 'read_flash' in args:
                     start, length = int(args[-3], 16), int(args[-2], 16)
-                    Path(args[-1]).write_bytes(b'partial' if corrupt_backup else bytes(backup(layout, app, old_app))[start:start + length])
+                    Path(args[-1]).write_bytes(b'partial' if corrupt_backup else flash_image()[start:start + length])
                     if start == 0: events.append('read_flash')
                     return
                 if args[0] == 'verify_flash':
@@ -151,6 +187,10 @@ class Flows(unittest.TestCase):
                 if 'erase_flash' in args: events.append('ERASE')
                 offset = int(args[args.index('write_flash') + 7], 16)
                 events.append(('write', offset, Path(args[-1]).name))
+                if offset == core.CORE_RECORD_OFFSET:
+                    image = bytearray(b'\xff' * 0x400000); blob = Path(args[-1]).read_bytes()
+                    image[offset:offset + len(blob)] = blob
+                    self.records.append(core.parse_core_record(bytes(image)))
                 if mcu_fail and offset == 0x260000: raise ValueError('MCU write failed')
             def flash(path, offset, log, sleep=None):
                 events.append(('fpga', offset, Path(path).name))
@@ -185,7 +225,9 @@ class Flows(unittest.TestCase):
             self.assertEqual(writes, [('write', 0x260000, core.IMAGES['mcu'][0]),
                                       ('fpga', core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
                                       ('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0]),
+                                      ('write', core.CORE_RECORD_OFFSET, 'core-record.bin'),
                                       ('write', 0x8000, core.IMAGES['table_three_systems'][0])])
+            self.assertEqual(self.records, [BOTH_CORES])
             self.assertEqual(events[:3], ['read_flash', ('verify', 0), ('write', 0x260000, core.IMAGES['mcu'][0])])
             self.assertIn(('verify', 0x8000), events); self.assertEqual(events[-1], 'reset')
 
@@ -198,6 +240,58 @@ class Flows(unittest.TestCase):
                              [('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
                               ('fpga', core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
                               ('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
+
+    # --- skipping cores the installer already wrote (core record) ---
+    UPDATE = dict(layout='three-systems', app='1.0.0-beta', running=core.TARGET)
+
+    def fpga_writes(self, writes):
+        return [(w[1], w[2]) for w in writes if w[0] == 'fpga']
+
+    def test_update_with_both_cores_recorded_writes_no_fpga(self):
+        events, writes, error, stage = self.perform(**self.UPDATE, record=BOTH_CORES)
+        self.assertIsNone(error); self.assertEqual(stage, 'complete')
+        self.assertEqual(writes, [('write', 0x260000, core.IMAGES['mcu'][0])])
+        self.assertEqual(self.records, [])   # still correct, left alone
+        self.assertEqual(events[-1], 'reset')   # the final check still restarts and confirms
+
+    def test_only_the_game_boy_core_changed(self):
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: '0' * 64, core.SLOT_GG: GG})
+        self.assertIsNone(error)
+        # Slot 0 is written directly: no temporary core, slot 1 untouched.
+        self.assertEqual(self.fpga_writes(writes), [(core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
+        # The Game Boy entry is forgotten before the write and recorded after it.
+        self.assertEqual(self.records, [{core.SLOT_GG: GG}, BOTH_CORES])
+        self.assertLess(writes.index(('write', core.CORE_RECORD_OFFSET, 'core-record.bin')),
+                        writes.index(('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0])))
+
+    def test_game_gear_change_rewrites_everything_through_chromagic(self):
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: GB, core.SLOT_GG: '1' * 64})
+        self.assertIsNone(error)
+        self.assertEqual(self.fpga_writes(writes), [(core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
+                                                    (core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
+                                                    (core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
+        # Both slots are forgotten before writing: slot 0 briefly holds the temporary core.
+        self.assertEqual(self.records, [{}, BOTH_CORES])
+
+    def test_record_is_ignored_unless_layout_and_running_core_agree(self):
+        for kwargs in [dict(self.UPDATE, running=dict(core.TARGET, fpga='18.38')),   # ChroMagic core running
+                       dict(self.UPDATE, running=None),                               # no answer
+                       dict(layout='stock', running=ART31)]:                          # stale record after uninstall
+            _, writes, error, _ = self.perform(**kwargs, record=BOTH_CORES)
+            self.assertIsNone(error)
+            self.assertIn((core.SLOT_GG, core.IMAGES['fpga_gg'][0]), self.fpga_writes(writes), kwargs)
+            self.assertIn((core.SLOT_GB, core.IMAGES['fpga_gb'][0]), self.fpga_writes(writes), kwargs)
+
+    def test_no_record_yet_writes_both_and_records_them(self):
+        _, writes, error, _ = self.perform(**self.UPDATE)
+        self.assertIsNone(error)
+        self.assertEqual(len(self.fpga_writes(writes)), 3)
+        self.assertEqual(self.records, [BOTH_CORES])   # nothing to forget first
+
+    def test_interrupted_fpga_write_leaves_that_slot_unrecorded(self):
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: '0' * 64, core.SLOT_GG: GG}, fpga_fail=True)
+        self.assertIsNotNone(error)
+        self.assertEqual(self.records, [{core.SLOT_GG: GG}])
 
     def test_interrupted_install_with_new_fpga_bounces_too(self):
         _, writes, error, _ = self.perform(running=dict(ART31, fpga='50.1'))

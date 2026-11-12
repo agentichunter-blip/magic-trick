@@ -19,6 +19,13 @@ STOCK_APP = (0x10000, 0x100000)
 THREE_SYSTEMS_APP = (0x260000, 0x1A0000)
 DATA_PARTITIONS = [(1, 2, 0x9000, 0x6000), (1, 1, 0xF000, 0x1000)]   # nvs, phy_init
 SLOT_GB, SLOT_GG = 0x000000, 0x100000
+# Which bundled core each FPGA slot holds, as written and verified by this installer. Reading
+# the FPGA flash back isn't repeatable while a core runs, so the installer keeps its own record
+# in an MCU flash sector that no partition uses (0x110000-0x260000 is free in both layouts).
+# A core is skipped only if this record, the three-systems layout and the running FPGA version
+# all agree; anything else rewrites both cores as before.
+CORE_RECORD_OFFSET, CORE_RECORD_SIZE = 0x25F000, 0x1000
+CORE_RECORD_MAGIC = b'MTCORES1'
 # Progress events for the installer window: emit('plan', steps=[...]) and emit('step', key=...).
 EVENT_HOOK = None
 
@@ -193,6 +200,45 @@ def classify(entries):
     if apps == [THREE_SYSTEMS_APP]:
         return 'three-systems'
     raise ValueError('Unsupported application layout. Nothing was written.')
+
+
+def core_record(slots):
+    """One flash sector recording {slot offset: SHA-256 of the bundled .fs written there}."""
+    body = json.dumps({f'0x{slot:06x}': digest for slot, digest in sorted(slots.items())}).encode()
+    blob = CORE_RECORD_MAGIC + len(body).to_bytes(2, 'little') + body + hashlib.sha256(body).digest()
+    return blob + b'\xff' * (CORE_RECORD_SIZE - len(blob))
+
+
+def parse_core_record(flash):
+    """Read the record from a full MCU flash image. Anything unexpected reads as 'nothing known'."""
+    sector = flash[CORE_RECORD_OFFSET:CORE_RECORD_OFFSET + CORE_RECORD_SIZE]
+    if not sector.startswith(CORE_RECORD_MAGIC):
+        return {}
+    size = int.from_bytes(sector[8:10], 'little')
+    body, digest = sector[10:10 + size], sector[10 + size:10 + size + 32]
+    if len(body) != size or 10 + size + 32 > CORE_RECORD_SIZE or hashlib.sha256(body).digest() != digest:
+        return {}
+    try:
+        items = json.loads(body)
+    except ValueError:
+        return {}
+    if not isinstance(items, dict):
+        return {}
+    return {int(k, 16): v for k, v in items.items()
+            if re.fullmatch(r'0x[0-9a-f]{6}', k) and isinstance(v, str) and re.fullmatch(r'[0-9a-f]{64}', v)}
+
+
+def fpga_plan(layout, running, record):
+    """Which FPGA writes an install needs: (write ChroMagic first, write Game Gear, write Game Boy)."""
+    multiboot_in_slot0 = layout == 'three-systems' or (running is not None and running.get('fpga', '').startswith('50.'))
+    trusted = layout == 'three-systems' and running is not None and running.get('fpga', '').startswith('50.')
+    gg_current = trusted and record.get(SLOT_GG) == IMAGES['fpga_gg'][1]
+    gb_current = trusted and record.get(SLOT_GB) == IMAGES['fpga_gb'][1]
+    write_gg = not gg_current
+    # Writing slot 1 needs a non-multiboot core in slot 0 first, which then has to be replaced.
+    temporary = write_gg and multiboot_in_slot0
+    write_gb = temporary or not gb_current
+    return temporary, write_gg, write_gb
 
 
 def app_info(data, offset):
@@ -375,6 +421,13 @@ def write_and_verify(port, offset, path, log=print):
             log(f'MCU write at 0x{offset:06x} failed ({exc}); retrying.')
 
 
+def write_record(port, folder, slots, log):
+    """Write the core record (see CORE_RECORD_OFFSET) through esptool, which verifies it."""
+    path = Path(folder) / 'core-record.bin'
+    path.write_bytes(core_record(slots))
+    write_and_verify(port, CORE_RECORD_OFFSET, path, log)
+
+
 def wait_for_device(log, sleep, timeout=45):
     """After an FPGA write the USB serial port (provided by the FPGA) disappears while the
     FPGA reboots, and can come back under a new name. Wait for exactly one Chromatic."""
@@ -530,14 +583,17 @@ def install(port, backup_dir, log, sleep=time.sleep):
     """Install or upgrade Magic Trick 1.0 beta (MCU, both FPGA cores, partition table)."""
     files, running = preconditions(port, log, ['mcu', 'table_three_systems', 'fpga_gb', 'fpga_gg', 'fpga_chromagic'])
     s = Session(port, backup_dir, log, 'install', sleep)
-    _, layout, app = s.backup()
+    data, layout, app = s.backup()
     port = s.port   # can change if the backup had to restart the FPGA
     # A multiboot core in slot 0 points the FPGA's configuration engine at slot 1. Once
     # slot 1 is partly erased the engine keeps reading it and blocks further flash access,
-    # so slot 1 must only be written while a non-multiboot image is in slot 0.
-    multiboot_in_slot0 = layout == 'three-systems' or (running is not None and running.get('fpga', '').startswith('50.'))
-    emit('plan', steps=['check', 'backup', 'mcu'] + (['fpga_chromagic'] if multiboot_in_slot0 else []) +
-         ['fpga_gg', 'fpga_gb'] + (['table'] if layout == 'stock' else []) + ['confirm'])
+    # so slot 1 must only be written while a non-multiboot image is in slot 0 (fpga_plan).
+    record = parse_core_record(data) if layout == 'three-systems' else {}
+    temporary, write_gg, write_gb = fpga_plan(layout, running, record)
+    s.checkpoint('fpga_planned', core_record=record, write_chromagic=temporary, write_gg=write_gg, write_gb=write_gb)
+    emit('plan', steps=['check', 'backup', 'mcu'] + (['fpga_chromagic'] if temporary else []) +
+         (['fpga_gg'] if write_gg else []) + (['fpga_gb'] if write_gb else []) +
+         (['table'] if layout == 'stock' else []) + ['confirm'])
 
     # 1. MCU application at 0x260000. On the stock layout this region is unused and
     #    the old table still boots the old app, so nothing changes yet.
@@ -548,9 +604,18 @@ def install(port, backup_dir, log, sleep=time.sleep):
     s.checkpoint('mcu_verified')
 
     # 2. FPGA: Game Gear slot first (never booted at power-on), Game Boy slot 0 last.
-    steps = [('fpga_gg', SLOT_GG, 'Game Gear'), ('fpga_gb', SLOT_GB, 'Game Boy / Game Boy Color')]
-    if multiboot_in_slot0:
-        steps.insert(0, ('fpga_chromagic', SLOT_GB, 'temporary ChroMagic'))
+    steps = ([('fpga_chromagic', SLOT_GB, 'temporary ChroMagic')] if temporary else []) + \
+            ([('fpga_gg', SLOT_GG, 'Game Gear')] if write_gg else []) + \
+            ([('fpga_gb', SLOT_GB, 'Game Boy / Game Boy Color')] if write_gb else [])
+    for slot, label, writing in ((SLOT_GG, 'Game Gear', write_gg), (SLOT_GB, 'Game Boy / Game Boy Color', write_gb)):
+        if not writing:
+            log(f'The {label} FPGA core on your Chromatic is already this version. Skipping it.')
+    keep = {slot: digest for slot, digest in record.items()
+            if not (slot == SLOT_GG and write_gg) and not (slot == SLOT_GB and (write_gb or temporary))}
+    if steps and keep != record:
+        # Forget the slots about to be written first, so an interrupted write is never skipped later.
+        s.checkpoint('core_record_cleared')
+        write_record(port, s.folder, keep, log)
     try:
         for key, offset, label in steps:
             emit('step', key=key)
@@ -562,7 +627,10 @@ def install(port, backup_dir, log, sleep=time.sleep):
         s.checkpoint('partial_install_fpga_failed')
         raise ValueError('The FPGA write did not finish. The device can still be reached over USB: run the installer again. ' + str(exc)) from exc
 
-    port = wait_for_device(log, sleep)
+    if steps:
+        port = wait_for_device(log, sleep)
+        write_record(port, s.folder, {SLOT_GB: IMAGES['fpga_gb'][1], SLOT_GG: IMAGES['fpga_gg'][1]}, log)
+        s.checkpoint('core_record_written')
     # 3. Partition table last: this switches the MCU to the new application.
     if layout == 'stock':
         emit('step', key='table')

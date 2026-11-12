@@ -38,7 +38,7 @@ The installer:
 
 1. Saves and verifies a full 4 MiB backup of the MCU flash in your folder. Keep it private: it contains your device's settings.
 2. Writes and verifies the Magic Trick MCU application in an unused area. Until step 5 your old application still starts.
-3. Writes and verifies the Game Gear FPGA core, then the Game Boy / Game Boy Color core. Updating an existing Magic Trick 1.0 install? The installer first puts the ChroMagic FPGA in the Game Boy slot so the Game Gear slot can be rewritten safely.
+3. Writes and verifies the Game Gear FPGA core, then the Game Boy / Game Boy Color core. Updating an existing Magic Trick 1.0 install? The installer first puts the ChroMagic FPGA in the Game Boy slot so the Game Gear slot can be rewritten safely. It keeps a small record of the cores it wrote (in an unused MCU flash sector at 0x25F000), so a later update skips a core that is already the bundled version. An update that only changes the MCU firmware skips the FPGA writes and takes about 10 minutes instead of 15; most of that is the MCU backup.
 4. FPGA writes sometimes fail a few times before they go through. That's expected: the installer restarts the FPGA and retries, up to 12 times at about 80 seconds per attempt. Every completed write is read back and verified.
 5. Switches the MCU partition table to the new layout, last.
 6. Restarts the Chromatic and checks the running versions.
