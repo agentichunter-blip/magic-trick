@@ -3,7 +3,7 @@ Magic Trick press kit
 
 Magic Trick is a free, open-source firmware mod for the ModRetro Chromatic. It turns the handheld's file list into a game library with cover art, looping gameplay previews, Game Genie cheats, a Recent games folder and automatic last-game startup. A desktop installer for Mac, Windows and Linux installs it from stock firmware in one session.
 
-Status (Nov 2026): Magic Trick 1.0 BETA. Adds a Game Gear core with picture and sound, automatic Game Boy/Game Gear core switching, true save states (GB/GBC; three slots per game, kept on the SD card), Wi-Fi file transfers and the Magic Trick boot animation. Installer 1.0.0-beta for Mac, Windows and Linux; tested on one Chromatic.
+Status (Nov 2026): Magic Trick 1.0 BETA. Adds a Game Gear core with picture and sound, automatic Game Boy/Game Gear core switching, true save states (GB/GBC and Game Gear; three slots per game, kept on the SD card), Game Gear in-game saves on the SD card, Wi-Fi file transfers and the Magic Trick boot animation. Installer 1.0.0-beta for Mac, Windows and Linux; tested on one Chromatic.
 
 Website:  https://ryansag.com/magic-trick/
 X:        https://x.com/ryansagdotcom

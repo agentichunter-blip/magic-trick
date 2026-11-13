@@ -43,8 +43,8 @@ The bitstream lands in `impl/pnr/`. Write the GB/GBC image at flash offset `0x00
 - **Known issue:** while one of these cores sits in flash slot 0, the first USB/JTAG flash write after a reboot fails. That holds for openFPGALoader, ModRetro's updater, ChroMagician and Gowin's programmer. The cause is `-multi_boot 1`, which core switching needs. Re-running the write succeeds: on hardware it took 2 to 5 attempts, and every completed write verified. Tools that don't retry (ModRetro's updater, ChroMagician) will fail, so the Magic Trick installer must handle installs, upgrades and uninstalls with retries.
 
 - **GB/GBC:** closes timing with no setup or hold violations.
-- **Game Gear:** 26 setup endpoints in the `xclk` domain miss timing by up to 0.26 ns. All are T80 registers that only update on the CPU clock enable (about 1 cycle in 19), and the core runs correctly on hardware. Treat it as beta.
-- Game Gear has no save states yet.
+- **Game Gear:** closes timing with no setup or hold violations (placement option 3; `xclk` 67.156 MHz against 67.109 MHz). Paths into the T80 registers, which only update on the CPU clock enable, are constrained as two-cycle paths in `gg_board.sdc`. The margin is small, so a change can need another placement option.
+- **Game Gear save states and in-game saves:** `gg_state_engine.sv` freezes the core, reads and restores its state in 1 KiB blocks, loads the battery save before the first instruction, and reads cartridge RAM (32 KiB, two banks) while the game runs. Block RAM is 54 of 56. Simulations: `game-gear/tests/state/run.sh`.
 
 ## Credits
 

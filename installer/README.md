@@ -1,12 +1,12 @@
-# Magic Trick Installer 1.0.0-beta.6
+# Magic Trick Installer 1.0.0-beta.7
 
-Installs Magic Trick firmware 1.0 beta (MCU 1.0.0-beta.3). New in installer 1.0.0-beta.6: save states are kept on the SD card, so they survive turning the Chromatic off; each game has three save-state slots; and MBC3 games such as Pokémon Gold, Silver and Crystal can use save states, clock included. This updates the Game Boy / Game Boy Color FPGA core, so an update from 1.0.0-beta.5 takes about 15 minutes. Since 1.0.0-beta.5: the firmware reports its FPGA version with USB TRANSFERS on (on a Mac the installer's final check used to fail in that mode), and an update skips FPGA cores that are already the bundled version. Since 1.0.0-beta.4: ChroMagician recognises Magic Trick, so its SD file manager works over USB; Wi-Fi uploads skip files already on the SD card, retry a failed file and keep going; and the Wi-Fi Files page has the Magic Trick look. Since 1.0.0-beta.3: tested on Windows and Linux, a clearer retro-style app, an **ALMOST DONE** ending with **CHECK AGAIN** when the final check can't reach the firmware, and Linux USB permission instructions. Since 1.0.0-beta.1: **Restore backup** for recovery, a stop when the USB programmer stops responding, and the Chromatic is found whatever its player number, or when its MCU can't start.
+Installs Magic Trick firmware 1.0 beta (MCU 1.0.0-beta.4). New in installer 1.0.0-beta.7: Game Gear in-game saves are kept on the SD card (before, they were lost when the Chromatic was turned off); Game Gear games have save states, with the same three slots, SD card files and shortcuts as Game Boy games; Shining Force – The Sword of Hajya and other games with 32 KiB of cartridge RAM now run; and Game Gear games get a Recent list. Fixed: after loading a Game Boy save state, later in-game saves went to a separate file that the next start didn't read, so the game seemed to lose its progress (see [Lost in-game progress after loading a state](#lost-in-game-progress-after-loading-a-state)). Also fixed: Load in the Save States menu closes the menu, and the Game Gear picture no longer smears while a state saves or loads. This updates the Game Gear FPGA core, so an update takes about 15 minutes. Since 1.0.0-beta.6: save states are kept on the SD card, so they survive turning the Chromatic off; each game has three save-state slots; and MBC3 games such as Pokémon Gold, Silver and Crystal can use save states, clock included. Since 1.0.0-beta.5: the firmware reports its FPGA version with USB TRANSFERS on (on a Mac the installer's final check used to fail in that mode), and an update skips FPGA cores that are already the bundled version. Since 1.0.0-beta.4: ChroMagician recognises Magic Trick, so its SD file manager works over USB; Wi-Fi uploads skip files already on the SD card, retry a failed file and keep going; and the Wi-Fi Files page has the Magic Trick look. Since 1.0.0-beta.3: tested on Windows and Linux, a clearer retro-style app, an **ALMOST DONE** ending with **CHECK AGAIN** when the final check can't reach the firmware, and Linux USB permission instructions. Since 1.0.0-beta.1: **Restore backup** for recovery, a stop when the USB programmer stops responding, and the Chromatic is found whatever its player number, or when its MCU can't start.
 
 > **Beta firmware, installed at your own risk.** Magic Trick is an independent community mod, not made, endorsed or supported by ModRetro. It rewrites your Chromatic's MCU and FPGA firmware and may void your warranty. Read the [recovery guide](../docs/recovery.md) before you install.
 
 One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlier Magic Trick 1.0 install, or uninstalls it. Python, esptool, openFPGALoader and all firmware are bundled. No internet connection is needed.
 
-**What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native Game Boy / Game Boy Color save states (three slots per game, kept on the SD card), Wi-Fi file transfers and the Magic Trick boot animation. Game Gear has no save states yet.
+**What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native save states for all three systems (three slots per game, kept on the SD card), Game Gear in-game saves on the SD card, Wi-Fi file transfers and the Magic Trick boot animation.
 
 ## Before you start
 
@@ -43,7 +43,11 @@ The installer:
 5. Switches the MCU partition table to the new layout, last.
 6. Restarts the Chromatic and checks the running versions.
 
-It never writes the SD card or the bootloader, and never erases the whole flash. When it says it's done, turn the Chromatic off and on once. Status shows **Magic Trick 1.0 beta** and MCU **v1.0.0-beta.3**.
+It never writes the SD card or the bootloader, and never erases the whole flash. When it says it's done, turn the Chromatic off and on once. Status shows **Magic Trick 1.0 beta** and MCU **v1.0.0-beta.4**.
+
+## Lost in-game progress after loading a state
+
+Firmware before 1.0.0-beta.4 (installer 1.0.0-beta.7) wrote a Game Boy game's in-game saves to a separate file after you loaded a save state, and the next start read the old save instead. Your progress isn't lost: it's in the newest `<game>.SAV.state-NNNN.sav` next to the game on the SD card. After updating, copy your current `<game>.SAV` somewhere safe, then rename that newest `.state-NNNN.sav` file to `<game>.SAV`. Updated firmware keeps saving to `<game>.SAV`, and keeps the save you had before a state load as `<game>.SAV.before-load-0001.sav`.
 
 ## Uninstall
 
