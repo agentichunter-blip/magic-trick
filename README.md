@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.7">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.8">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Support my work</a>
@@ -18,14 +18,15 @@
 
 > **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.4`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.5`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
 
 This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo or Sega. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
 ## Features
 
 - **Three systems:** Game Boy, Game Boy Color and Game Gear (with sound) on FPGA cores. Opening a game for the other system reloads the right core automatically.
-- **Native save states** for Game Boy, Game Boy Color and Game Gear: three slots per game in System → Save States, plus Menu+Up to save and Menu+Down (hold) to load the slot you used last. Each slot is written to the SD card next to the game (`<game>.state`, `.state2`, `.state3`), so you can load it again after turning the Chromatic off. Game Boy games with MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) or MBC5 are supported, as are Game Gear games. Loading a state keeps the in-game save you had before as `<game>.SAV.before-load-0001.sav`.
+- **Native save states** for Game Boy, Game Boy Color and Game Gear: three slots per game in System → Save States, plus Menu+Select to save and Menu+Start to load the slot you used last; a shortcut shows "State saved" or "State loaded", then returns to the game. Each slot is written to the SD card next to the game (`<game>.state`, `.state2`, `.state3`), so you can load it again after turning the Chromatic off. Game Boy games with MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) or MBC5 are supported, as are Game Gear games. Loading a state keeps the in-game save you had before as `<game>.SAV.before-load-0001.sav`.
+- **Color temperature** for Game Boy Color and Game Gear games, ported from ModRetro's stock firmware 4.6. In color games the **Color Temp** tab takes the Palette tab's place and goes from Neutral to Warm 5. Like ModRetro's, it warms only bright areas such as white text and title screens, so dark scenes barely change. **Menu+Up** warms and **Menu+Down** cools during play; in Game Boy games the same keys cycle the palette, as on stock firmware. Controls → hot keys lists every shortcut.
 - **In-game saves for Game Gear:** battery and EEPROM saves are kept on the SD card as `<game>.SAV` and loaded before the game starts, including games with 32 KiB of cartridge RAM such as Shining Force – The Sword of Hajya.
 - **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
@@ -39,7 +40,7 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
-Download **[Magic Trick Installer 1.0.0-beta.7](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.7)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
+Download **[Magic Trick Installer 1.0.0-beta.8](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.8)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
 - **Updates take 10–15 minutes.** FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.

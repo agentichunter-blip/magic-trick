@@ -39,9 +39,9 @@
   "description": "Free, open-source firmware mod for the ModRetro Chromatic that adds Game Gear support with automatic core switching, save states, Wi-Fi transfers, a cover-art game library, looping gameplay previews, Game Genie cheats, recent games and last-game startup. Installed with a desktop app for Mac, Windows and Linux.",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "macOS, Windows, Linux",
-  "softwareVersion": "1.0.0-beta.7",
-  "releaseNotes": "https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.7",
-  "downloadUrl": "https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.7",
+  "softwareVersion": "1.0.0-beta.8",
+  "releaseNotes": "https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.8",
+  "downloadUrl": "https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.8",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "isAccessibleForFree": true,
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
@@ -434,11 +434,12 @@ footer a{color:var(--muted)}
       <div class="col">
         <span class="tag now"><i></i>Available now</span>
         <h3>Magic Trick 1.0 beta</h3>
-        <p>MCU v1.0.0-beta.4 · FPGA 50.1 / 50.2</p>
+        <p>MCU v1.0.0-beta.5 · FPGA 50.1 / 50.2</p>
         <ul>
           <li>Game Boy, Game Boy Color &amp; Game Gear<small>FPGA cores + MCU firmware</small></li>
           <li>Automatic core switching<small>FPGA + MCU firmware</small></li>
           <li>True save states (GB, GBC &amp; Game Gear)<small>FPGA cores + MCU firmware</small></li>
+          <li>Color temperature (GBC &amp; Game Gear)<small>FPGA cores + MCU firmware</small></li>
           <li>Wi-Fi file transfers<small>MCU firmware</small></li>
           <li>Magic Trick boot animation<small>MCU firmware</small></li>
           <li>Cover art, previews, Game Genie, Recent, last-game startup<small>MCU firmware</small></li>
@@ -538,7 +539,7 @@ footer a{color:var(--muted)}
       <div class="feature-media">
         <div class="pair">
           <figure class="shot" style="margin:0;position:relative"><span class="dev-ribbon">New in 1.0</span><div class="screen"><img src="media/screens/state-saved.png" width="160" height="144" alt="Save States menu reporting State saved, with three slots (two saved, one empty) and a Shortcuts option." loading="lazy"></div><figcaption>Three slots per game.</figcaption></figure>
-          <figure class="shot" style="margin:0;position:relative"><span class="dev-ribbon">New in 1.0</span><div class="screen"><img src="media/screens/state-shortcuts.png" width="160" height="144" alt="Save States menu with Shortcuts on: Menu plus Up saves, hold Menu plus Down loads." loading="lazy"></div><figcaption>Optional button shortcuts.</figcaption></figure>
+          <figure class="shot" style="margin:0;position:relative"><span class="dev-ribbon">New in 1.0</span><div class="screen"><img src="media/screens/state-shortcuts.png" width="160" height="144" alt="Save States menu with Shortcuts on: Menu plus Select saves, Menu plus Start loads." loading="lazy"></div><figcaption>Optional button shortcuts.</figcaption></figure>
         </div>
       </div>
       <div class="feature-copy">
@@ -548,7 +549,7 @@ footer a{color:var(--muted)}
         <ul data-copy="save-states-list">
           <li><strong>Full snapshot</strong> from the FPGA core: CPU, video, audio, memory and mapper.</li>
           <li><strong>Three slots per game,</strong> saved to the SD card next to the game, so they survive power-off.</li>
-          <li><strong>Shortcuts:</strong> Menu + Up saves, hold Menu + Down loads, using the slot you used last. <a href="#how-to-save-states">Controls →</a></li>
+          <li><strong>Shortcuts:</strong> Menu + Select saves, Menu + Start loads, using the slot you used last. <a href="#how-to-save-states">Controls →</a></li>
           <li><strong>Works with</strong> Game Gear games and Game Boy SD games that use MBC1, MBC3 (with the clock in Pokémon Gold, Silver and Crystal) or MBC5. Not physical cartridges yet.</li>
         </ul>
       </div>
@@ -647,8 +648,8 @@ footer a{color:var(--muted)}
         </ol>
         <div class="shortcut">
           <b>Shortcuts</b><span>Turn <strong>Shortcuts</strong> on in the same panel. It stays on after restarts.</span>
-          <b>Save</b><span>Hold <kbd>Menu</kbd> + <kbd>Up</kbd>, then release both.</span>
-          <b>Load</b><span>Hold <kbd>Menu</kbd> + <kbd>Down</kbd> for one second, then release both.</span>
+          <b>Save</b><span>Hold <kbd>Menu</kbd> and press <kbd>Select</kbd>. The screen shows <strong>State saved</strong>, then returns to the game.</span>
+          <b>Load</b><span>Hold <kbd>Menu</kbd> and press <kbd>Start</kbd>. The state loads right away and the screen shows <strong>State loaded</strong>.</span>
           <b>Slot</b><span>Shortcuts use the slot you saved or loaded last. The panel shows which one.</span>
         </div>
         <p class="fine">Each slot is a file next to the game on the SD card (<code>.state</code>, <code>.state2</code>, <code>.state3</code>), so states survive power-off and switching games. Loading a state keeps the in-game save you had before as a numbered backup next to the game. Works with Game Gear games and with Game Boy SD games that use the MBC1, MBC3 or MBC5 mapper (most of the library), including the clock in Pokémon Gold, Silver and Crystal. Physical cartridges and MBC30 games aren't supported.</p>
@@ -670,7 +671,7 @@ footer a{color:var(--muted)}
       <div class="card">
         <div class="release-head">
           <div>
-            <h3>Magic Trick Installer 1.0.0-beta.7</h3>
+            <h3>Magic Trick Installer 1.0.0-beta.8</h3>
             <p class="mono">Installs firmware 1.0 beta · MCU v1.0.0-beta · FPGA 50.1 / 50.2</p>
           </div>
           <span class="tag dev"><i></i>Beta</span>
@@ -680,26 +681,26 @@ footer a{color:var(--muted)}
           <div><strong>Beta firmware, installed at your own risk.</strong> Magic Trick isn't made or supported by ModRetro and may void your warranty. Read the <a href="https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md">recovery guide</a> before you install. Tested on one Chromatic with the Mac app: install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, and switching between Game Boy and Game Gear. The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware; Linux needs a one-time USB permissions rule. Updating can take 10 to 15 minutes because FPGA writes often need several attempts; the app retries and verifies on its own. The apps are unsigned and the Mac builds aren't notarized.</div>
         </div>
         <div class="dl-list">
-          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.7/Magic-Trick-macos-arm64.zip">
+          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.8/Magic-Trick-macos-arm64.zip">
             <span class="os" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.8-3.5.8s-1.8-.8-3-.8c-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6zM14.1 5.6c.6-.8 1.1-1.8 1-2.9-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.8-1 2.8 1 .1 2.1-.5 2.7-1.3z"/></svg></span>
             <span><strong>Mac · Apple Silicon</strong><span>M-series · .zip · 19.1 MB</span></span><b>Download</b>
           </a>
-          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.7/Magic-Trick-macos-x64.zip">
+          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.8/Magic-Trick-macos-x64.zip">
             <span class="os" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.8-3.5.8s-1.8-.8-3-.8c-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6zM14.1 5.6c.6-.8 1.1-1.8 1-2.9-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.8-1 2.8 1 .1 2.1-.5 2.7-1.3z"/></svg></span>
             <span><strong>Mac · Intel</strong><span>x64 · .zip · 19.8 MB</span></span><b>Download</b>
           </a>
-          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.7/Magic-Trick-windows-x64.zip">
+          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.8/Magic-Trick-windows-x64.zip">
             <span class="os" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10 4.5v7H3zm8-1.1L21 3v8.5H11zM3 12.5h7v7l-7-1zm8 0h10V21l-10-1.4z"/></svg></span>
             <span><strong>Windows</strong><span>64-bit · .zip · 16.3 MB</span></span><b>Download</b>
           </a>
-          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.7/Magic-Trick-linux-x64.tar.gz">
+          <a class="dl" href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.8/Magic-Trick-linux-x64.tar.gz">
             <span class="os" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2.2 0-3.6 1.9-3.6 4.6 0 1.4.3 2.3-.6 3.7C6.6 12.1 5 14 5 16.2c0 .6.1 1.1.3 1.5-.8.4-1.6.9-1.3 1.7.4.9 2.1.5 3 1.2 1 .8 2.2 1.4 3.4 1.1.7-.2 1-.6 1.6-.6s.9.4 1.6.6c1.2.3 2.4-.3 3.4-1.1.9-.7 2.6-.3 3-1.2.3-.8-.5-1.3-1.3-1.7.2-.4.3-.9.3-1.5 0-2.2-1.6-4.1-2.8-5.9-.9-1.4-.6-2.3-.6-3.7C15.6 3.9 14.2 2 12 2z"/></svg></span>
             <span><strong>Linux</strong><span>Ubuntu 22.04+ · x64 · .tar.gz · 36.2 MB</span></span><b>Download</b>
           </a>
         </div>
         <div class="dl-foot">
-          <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.7">Release notes ↗</a>
-          <a href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.7/SHA256SUMS">SHA-256 checksums ↗</a>
+          <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.8">Release notes ↗</a>
+          <a href="https://github.com/agentichunter-blip/magic-trick/releases/download/v1.0.0-beta.8/SHA256SUMS">SHA-256 checksums ↗</a>
           <a href="https://github.com/agentichunter-blip/magic-trick/blob/main/installer/README.md">Installer guide ↗</a>
         </div>
         <p class="dl-support">☕ Free forever. If Magic Trick made your Chromatic better, <a href="https://ko-fi.com/ryansag">support my work</a>.</p>
@@ -772,7 +773,7 @@ footer a{color:var(--muted)}
         <dl class="specs">
           <div><dt>Project</dt><dd>Magic Trick, by Ryan (<a href="https://ryansag.com/">ryansag.com</a>)</dd></div>
           <div><dt>Platform</dt><dd>ModRetro Chromatic (Game Boy / Game Boy Color FPGA handheld)</dd></div>
-          <div><dt>Current release</dt><dd>Magic Trick 1.0 beta (Installer 1.0.0-beta.7)</dd></div>
+          <div><dt>Current release</dt><dd>Magic Trick 1.0 beta (Installer 1.0.0-beta.8)</dd></div>
           <div><dt>Price &amp; licence</dt><dd>Free · GPL-3.0</dd></div>
           <div><dt>Contact</dt><dd><a href="https://x.com/ryansagdotcom">X @ryansagdotcom</a> · <a href="https://www.youtube.com/@RyanSag">YouTube @RyanSag</a> · <a href="https://github.com/agentichunter-blip/magic-trick/issues">GitHub issues</a></dd></div>
         </dl>
@@ -826,7 +827,7 @@ footer a{color:var(--muted)}
       <a href="https://www.youtube.com/@RyanSag">YouTube</a>
     </div>
     <p>Built on <a href="https://github.com/cursedtoast2/ChroMagic">CursedToast's ChroMagic</a> and ModRetro's open-source firmware. <a href="https://github.com/agentichunter-blip/magic-trick/blob/main/CREDITS.md">Source &amp; credits</a>.</p>
-    <p>Independent community project, not affiliated with or endorsed by ModRetro, Nintendo or Sega. Game Boy and Game Boy Color are trademarks of Nintendo; Game Gear is a trademark of Sega. Firmware reports Magic Trick 1.0 beta (MCU v1.0.0-beta.4).</p>
+    <p>Independent community project, not affiliated with or endorsed by ModRetro, Nintendo or Sega. Game Boy and Game Boy Color are trademarks of Nintendo; Game Gear is a trademark of Sega. Firmware reports Magic Trick 1.0 beta (MCU v1.0.0-beta.5).</p>
   </div>
 </footer>
 
