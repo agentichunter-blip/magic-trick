@@ -5,8 +5,8 @@
 #include "recent_games.h"
 #include "nvs.h"
 
-static unsigned char Saved[2][6500], Pending[6500];
-static size_t Sizes[2], PendingSize;
+static unsigned char Saved[3][6500], Pending[6500];
+static size_t Sizes[3], PendingSize;
 static unsigned Selected, Sets, Commits;
 static bool Open, ReadOnly, FailSet, FailCommit, FailOpen;
 esp_err_t nvs_open(const char *Name,nvs_open_mode_t Mode,nvs_handle_t *H) {
@@ -14,7 +14,7 @@ esp_err_t nvs_open(const char *Name,nvs_open_mode_t Mode,nvs_handle_t *H) {
     if(FailOpen) return ESP_FAIL;
     Open=true; ReadOnly=Mode==NVS_READONLY; *H=1; return ESP_OK;
 }
-static unsigned Key(const char *Name) { assert(!strcmp(Name,"gb") || !strcmp(Name,"gbc")); return !strcmp(Name,"gbc"); }
+static unsigned Key(const char *Name) { assert(!strcmp(Name,"gb") || !strcmp(Name,"gbc") || !strcmp(Name,"gg")); return !strcmp(Name,"gbc") ? 1 : !strcmp(Name,"gg") ? 2 : 0; }
 esp_err_t nvs_get_blob(nvs_handle_t H,const char *Name,void *Out,size_t *Size) {
     assert(Open && H==1); unsigned I=Key(Name);
     if(!Sizes[I]) return ESP_ERR_NVS_NOT_FOUND;
@@ -54,6 +54,18 @@ int main(void) {
     assert(RecentGames_Read(kRecentGBC,&Games)==ESP_OK && Games.Count==1);
     assert(strstr(Games.Paths[0],"Color.gbc"));
     assert(RecentGames_Read(kRecentGB,&Games)==ESP_OK && Games.Count==20);
+    /* Game Gear has its own list; only .gg files in the GG folder count. */
+    assert(RecentGames_System("/sdcard/CHROMAGIC/BACKUPS/GG/S/Sonic.gg")==kRecentGG);
+    assert(RecentGames_System("/sdcard/CHROMAGIC/BACKUPS/gg/Sonic.GG")==kRecentGG);
+    assert(RecentGames_System("/sdcard/CHROMAGIC/BACKUPS/GG/Sonic.gb")==kRecentNone);
+    assert(RecentGames_System("/sdcard/CHROMAGIC/BACKUPS/GB/Sonic.gg")==kRecentNone);
+    assert(RecentGames_System("/sdcard/CHROMAGIC/BACKUPS/GG/[BIOS] Majesco.gg")==kRecentNone);
+    assert(RecentGames_Remember("/sdcard/CHROMAGIC/BACKUPS/GG/S/Sonic.gg")==ESP_OK);
+    assert(RecentGames_Remember("/sdcard/CHROMAGIC/BACKUPS/GG/C/Columns.gg")==ESP_OK);
+    assert(RecentGames_Read(kRecentGG,&Games)==ESP_OK && Games.Count==2);
+    assert(strstr(Games.Paths[0],"Columns.gg") && strstr(Games.Paths[1],"Sonic.gg"));
+    assert(RecentGames_Read(kRecentGB,&Games)==ESP_OK && Games.Count==20);
+    assert(RecentGames_Read(kRecentGBC,&Games)==ESP_OK && Games.Count==1);
     const char *Bad[]={NULL,"/elsewhere/GB/Game.gb","/sdcard/CHROMAGIC/BACKUPS/GB/../Game.gb",
         "/sdcard/CHROMAGIC/BACKUPS/GB/.hidden/Game.gb","/sdcard/CHROMAGIC/BACKUPS/GB//Game.gb",
         "/sdcard/CHROMAGIC/BACKUPS/GB/Game.sav","/sdcard/CHROMAGIC/BACKUPS/GB/[BIOS] Boot.gb"};
@@ -75,5 +87,5 @@ int main(void) {
     assert(RecentGames_Remember(Path)==ESP_OK); /* a successful launch repairs corrupt history */
     assert(RecentGames_Read(kRecentGB,&Games)==ESP_OK && Games.Count==1 && !strcmp(Games.Paths[0],Path));
     assert(!Open);
-    puts("PASS: persistent separate 20-game MRU histories; deduplication; bounded parsing; failed writes; no browsing writes");
+    puts("PASS: persistent separate 20-game MRU histories (GB, GBC, GG); deduplication; bounded parsing; failed writes; no browsing writes");
 }

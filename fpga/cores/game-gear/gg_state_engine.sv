@@ -25,10 +25,12 @@ module gg_state_engine #(parameter integer BLOCKS=41)(
  // resumed after LOAD start from the same (cold) cache: identical timing.
  output owns_rom, output reg cache_invalidate=0, output reg [23:0] rom_address=0, output reg rom_read=0,
  input [7:0] rom_data, input rom_ready, input rom_fault,
- input qclk, input [9:0] qaddress, output [7:0] qdata
+ input qclk, input [9:0] qaddress, output [7:0] qdata,
+ // The video bridge's stand-in frames are in vertical blank: release now.
+ input video_resume_ok
 );
  localparam [3:0] IDLE=0,FREEZING=1,CAP_SET=2,CAP_WAIT=3,CAP_TAKE=4,
-  LOAD_SET=5,LOAD_WAIT=6,LOAD_PUT=7,APPLY=8,SETTLE=9;
+  LOAD_SET=5,LOAD_WAIT=6,LOAD_PUT=7,APPLY=8,SETTLE=9,RELEASE_WAIT=10;
  localparam [15:0] LAST=BLOCKS*1024-1;
  reg [3:0] state=IDLE;
  assign busy=state!=IDLE;
@@ -97,7 +99,7 @@ module gg_state_engine #(parameter integer BLOCKS=41)(
       if(!state_frozen) begin fault<=0;loaded<=0;state_request<=1;state<=FREEZING;end
      end else if(t_edge[1]) begin
       t_seen[1]<=t_sync[1];
-      if(state_frozen) begin state_release<=1;cache_invalidate<=1; end
+      if(state_frozen) state<=RELEASE_WAIT;
      end else if(t_edge[3]) begin
       t_seen[3]<=t_sync[3];
       block<=block_number;request_sequence<=block_sequence;block_ready<=0;
@@ -157,6 +159,8 @@ module gg_state_engine #(parameter integer BLOCKS=41)(
     APPLY: begin state_apply<=1;position<=0;state<=SETTLE; end
     // The prototype replay showed 64 frozen cycles after apply are enough.
     SETTLE: begin position<=position+1'b1;if(position==63) begin loaded<=1;state<=IDLE; end end
+    // Wait at most one stand-in frame so the display sees no partial frame.
+    RELEASE_WAIT: if(video_resume_ok) begin state_release<=1;cache_invalidate<=1;state<=IDLE; end
     default: state<=IDLE;
    endcase
   end

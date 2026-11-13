@@ -18,3 +18,8 @@ verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -MAKEFLAGS "OPT_FAST=-O2" 
  "$here/ss_test.cpp" > "$out/build.log" 2>&1
 cd "$out"   # screenshots (captured/saved-run/restored-run .ppm) land here
 "$out/obj/Vgg_ss_sim_top" "$@"
+# Stand-in frames of the video bridge while frozen (display path).
+verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -j 8 --top-module gg_video_bridge -Wno-fatal -Wno-lint -Wno-style \
+ --Mdir "$out/obj_video" "$core/board-rtl/gg_video_bridge.sv" "$core/board-rtl/gg_async_fifo.sv" \
+ "$here/video_bridge_test.cpp" > "$out/build_video.log" 2>&1
+"$out/obj_video/Vgg_video_bridge"

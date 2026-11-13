@@ -13,7 +13,7 @@
 static const char Root[] = RECENT_GAMES_ROOT "/";
 enum { kHeaderSize = 5, kBlobSize = kHeaderSize + RECENT_GAMES_LIMIT * RECENT_GAME_PATH_SIZE };
 static const char *Key(RecentSystem_t System) {
-    return System==kRecentGB ? "gb" : System==kRecentGBC ? "gbc" : NULL;
+    return System==kRecentGB ? "gb" : System==kRecentGBC ? "gbc" : System==kRecentGG ? "gg" : NULL;
 }
 RecentSystem_t RecentGames_System(const char *Path) {
     if (!Path || strnlen(Path,RECENT_GAME_PATH_SIZE)>=RECENT_GAME_PATH_SIZE ||
@@ -21,7 +21,8 @@ RecentSystem_t RecentGames_System(const char *Path) {
     const char *Part=Path+sizeof(Root)-1;
     const size_t First=strcspn(Part,"/");
     RecentSystem_t System=First==2 && !strncasecmp(Part,"GB",2) ? kRecentGB :
-        First==3 && !strncasecmp(Part,"GBC",3) ? kRecentGBC : kRecentNone;
+        First==3 && !strncasecmp(Part,"GBC",3) ? kRecentGBC :
+        First==2 && !strncasecmp(Part,"GG",2) ? kRecentGG : kRecentNone;
     if (!System || !Part[First]) return kRecentNone;
     while (*Part) {
         size_t N=strcspn(Part,"/");
@@ -32,7 +33,9 @@ RecentSystem_t RecentGames_System(const char *Path) {
     }
     if (!strncasecmp(Part,"[BIOS]",6)) return kRecentNone;
     const char *Ext=strrchr(Part,'.');
-    return Ext && (!strcasecmp(Ext,".gb") || !strcasecmp(Ext,".gbc")) ? System : kRecentNone;
+    if (!Ext) return kRecentNone;
+    if (System==kRecentGG) return !strcasecmp(Ext,".gg") ? System : kRecentNone;
+    return !strcasecmp(Ext,".gb") || !strcasecmp(Ext,".gbc") ? System : kRecentNone;
 }
 
 esp_err_t RecentGames_Read(RecentSystem_t System, RecentGames_t *Games) {
@@ -75,7 +78,7 @@ esp_err_t RecentGames_Read(RecentSystem_t System, RecentGames_t *Games) {
 
 esp_err_t RecentGames_Remember(const char *Path) {
     const RecentSystem_t System=RecentGames_System(Path);
-    /* Libraries outside the two system folders remain launchable. */
+    /* Libraries outside the three system folders remain launchable. */
     if (!System || RomTitle_IsDemo(Path)) return ESP_OK;
     RecentGames_t *Games=malloc(sizeof(*Games));
     if (!Games) return ESP_ERR_NO_MEM;

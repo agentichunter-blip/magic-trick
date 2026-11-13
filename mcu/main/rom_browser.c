@@ -127,7 +127,8 @@ static RecentSystem_t CurrentSystem(void)
 {
     if (AtRoot()) return kRecentNone;
     const char *Name=CurrentDirectory+strlen(RomDirectory)+1;
-    return !strcasecmp(Name,"GB") ? kRecentGB : !strcasecmp(Name,"GBC") ? kRecentGBC : kRecentNone;
+    return !strcasecmp(Name,"GB") ? kRecentGB : !strcasecmp(Name,"GBC") ? kRecentGBC :
+        !strcasecmp(Name,"GG") ? kRecentGG : kRecentNone;
 }
 
 /* At most 20 stat calls, on the existing worker-owned SD mount. */

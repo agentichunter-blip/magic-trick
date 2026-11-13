@@ -39,7 +39,7 @@ module gg_ss_sim_top(
   .mem_select(mem_select),.mem_address(mem_address),.mem_write(mem_write),.mem_data(mem_data),.mem_q(mem_q),
   .owns_rom(owns_rom),.cache_invalidate(cache_invalidate),.rom_address(eng_address),.rom_read(eng_read),
   .rom_data(rom_byte),.rom_ready(rom_ready),.rom_fault(rom_fault),
-  .qclk(clk),.qaddress(qaddress),.qdata(qdata));
+  .qclk(clk),.qaddress(qaddress),.qdata(qdata),.video_resume_ok(1'b1));
 endmodule
 
 module gowin_dpb_snapshot(input write_clock,write_enable,input [8:0] write_address,input [15:0] write_data,

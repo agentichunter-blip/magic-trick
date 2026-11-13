@@ -29,13 +29,16 @@ int main(int argc,char **argv) {
  memcpy(Ram,newer,size);Dirty=true;
  assert(VirtualCart_StateCapture(true)==ESP_OK);
  assert(!memcmp(Ram,old,size));verify_save(canonical,newer,size);
- char branch[kPathSize];strcpy(branch,ActiveSavePath);assert(strcmp(branch,canonical));
- // Normal Stop/autosave path must persist the restored timeline to the branch.
- assert(VirtualCart_Stop()==ESP_OK);verify_save(branch,old,size);
- verify_save(canonical,newer,size);
- // Inputs must remain unchanged as well as the canonical firmware output.
+ assert(!strcmp(ActiveSavePath,canonical));
+ char backup[kPathSize];snprintf(backup,sizeof(backup),"%s.before-load-0001.sav",canonical);
+ verify_save(backup,newer,size);
+ // Normal Stop/autosave path persists the restored save RAM to the main file,
+ // which the next start reads; the newer save stays in the backup.
+ assert(VirtualCart_Stop()==ESP_OK);verify_save(canonical,old,size);
+ verify_save(backup,newer,size);
+ // Inputs must remain unchanged.
  verify_save(argv[1],old,size);verify_save(argv[2],newer,size);
- unlink(branch);unlink(canonical);assert(!rmdir(dir));
- puts("PASS game-save fixtures: restored branch exact, newer canonical exact, input files unchanged");
+ unlink(backup);unlink(canonical);assert(!rmdir(dir));
+ puts("PASS game-save fixtures: restored save exact in the main file, newer save exact in its backup, input files unchanged");
  return 0;
 }

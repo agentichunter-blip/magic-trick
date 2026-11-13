@@ -61,7 +61,7 @@ static void overlap(bool load, bool timeout, TickType_t start, bool transfer) {
  BlockDuringTransfer=transfer;
  char dir[]="/tmp/native-autosave-XXXXXX";assert(mkdtemp(dir));
  Active=true;ActiveInfo.RamSize=sizeof(Ram);ActiveInfo.Mapper.Kind=kCartMapper_Mbc5;ActiveInfo.Mapper.HasBattery=true;
- StateUncertain=false;NativeRequested=false;StateCanonicalPath[0]=0;Valid=false;
+ StateUncertain=false;NativeRequested=false;Valid=false;
  AtCleanup=ReleaseCleanup=false;Waits=LoadCommands=0;Clock=start;
  ReleaseAfter=timeout?0:5;CheckCompetition=true;Dirty=true;
  snprintf(ActiveSavePath,sizeof(ActiveSavePath),"%s/game.sav",dir);
@@ -82,11 +82,13 @@ static void overlap(bool load, bool timeout, TickType_t start, bool transfer) {
  verify(canonical,0x77);
  if(load) {
   assert(LoadCommands==1 && Ram[0]==0x11 && Ram[sizeof(Ram)-1]==0x11);
-  assert(strcmp(canonical,ActiveSavePath));
+  assert(!strcmp(canonical,ActiveSavePath));
  } else assert(!LoadCommands && OldState[0]==0x77);
- char branch[kPathSize];strcpy(branch,ActiveSavePath);
+ char backup[kPathSize];snprintf(backup,sizeof(backup),"%s.before-load-0001.sav",canonical);
  assert(VirtualCart_Stop()==ESP_OK);
- verify(canonical,0x77);if(load)verify(branch,0x11);
+ // After a load the restored save RAM is in the main file and the newer save
+ // it replaced is in the backup.
+ if(load){verify(canonical,0x11);verify(backup,0x77);} else verify(canonical,0x77);
  DIR *d=opendir(dir);assert(d);struct dirent *e;
  while((e=readdir(d)))if(strcmp(e->d_name,".") && strcmp(e->d_name,"..")){
   char path[512];snprintf(path,sizeof(path),"%s/%s",dir,e->d_name);assert(!unlink(path));

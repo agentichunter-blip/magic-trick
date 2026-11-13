@@ -41,9 +41,13 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144)(
  wire rd_current=rd_addr==address;
  wire [6:0] rd_index=rd_addr[12:6];
  wire rd_hit=line_valid[rd_index] && rd_tag==rd_addr[23:13] && !just_filled;
+ // Ready one cycle after the hit is seen: the byte the CPU latches has then
+ // been stable for two cycles, which the constraints file relies on.
+ reg rd_settled;
+ always @(posedge clk) rd_settled<=rd_current && rd_hit && read;
  assign data=!in_range ? 8'hff : rd_addr[0] ? rd_word[15:8] : rd_word[7:0];
  assign ready=!read || (enable && !invalidate && !fault &&
-   (!in_range || (rd_current && rd_hit)));
+   (!in_range || (rd_current && rd_hit && rd_settled)));
  assign idle=!busy && !request;
  assign bus_read=1'b1;
  assign bus_write_data=0;

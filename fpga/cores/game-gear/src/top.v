@@ -230,6 +230,7 @@ module top #(parameter ISSIMU=0)
 
     wire core_gb_lcd_clkena;
     wire [14:0] core_gb_lcd_data;
+    wire core_gb_lcd_repeat;
     wire [1:0] core_gb_lcd_mode;
     wire core_gb_lcd_on;
     wire core_gb_lcd_vsync;
@@ -421,7 +422,11 @@ module top #(parameter ISSIMU=0)
         .gb_lcd_mode(display_gb_lcd_mode),
         .gb_lcd_on(display_gb_lcd_on),
         .gb_lcd_vsync(display_gb_lcd_vsync),
-        .gb_lcd_data(display_gb_lcd_data)
+        // While a save state freezes the game, its stand-in rows repeat the
+        // previous frame (read back in step from the framebuffer), so the
+        // picture holds still under the menu.
+        .gb_lcd_data(core_gb_lcd_repeat && !cart_video_selected ?
+                     hWrBurstQ[14:0] : display_gb_lcd_data)
     );
 
     wire [15:0] left, right;
@@ -1284,7 +1289,8 @@ module top #(parameter ISSIMU=0)
         .gb_lcd_mode(core_gb_lcd_mode),
         .gb_lcd_on(core_gb_lcd_on),
         .gb_lcd_vsync(core_gb_lcd_vsync),
-        .gb_lcd_data(core_gb_lcd_data)
+        .gb_lcd_data(core_gb_lcd_data),
+        .gb_lcd_repeat(core_gb_lcd_repeat)
     );
 
     reg UART_TXD;

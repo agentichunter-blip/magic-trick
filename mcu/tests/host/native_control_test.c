@@ -101,5 +101,18 @@ int main(void){
  assert(NativeStateControl_Init()==ESP_OK && View.Slot==2);
  StoredSlot=9;assert(NativeStateControl_Init()==ESP_OK && View.Slot==1);
  HasStoredSlot=false;assert(NativeStateControl_Init()==ESP_OK && View.Slot==1);
- puts("PASS async native controller: empty slot, duplicate requests, autosave wait, errors, stale game, PC/recovery lockout, persisted shortcuts and feedback, three slots");
+ /* Menu Load closes the menu. The A press that chose Load may still be held:
+  * wait for its release. A new press keeps the menu open; a menu the player
+  * already closed is not pulsed (that would reopen it). */
+ Mask=3;Refresh();
+ NativeStateControl_Buttons(0x08);unsigned P0=Pulses;
+ assert(Request(true,1));Step();assert(View.Phase==kStateUILoaded);
+ Clock+=300;Step();assert(Pulses==P0);
+ NativeStateControl_Buttons(0);Clock+=40;Step();assert(Pulses==P0+1);
+ Clock+=1000;Step();assert(Pulses==P0+1);
+ assert(Request(true,1));Step();NativeStateControl_Buttons(0x04);NativeStateControl_Buttons(0);Clock+=300;Step();assert(Pulses==P0+1);
+ assert(Request(true,1));Step();NativeStateControl_Buttons(0x200);Clock+=300;Step();assert(Pulses==P0+1);
+ /* A menu Save leaves the menu open. */
+ NativeStateControl_Buttons(0);assert(Request(false,1));Step();Clock+=1500;Step();assert(Pulses==P0+1);
+ puts("PASS async native controller: empty slot, duplicate requests, autosave wait, errors, stale game, PC/recovery lockout, persisted shortcuts and feedback, three slots, menu close after Load");
 }

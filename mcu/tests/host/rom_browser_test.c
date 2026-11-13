@@ -9,9 +9,9 @@
 #include "recent_games.h"
 
 static RomBrowserDataSource_t Source;
-static RecentGames_t History[2];
+static RecentGames_t History[3];
 static char CheatPath[320];
-esp_err_t RecentGames_Read(RecentSystem_t System,RecentGames_t *Games) { assert(System==kRecentGB || System==kRecentGBC); *Games=History[System-1]; return ESP_OK; }
+esp_err_t RecentGames_Read(RecentSystem_t System,RecentGames_t *Games) { assert(System==kRecentGB || System==kRecentGBC || System==kRecentGG); *Games=History[System-1]; return ESP_OK; }
 static bool Mounted;
 static unsigned Mounts, Unmounts, Starts;
 static esp_err_t MountResult;
@@ -243,6 +243,20 @@ int main(void) {
     assert(rmdir(ROM_BROWSER_ROOT "/gb") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/GBC/M-R") == 0);
     assert(rmdir(ROM_BROWSER_ROOT "/GBC") == 0);
+    /* Game Gear has its own Recent row in the GG folder. */
+    assert(mkdir(ROM_BROWSER_ROOT "/GG",0700)==0 && mkdir(ROM_BROWSER_ROOT "/GG/S",0700)==0);
+    FileAt(ROM_BROWSER_ROOT "/GG/S/Sonic.gg");
+    History[2].Count=1; strcpy(History[2].Paths[0],ROM_BROWSER_ROOT "/GG/S/Sonic.gg");
+    assert(Source.Open(&Count)==ESP_OK && Count==1); Row(0,"GG",true);
+    assert(Source.Enter(0,&Count)==ESP_OK && Count==2);
+    Row(0,"Recent",true); Row(1,"S",true); assert(Source.FolderPlatform(0)==kRomPlatformGG);
+    assert(Source.Enter(0,&Count)==ESP_OK && Count==1); Row(0,"Sonic.gg",false);
+    assert(Source.StartIndex(0)==ESP_OK && !strcmp(StartedPath,History[2].Paths[0]));
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Count==2 && Selected==0);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Count==1);
+    Source.Close(); memset(History,0,sizeof(History));
+    assert(unlink(ROM_BROWSER_ROOT "/GG/S/Sonic.gg")==0);
+    assert(rmdir(ROM_BROWSER_ROOT "/GG/S")==0 && rmdir(ROM_BROWSER_ROOT "/GG")==0);
     /* Filter metadata-tagged demos/kiosks, without hiding similarly named full games. */
     const char *Demos[]={"Game (Demo).gb","Game (Kiosk).gbc","Game [dEmO].gb","Game (Demo v2).gbc"};
     for(unsigned I=0;I<4;++I) { char P[320]; snprintf(P,sizeof(P),"%s/%s",ROM_BROWSER_ROOT,Demos[I]); FileAt(P); }

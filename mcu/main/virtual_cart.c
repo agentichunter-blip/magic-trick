@@ -117,7 +117,6 @@ static bool NativeRequested;
 static void (*StateWaitCallback)(void);
 void VirtualCart_RegisterStateWait(void (*Callback)(void)) { StateWaitCallback=Callback; }
 static bool StateUncertain;
-static char StateCanonicalPath[kPathSize];
 static bool LoadRequested;
 static bool Active;
 static bool ActiveSavePending;
@@ -1268,7 +1267,6 @@ static esp_err_t PersistActiveDataForTransition(void)
 static void ClearActiveSave(void)
 {
     memset(&ActiveInfo, 0, sizeof(ActiveInfo));
-    StateCanonicalPath[0] = 0;
     ActiveSavePath[0] = '\0';
     ActiveRtcPath[0] = '\0';
     memset(ActiveStatePath, 0, sizeof(ActiveStatePath));
@@ -2173,18 +2171,20 @@ esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
         FpgaStateOwner=slot;
     }
     if(load && battery) {
-        // Force a complete current battery save even when its dirty flag is clear.
+        // Write the current in-game save out completely, then keep a numbered
+        // copy of it ("<game>.SAV.before-load-0001.sav") before any RAM changes.
+        // The loaded state's save RAM then continues in the main .SAV, so the
+        // next start of the game resumes from it; the replaced save stays in
+        // the backup. (Earlier firmware wrote to a separate ".state-NNNN.sav"
+        // branch instead, which the next start never read.)
         ActiveSavePending=true;
         result=PersistActiveSave();if(result!=ESP_OK) goto cleanup;
-        char branch[kPathSize];
-        const char *canonical=StateCanonicalPath[0] ? StateCanonicalPath : ActiveSavePath;
-        if(StateSaveBranch_Create(canonical,ActiveSavePath,ActiveInfo.RamSize,branch,sizeof(branch))) {
+        char backup[kPathSize];
+        if(StateSaveBranch_Create(ActiveSavePath,ActiveSavePath,ActiveInfo.RamSize,backup,sizeof(backup))) {
             result=ESP_FAIL;goto cleanup;
         }
-        if(!StateCanonicalPath[0]) strcpy(StateCanonicalPath,ActiveSavePath);
-        strcpy(ActiveSavePath,branch); // Must precede the first RAM-changing command.
         ActiveSavePending=true;
-        printf("STATE_BATTERY_BRANCH=%s\n",ActiveSavePath);
+        printf("STATE_BATTERY_BACKUP=%s\n",backup);
     }
     // Any lost acknowledgement may conceal a partial restore. Keep paused/isolated.
     StateUncertain=true;submitted=true;

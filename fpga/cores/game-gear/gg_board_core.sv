@@ -18,7 +18,7 @@ module gg_board_core(
  // video 87..89, clock 90..93, audio phase 94 (bit 0).
  input state_request, state_release, state_apply,
  input [759:0] state_in, output [759:0] state_out,
- output reg state_frozen=0,
+ output reg state_frozen=0, output freeze_active,
  // While frozen: 0 work RAM, 1 cartridge RAM, 2 VRAM, 3 palette (12-bit word).
  input [1:0] mem_select, input [13:0] mem_address, input mem_write,
  input [11:0] mem_data, output [7:0] mem_q
@@ -68,6 +68,7 @@ always @(posedge clk) begin
 end
 wire capture_boundary=state_request && boundary_q && !cpu_step && !cpu_step_q && !quiesce;
 wire canonicalize_cpu=frozen && !state_frozen && settle<2;
+assign freeze_active=frozen;
 always @(posedge clk) begin
  apply_q<=state_apply && state_frozen;
  z80_set_q<=(state_apply && state_frozen) || canonicalize_cpu;

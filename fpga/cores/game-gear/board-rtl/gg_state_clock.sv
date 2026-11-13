@@ -1,3 +1,5 @@
+// Enables update on the rising edge, like every user, so enable paths get a
+// full xclk cycle (they used to be half-cycle paths from the falling edge).
 // Preserve the board PLL. xclk = 2 * 33.554432 MHz; emulate the SMS
 // 53.693175 MHz enable schedule with bounded one-xclk quantization.
 module gg_state_clock #(parameter integer HOST_HZ=67108864,
@@ -8,7 +10,7 @@ module gg_state_clock #(parameter integer HOST_HZ=67108864,
  reg [4:0] phase;
  assign state_out={phase,accumulator};
  wire [27:0] sum={1'b0,accumulator}+28'(MASTER_HZ);
- always @(negedge clk or negedge reset_n) begin
+ always @(posedge clk or negedge reset_n) begin
   if(!reset_n) begin accumulator<=0;phase<=0;cpu<=0;vdp<=0;pixel<=0;sprite<=0;end
   else if(restore) begin accumulator<=state_in[26:0];phase<=state_in[31:27];cpu<=0;vdp<=0;pixel<=0;sprite<=0;end
   else if(hold) begin cpu<=0;vdp<=0;pixel<=0;sprite<=0;end

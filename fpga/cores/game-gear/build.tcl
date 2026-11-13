@@ -47,7 +47,10 @@ add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pk
 
 add_file -type verilog "../../esp32t/src/gowin_pll_preevt/gowin_pll.v"
 add_file -type verilog "src/top.v"
-set_option -place_option 0
+# Placement option 3 meets timing with the save-state engine (0, 1, 2 and
+# route option 1 did not); the core runs within ~0.1 ns of its 67.1 MHz clock.
+set_option -place_option 3
+set_option -route_option 0
 add_file -type sdc "src/board/evt1_x2/gg_board.sdc"
 add_file -type verilog "core_reload.sv"
 set_option -multiboot_address_width 24

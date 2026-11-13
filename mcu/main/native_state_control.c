@@ -25,7 +25,7 @@ static bool SlotValid(unsigned Slot) { return Slot>=1 && Slot<=kNativeStateSlots
 static bool Request(bool Load,unsigned Slot) {
     bool Accepted=false;portENTER_CRITICAL(&Lock);
     if(Slot>=1 && Slot<=kNativeStateSlots && !Pending && !InFlight && Session && View.Available && View.Supported && (!Load || SlotValid(Slot))) {
-        DismissAt=0;PendingSession=Session;PendingSlot=Slot;Pending=Load?2:1;View.Phase=Load?kStateUILoading:kStateUISaving;Accepted=true;
+        DismissAt=0;CancelDismiss=false;PendingSession=Session;PendingSlot=Slot;Pending=Load?2:1;View.Phase=Load?kStateUILoading:kStateUISaving;Accepted=true;
         // The slot used last becomes the shortcuts' slot.
         if(View.Slot!=Slot){View.Slot=(uint8_t)Slot;View.Valid=SlotValid(Slot);SlotSetting=(int)Slot;}
     }
@@ -35,10 +35,12 @@ static void SetShortcuts(bool Enable) { portENTER_CRITICAL(&Lock);Setting=Enable
 static void Waiting(void) { portENTER_CRITICAL(&Lock);if(InFlight)View.Phase=kStateUIWaiting;portEXIT_CRITICAL(&Lock); }
 uint16_t NativeStateControl_Buttons(uint16_t Raw) {
     uint32_t Now=Millis();bool Consume=false;portENTER_CRITICAL(&Lock);
-    RawButtons=Raw;
+    // Only a new press keeps the menu open: the A press that chose Load (or
+    // the shortcut's keys) may still be held while the action runs.
+    const uint16_t Pressed=Raw&~RawButtons&0xff;RawButtons=Raw;
     unsigned Event=NativeShortcut_Update(&Keys,Raw,Now,View.Shortcuts,&Consume);
     if(Event && !ShortcutEvent && !Pending && !InFlight){ShortcutEvent=Event;ShortcutSession=Session;}
-    if((Raw&0xff) && (InFlight || DismissAt))CancelDismiss=true;
+    if(Pressed && (InFlight || DismissAt))CancelDismiss=true;
     portEXIT_CRITICAL(&Lock);
     return Consume?(Raw&0x300):Raw;
 }
@@ -106,12 +108,17 @@ static void Step(void) {
                 R==ESP_ERR_TIMEOUT?"Save busy - try again":
                 (R==ESP_ERR_INVALID_CRC || R==ESP_ERR_INVALID_VERSION || R==ESP_ERR_INVALID_SIZE)?"State file on SD\ncard is damaged":
                 R==ESP_ERR_NOT_FOUND?"No state available":"State action failed");}
-            if(FromShortcut && R==ESP_OK)DismissAt=Millis()+1200;
+            // A successful load closes the menu so play resumes at once; a
+            // shortcut action also closes it after briefly showing the result.
+            if(R==ESP_OK && (FromShortcut || Operation==2))DismissAt=Millis()+(FromShortcut ? 1200 : 300);
             FromShortcut=false;portEXIT_CRITICAL(&Lock);
         }
         portENTER_CRITICAL(&Lock);
+        // Bit 9 set: the menu is already closed (pulsing would reopen it).
+        // Buttons still held: wait for their release, then close.
         bool Close=DismissAt && (int32_t)(Millis()-DismissAt)>=0;
-        if(Close){Close=!CancelDismiss && !(RawButtons&0x3ff);DismissAt=0;}
+        if(Close && !CancelDismiss && !(RawButtons&0x200) && (RawButtons&0x1ff))Close=false;
+        else if(Close){Close=!CancelDismiss && !(RawButtons&0x3ff);DismissAt=0;}
         portEXIT_CRITICAL(&Lock);
         if(Close)FPGA_Tx_PulseButtons(0x100);
 }

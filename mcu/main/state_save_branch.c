@@ -19,7 +19,7 @@ int StateSaveBranch_Create(const char *canonical, const char *source,
     }
     int fd = -1;
     for (unsigned i=1; i<=9999; ++i) {
-        int n = snprintf(branch, capacity, "%s.state-%04u.sav", canonical, i);
+        int n = snprintf(branch, capacity, "%s.before-load-%04u.sav", canonical, i);
         // Reserve room for the existing publisher's .tmp and .old sidecars.
         if (n < 0 || (size_t)n + 5 > capacity) break;
         fd = open(branch, O_WRONLY | O_CREAT | O_EXCL, 0600);

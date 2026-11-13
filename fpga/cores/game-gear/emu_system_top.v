@@ -99,6 +99,7 @@ module emu_system_top
     input               LCD_INIT_DONE,
     output              gb_lcd_clkena,
     output [14:0]       gb_lcd_data,
+    output              gb_lcd_repeat,     // show the framebuffer's previous pixel
     output [1:0]        gb_lcd_mode,
     output              gb_lcd_on,
     output              gb_lcd_vsync
@@ -140,7 +141,7 @@ module emu_system_top
     wire [1:0] state_mem_select;wire [13:0] state_mem_address;
     wire state_mem_write;wire [11:0] state_mem_data;wire [7:0] state_mem_q;
     wire state_owns_rom,state_rom_read,state_cache_invalidate;wire [23:0] state_rom_address;
-    wire state_busy,state_fault,state_is_frozen,state_loaded;
+    wire state_busy,state_fault,state_is_frozen,state_loaded,state_freeze_active,video_resume_ok;
     gg_rom_bridge rom_bridge(.clk(xclk),.reset(xreset),
         .enable(!core_reset_x && !quiet_x[1]),.invalidate(stop_x[1] || state_cache_invalidate),
         .read(state_owns_rom ? state_rom_read : rom_read),
@@ -161,7 +162,7 @@ module emu_system_top
         .state_request(state_request),.state_release(state_release),.state_apply(state_apply),
         .state_in(state_in),.state_out(state_out),.state_frozen(state_frozen),
         .mem_select(state_mem_select),.mem_address(state_mem_address),.mem_write(state_mem_write),
-        .mem_data(state_mem_data),.mem_q(state_mem_q));
+        .mem_data(state_mem_data),.mem_q(state_mem_q),.freeze_active(state_freeze_active));
     gg_state_engine state_engine(.clk(xclk),.reset(core_reset_x),
         .freeze_toggle(virtual_state_freeze_toggle),.release_toggle(virtual_state_release_toggle),
         .load_toggle(virtual_state_load_toggle),.block_toggle(virtual_snapshot_request_toggle),
@@ -174,12 +175,15 @@ module emu_system_top
         .mem_data(state_mem_data),.mem_q(state_mem_q),
         .owns_rom(state_owns_rom),.cache_invalidate(state_cache_invalidate),.rom_address(state_rom_address),.rom_read(state_rom_read),
         .rom_data(rom_byte),.rom_ready(rom_ready),.rom_fault(rom_fault),
-        .qclk(virtual_snapshot_qclk),.qaddress(virtual_snapshot_qaddress),.qdata(virtual_snapshot_qdata));
+        .qclk(virtual_snapshot_qclk),.qaddress(virtual_snapshot_qaddress),.qdata(virtual_snapshot_qdata),
+        .video_resume_ok(video_resume_ok));
     assign virtual_state_status={state_loaded,state_fault,state_is_frozen,state_busy};
     gg_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(!core_reset_x),
+        .hold(state_freeze_active),.resume_ok(video_resume_ok),
         .pixel(pixel),.x(pixel_x),.y(pixel_y),.color(color),
         .overflow(video_overflow),.lcd_pixel(gb_lcd_clkena),.lcd_data(gb_lcd_data),
+        .lcd_repeat(gb_lcd_repeat),
         .lcd_mode(gb_lcd_mode),.lcd_on(gb_lcd_on),.lcd_vsync(gb_lcd_vsync));
     gg_audio_bridge audio_cdc(.xclk(xclk),.xreset(core_reset_x),
         .stereo({audio_left,audio_right}),.hclk(hclk),.hreset(reset_h_sync[1]),

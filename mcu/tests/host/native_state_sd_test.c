@@ -146,9 +146,12 @@ int main(void)
     assert(VirtualCart_StateCapture(true) == ESP_OK); Idle();
     assert(Imports == 1 && LoadCommands == loads + 1);
     for (unsigned i = 0; i < sizeof(Ram); i++) assert(Ram[i] == 0x11);
-    verify(canonical, 0x77);                       /* newer battery save kept */
-    assert(strcmp(ActiveSavePath, canonical));      /* restored timeline on a branch */
-    char branch1[kPathSize]; strcpy(branch1, ActiveSavePath);
+    verify(canonical, 0x77);                       /* newer battery save written out... */
+    assert(!strcmp(ActiveSavePath, canonical));     /* ...and play continues in the main file */
+    {
+        char backup[kPathSize]; snprintf(backup, sizeof(backup), "%s.before-load-0001.sav", canonical);
+        verify(backup, 0x77);                       /* ...with the newer save kept as a backup */
+    }
 
     /* 3. A damaged payload is refused before anything changes; the game resumes. */
     PowerCycle(0x22);
@@ -160,7 +163,7 @@ int main(void)
     unsigned files = CountFiles(dir); loads = LoadCommands;
     assert(VirtualCart_StateCapture(true) == ESP_ERR_INVALID_CRC); Idle();
     assert(LoadCommands == loads && Imports == 1 && !Valid && CountFiles(dir) == files);
-    assert(!strcmp(ActiveSavePath, branch1));
+    assert(!strcmp(ActiveSavePath, canonical));
     for (unsigned i = 0; i < sizeof(Ram); i++) assert(Ram[i] == 0x22);
 
     /* 4. Save again (replaces the damaged file), then the wrong game is refused. */

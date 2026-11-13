@@ -68,19 +68,23 @@ int main(void){
  char canonical[kPathSize];strcpy(canonical,ActiveSavePath);
  memset(Ram,0x11,sizeof(Ram));assert(VirtualCart_StateCapture(false)==ESP_OK);assert(!Paused && Valid);
  memset(Ram,0x77,sizeof(Ram));Dirty=true;
+ // Loading keeps the main save file and first backs up the newer save in it.
+ char backup1[kPathSize],backup2[kPathSize],backup3[kPathSize];
+ snprintf(backup1,sizeof(backup1),"%s.before-load-0001.sav",canonical);
+ snprintf(backup2,sizeof(backup2),"%s.before-load-0002.sav",canonical);
+ snprintf(backup3,sizeof(backup3),"%s.before-load-0003.sav",canonical);
  assert(VirtualCart_StateCapture(true)==ESP_OK);assert(!Paused && LoadCommands==1);verify(canonical,0x77);
- assert(strcmp(ActiveSavePath,canonical));char branch1[kPathSize];strcpy(branch1,ActiveSavePath);
- // Autosave and Stop use exactly this shared persistence path after restoring.
- Paused=true;Mounted=Bulk=true;assert(PersistActiveSave()==ESP_OK);Mounted=Bulk=false;verify(branch1,0x11);verify(canonical,0x77);Paused=false;
+ assert(!strcmp(ActiveSavePath,canonical));verify(backup1,0x77);
+ // Autosave and Stop use exactly this shared persistence path after restoring:
+ // the restored save RAM continues in the main file the next start reads.
+ Paused=true;Mounted=Bulk=true;assert(PersistActiveSave()==ESP_OK);Mounted=Bulk=false;verify(canonical,0x11);verify(backup1,0x77);Paused=false;
  memset(Ram,0x22,sizeof(Ram));Dirty=true;
- assert(VirtualCart_StateCapture(true)==ESP_OK);assert(strcmp(branch1,ActiveSavePath));verify(branch1,0x22);verify(canonical,0x77);
- char branch2[kPathSize];strcpy(branch2,ActiveSavePath);
+ assert(VirtualCart_StateCapture(true)==ESP_OK);assert(!strcmp(ActiveSavePath,canonical));verify(backup2,0x22);verify(backup1,0x77);
  memset(Ram,0x33,sizeof(Ram));Dirty=true;FailLoad=true;
  unsigned resumes=Resumes;
  assert(VirtualCart_StateCapture(true)==ESP_ERR_TIMEOUT);assert(StateUncertain && Paused && Resumes==resumes);
- assert(!SetRunning(true));assert(VirtualCart_IsBusy());assert(!SetLoadRequested(true));assert(VirtualCart_Stop()==ESP_ERR_INVALID_STATE);verify(canonical,0x77);verify(branch2,0x33);
- char branch3[kPathSize];strcpy(branch3,ActiveSavePath);
- assert(!strcmp(StateCanonicalPath,canonical));
+ assert(!SetRunning(true));assert(VirtualCart_IsBusy());assert(!SetLoadRequested(true));assert(VirtualCart_Stop()==ESP_ERR_INVALID_STATE);
+ verify(canonical,0x33);verify(backup3,0x33);assert(!strcmp(ActiveSavePath,canonical));
  // No restoration can start if capability/status cannot be established.
  StateUncertain=false;FailLoad=false;FailStatus=true;unsigned loads=LoadCommands;
  assert(VirtualCart_StateCapture(true)==ESP_ERR_TIMEOUT && LoadCommands==loads);
@@ -95,7 +99,7 @@ int main(void){
   StateUncertain=false;ResumeIssued=false;Paused=false;
   assert(VirtualCart_StateCapture(false)!=ESP_OK);
   assert(StateUncertain && VirtualCart_IsBusy() && !SetRunning(true));
-  assert(!Mounted && !Bulk && !Running);verify(canonical,0x77);
+  assert(!Mounted && !Bulk && !Running);verify(backup1,0x77);verify(backup3,0x33);
  }
  ResumeFailure=0;ResumeIssued=false;StateUncertain=false;Paused=false;
  assert(!Mounted && !Bulk && !Running);
@@ -103,7 +107,7 @@ int main(void){
  assert(StateSaveBranch_Create(canonical,canonical,sizeof(Ram)-1,extra,sizeof(extra))!=0);
  assert(StateSaveBranch_Create(canonical,canonical,sizeof(Ram),tiny,sizeof(tiny))!=0);
  assert(StateSaveBranch_Create(canonical,canonical,sizeof(Ram),extra,sizeof(extra))==0);
- assert(strcmp(extra,branch1) && strcmp(extra,branch2) && strcmp(extra,branch3));verify(extra,0x77);verify(canonical,0x77);
+ assert(strcmp(extra,backup1) && strcmp(extra,backup2) && strcmp(extra,backup3));
  unlink(extra);
  // A queued UI action cannot capture or restore a different game session.
  unsigned before_stale=LoadCommands;
@@ -112,10 +116,11 @@ int main(void){
  bool supported=false,valid=false,uncertain=true;uint32_t session=0;
  assert(VirtualCart_NativeInfo(&supported,&valid,&uncertain,&session)==ESP_OK);
  assert(supported && !uncertain && session==NativeSession && !Running);
- // The normal Stop path persists the restored timeline only to its selected branch.
- FailStatus=false;Dirty=true;assert(VirtualCart_Stop()==ESP_OK);assert(!Active);verify(branch3,0x11);verify(canonical,0x77);
- unlink(canonical);unlink(branch1);unlink(branch2);unlink(branch3);assert(!rmdir(dir));
- puts("PASS firmware: capture, newer-save preservation, repeated branches, autosave, ambiguous restore, unsupported status");
+ // The normal Stop path persists the restored save RAM to the main file.
+ FailStatus=false;Dirty=true;assert(VirtualCart_Stop()==ESP_OK);assert(!Active);verify(canonical,0x11);
+ verify(backup1,0x77);verify(backup2,0x22);verify(backup3,0x33);
+ unlink(canonical);unlink(backup1);unlink(backup2);unlink(backup3);assert(!rmdir(dir));
+ puts("PASS firmware: capture, load keeps the main save and backs up the newer one, repeated backups, autosave, ambiguous restore, unsupported status");
 }
 void PwrMgr_InhibitSleep(void){}
 void PwrMgr_AllowSleep(void){}
