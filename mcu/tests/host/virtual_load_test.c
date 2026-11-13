@@ -5,6 +5,11 @@
 
 static bool Mounted, Bulk, Started;
 static bool GGCore, GGNoFrame, GGReset, GGShortReply;
+/* Game Gear battery saves: a core reporting support (status bit 6), the
+ * import armed by command 17 before start, the staged save and mirror repair. */
+static bool GGCartCore, GGArmed, GGImportFail;
+static unsigned GGStageWrites, GGMirrorWrites;
+static uint8_t GGStaged[32768];
 static unsigned Writes, Prepares, Starts, GGFailWrite;
 static FILE *ExpectedRom;
 static uint32_t ExpectedRomSize;
@@ -43,6 +48,22 @@ esp_err_t CartBulk_Begin(void) { assert(Mounted && !Bulk); Bulk=true; return ESP
 void CartBulk_End(void) { assert(Bulk); Bulk=false; }
 esp_err_t CartBulk_WritePSRAMBlock(uint32_t Address, const uint8_t *Data) {
  assert(Bulk);
+ if(GGCore && Writes>=4096) {
+  /* After the ROM: the staged battery save (before start), then the ROM
+   * mirror under it put back (after start). */
+  const uint32_t Cart=kRomBase+kGGStateRomAddress+kGGCartFirstBlock*kCartBulkBlockSize;
+  if(!Started) {
+   assert(GGCartCore && Address>=Cart && Address<Cart+sizeof(GGStaged) && (Address-Cart)%kCartBulkBlockSize==0);
+   memcpy(GGStaged+(Address-Cart),Data,kCartBulkBlockSize);++GGStageWrites;
+  } else {
+   assert(Address>=kRomBase+kGGStateRomAddress && Address<kRomBase+kGGStateRomAddress+kStateFileGameGearPayload);
+   uint8_t expected[kCartBulkBlockSize];
+   assert(!fseek(ExpectedRom,(Address-kRomBase)%ExpectedRomSize,SEEK_SET));
+   assert(fread(expected,1,sizeof(expected),ExpectedRom)==sizeof(expected) && !memcmp(expected,Data,sizeof(expected)));
+   ++GGMirrorWrites;
+  }
+  return ESP_OK;
+ }
  if(GGCore) {
   assert(Address==kRomBase+Writes*kCartBulkBlockSize && Address+kCartBulkBlockSize<=kSaveBase);
   uint8_t expected[kCartBulkBlockSize];
@@ -58,7 +79,14 @@ esp_err_t CartLink_VirtualCommand(uint8_t Command, uint16_t Config, uint8_t High
     (void)Config; (void)High;
     if(Command==kVirtualCommandPrepare) ++Prepares;
     if(Command==kVirtualCommandStart) ++Starts;
-    if(Command==kVirtualCommandPrepare || Command==kVirtualCommandStop) Started=false;
+    if(Command==kVirtualCommandPrepare || Command==kVirtualCommandStop) { Started=false; GGArmed=false; }
+    if(GGCore && Command==kVirtualCommandGGCartImport) { assert(GGCartCore && !Started && High==1); GGArmed=true; }
+    if(GGCore && GGCartCore && Command==12) {
+        const uint32_t S=0x53530048u | (Started && GGArmed && !GGImportFail ? 0x80u : 0u);
+        memset(Out,0,sizeof(*Out)); Out->Count=4;
+        for(int I=0;I<4;I++) Out->Data[I]=(uint8_t)(S>>(8*I));
+        return ESP_OK;
+    }
     if(Command==kVirtualCommandStart) Started=true;
     memset(Out,0,sizeof(*Out)); Out->Count=4;
     Out->Data[0]=Started ? 0xff : kVirtualStatusDisableSeen|kVirtualStatusResetAsserted;

@@ -1,11 +1,13 @@
 // Read-only ROM cache on the EXISTING xVirtual PSRAM controller port.
-// 8 KiB direct-mapped: 128 lines x 64 bytes (4096 x 16-bit words, 4 BSRAM),
-// tags in a block RAM (one cycle after the data RAM, like the data). Replaces the one-line cache, which missed on nearly
+// Direct-mapped, 64-byte lines: 32 lines = 2 KiB (1024 x 16-bit words, one
+// BSRAM; 128 lines/8 KiB before 32 KiB cartridge RAM needed the blocks). In
+// Sonic gameplay the CPU waits ~13.1k xclk per frame against ~12.2k with
+// 8 KiB (of 1.12M per frame). Tags are read one cycle after the address, like the data. Replaces the one-line cache, which missed on nearly
 // every access whenever code and data lived in different 64-byte lines and
 // stalled the CPU in bursts (warped CPU-timed audio such as sample playback).
 // Bus protocol, timeout/fault and invalidate/discard semantics are unchanged:
 // one 64-byte read burst per miss; never drives PSRAM pins.
-module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144)(
+module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144, parameter integer LINE_BITS=5)(
  input wire clk, reset, enable, invalidate,
  input wire read, input wire [23:0] address,
  output wire [7:0] data, output wire ready,
@@ -14,15 +16,17 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144)(
  output reg [22:0] bus_address, output wire [15:0] bus_write_data,
  output wire [10:0] bus_length,
  input wire done, valid, input wire [15:0] read_data);
- localparam LINES=128;
+ localparam LINES=1<<LINE_BITS, IB=LINE_BITS, TB=24-6-LINE_BITS; // index/tag widths
  reg busy,discard,just_filled;
- reg [6:0] fill_index;
- reg [10:0] pending_tag;
+ reg [IB-1:0] fill_index;
+ reg [TB-1:0] pending_tag;
  reg [5:0] words;
  reg [31:0] timeout_count;
  reg [LINES-1:0] line_valid;
- reg [10:0] tags[0:LINES-1];
- reg [15:0] cmem[0:4095];
+ // 32 x 13 bits in flip-flops (this FPGA has no logic-cell RAM): frees the
+ // tags' block RAM for cartridge RAM.
+ (* syn_ramstyle="registers" *) reg [TB-1:0] tags[0:LINES-1];
+ reg [15:0] cmem[0:LINES*32-1];
 
  wire in_range=address[23:22]==0; // ROM region 0x020000..0x41ffff, max 4 MiB
 
@@ -32,15 +36,15 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144)(
  // address; a line is unusable for the cycle in which its tag is written.
  reg [15:0] rd_word;
  reg [23:0] rd_addr;
- reg [10:0] rd_tag;
+ reg [TB-1:0] rd_tag;
  always @(posedge clk) begin
-  rd_word<=cmem[address[12:1]];
+  rd_word<=cmem[address[IB+5:1]];
   rd_addr<=address;
-  rd_tag<=tags[address[12:6]];
+  rd_tag<=tags[address[IB+5:6]];
  end
  wire rd_current=rd_addr==address;
- wire [6:0] rd_index=rd_addr[12:6];
- wire rd_hit=line_valid[rd_index] && rd_tag==rd_addr[23:13] && !just_filled;
+ wire [IB-1:0] rd_index=rd_addr[IB+5:6];
+ wire rd_hit=line_valid[rd_index] && rd_tag==rd_addr[23:IB+6] && !just_filled;
  // Ready one cycle after the hit is seen: the byte the CPU latches has then
  // been stable for two cycles, which the constraints file relies on.
  reg rd_settled;
@@ -85,7 +89,7 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144)(
     end
    end else if(enable && !invalidate && !fault && read && in_range && rd_current && !rd_hit && !just_filled) begin
     busy<=1;discard<=0;words<=0;timeout_count<=0;
-    line_valid[rd_index]<=1'b0;fill_index<=rd_index;pending_tag<=rd_addr[23:13];
+    line_valid[rd_index]<=1'b0;fill_index<=rd_index;pending_tag<=rd_addr[23:IB+6];
     bus_address<=23'h020000+{rd_addr[21:6],6'b0};request<=1;
    end
   end

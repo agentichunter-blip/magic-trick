@@ -1,10 +1,13 @@
 // Gray-pointer asynchronous FIFO. Only synchronized pointers cross domains.
 // Data memory has synchronous read latency; out_valid accompanies registered data.
-module gg_async_fifo #(parameter WIDTH=20, parameter ABITS=8)(
+// The memory is in flip-flops: the video bridge's reader drains one entry per
+// hclk (16.8 MHz) against one pixel per 12.5 xclk (5.4 MHz), so it never holds
+// more than a few entries, and the block RAM went to cartridge RAM.
+module gg_async_fifo #(parameter WIDTH=20, parameter ABITS=4)(
  input wire wclk,wrst,wvalid,input wire [WIDTH-1:0] wdata,
  output wire full, output reg overflow,
  input wire rclk,rrst, output reg rvalid,output reg [WIDTH-1:0] rdata);
- reg [WIDTH-1:0] mem[0:(1<<ABITS)-1];
+ (* syn_ramstyle="registers" *) reg [WIDTH-1:0] mem[0:(1<<ABITS)-1];
  reg [ABITS:0] wbin,wgray,rbin,rgray;
  (* ASYNC_REG="TRUE" *) reg [ABITS:0] rm,rs,wm,ws;
  wire [ABITS:0] wn=wbin+1'b1;

@@ -20,8 +20,8 @@ enum {
     kStateFileMaxRamSize = 128 * 1024,
     kStateFileSlotSize = 256 * 1024,
     /* Game Gear payload: bytes 4,5 = 'g','g', byte 6 = layout version 1. */
-    kStateFileGameGearSignature = 0x00016767,
-    kStateFileGameGearPayload = 41 * 1024,
+    kStateFileGameGearSignature = 0x00026767, /* 'g','g', layout 2 (32 KiB cart RAM) */
+    kStateFileGameGearPayload = 57 * 1024,
 };
 
 typedef enum {

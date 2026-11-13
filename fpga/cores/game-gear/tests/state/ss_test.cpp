@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <vector>
 static void check(bool x, const char *s) { if (!x) throw std::runtime_error(s); }
-enum { BLOCKS = 41, PAYLOAD = BLOCKS * 1024, ROM_BASE = 0x020000, STATE_BASE = 0x410000 };
+enum { BLOCKS = 57, PAYLOAD = BLOCKS * 1024, ROM_BASE = 0x020000, STATE_BASE = 0x410000 };
 using Payload = std::vector<uint8_t>;
 using Sample = std::array<uint32_t, 12>;
 
@@ -30,7 +30,7 @@ struct Sim {
         // Mirror the ROM through the 4 MiB ROM window like a power-of-two image.
         for (uint32_t a = 0; a < 0x400000; a++) psram[ROM_BASE + a] = rom[a % rom.size()];
         d.clk = 0; d.reset_n = 0; d.buttons = 0;
-        d.freeze_t = d.release_t = d.load_t = d.block_t = 0;
+        d.freeze_t = d.release_t = d.load_t = d.block_t = 0; d.cart_import = 0;
         d.block_number = 0; d.block_seq = 0; d.qaddress = 0;
         d.bus_done = d.bus_valid = 0; d.bus_data = 0;
         d.eval();
@@ -79,7 +79,7 @@ struct Sim {
             until([&] { return d.block_ready && d.block_ready_seq == sequence; }, 200000, "block timeout");
             for (unsigned i = 0; i < 1024; i++) { d.qaddress = i; tick(); p[b * 1024 + i] = d.qdata; }
         }
-        check(p[4] == 0x67 && p[5] == 0x67 && p[6] == 1, "payload signature");
+        check(p[4] == 0x67 && p[5] == 0x67 && p[6] == 2, "payload signature");
         return p;
     }
     void load(const Payload &p, bool expect_fault = false) {

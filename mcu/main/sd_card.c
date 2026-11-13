@@ -60,7 +60,9 @@ static esp_err_t Mount(sdmmc_card_t **const ppCard, bool Preview)
     portENTER_CRITICAL(&GateInitLock);
     if (!Preview && PreviewOwnsGate) PreviewYieldRequested = true;
     portEXIT_CRITICAL(&GateInitLock);
-    if (xSemaphoreTake(MountGate, Preview ? 0 : pdMS_TO_TICKS(250)) != pdTRUE)
+    /* A foreground mount waits out a background battery save (a Game Gear
+     * copy holds the card for a few hundred ms) instead of failing. */
+    if (xSemaphoreTake(MountGate, Preview ? 0 : pdMS_TO_TICKS(2000)) != pdTRUE)
     {
         portENTER_CRITICAL(&GateInitLock);
         const bool WaitForPreview = !Preview && PreviewOwnsGate;

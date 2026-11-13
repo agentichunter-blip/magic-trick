@@ -9,7 +9,7 @@ static bool PreviewWinsRace, ReleasePreviewWhenAsked;
 SemaphoreHandle_t xSemaphoreCreateMutexStatic(StaticSemaphore_t *p) { return p; }
 int xSemaphoreTake(SemaphoreHandle_t p, TickType_t wait) {
     LastWait = wait;
-    if (PreviewWinsRace && wait == pdMS_TO_TICKS(250)) {
+    if (PreviewWinsRace && wait == pdMS_TO_TICKS(2000)) {
         /* A preview acquires the mutex after the foreground's initial check. */
         PreviewWinsRace = false;
         p->held = 1; PreviewOwnsGate = true;
@@ -66,7 +66,7 @@ int main(void) {
     assert(SDCard_Mount(&other) == ESP_ERR_INVALID_STATE && LastWait == 4750);
     assert(SDCard_PreviewShouldYield());
     assert(SDCard_Unmount(card) == ESP_OK);
-    assert(SDCard_Mount(&card) == ESP_OK && LastWait == 250);
+    assert(SDCard_Mount(&card) == ESP_OK && LastWait == 2000);
     assert(!SDCard_PreviewShouldYield());
     assert(SDCard_MountPreview(&other) == ESP_ERR_INVALID_STATE && LastWait == 0);
     assert(SDCard_Unmount(card) == ESP_OK);

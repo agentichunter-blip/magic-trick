@@ -23,3 +23,12 @@ verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -j 8 --top-module gg_video
  --Mdir "$out/obj_video" "$core/board-rtl/gg_video_bridge.sv" "$core/board-rtl/gg_async_fifo.sv" \
  "$here/video_bridge_test.cpp" > "$out/build_video.log" 2>&1
 "$out/obj_video/Vgg_video_bridge"
+# Battery save: import at start, live cartridge RAM reads, dirty flag.
+verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -MAKEFLAGS "OPT_FAST=-O2" -j 8 \
+ --top-module gg_ss_sim_top -Wno-fatal -Wno-lint -Wno-style --Mdir "$out/obj_cart" \
+ "$here/gg_ss_sim_top.sv" "$core/gg_board_core.sv" "$core/board-rtl/gg_state_clock.sv" \
+ "$core/gg_state_engine.sv" "$core/gg_rom_bridge.sv" "$core/gg_system.v" "$core/generated/video.v" \
+ "$core/gg_cheatcodes.sv" "$core"/vendor/SMS_MiSTer/rtl/jt89/*.v "$core/vendor/SMS_MiSTer/rtl/MC8123.v" \
+ "$core/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v" "$core/vendor/SMS_MiSTer/rtl/parts.v" \
+ "$here/cart_save_test.cpp" > "$out/build_cart.log" 2>&1
+"$out/obj_cart/Vgg_ss_sim_top"

@@ -74,11 +74,12 @@ module ST7785_panel_master(
     // this panel consumes one row per ~108.7 us. The writer leads the reader by
     // up to ~65 rows, so the ring must hold >65 rows (was 1024 px = 6.4 rows,
     // which made the panel read lapped, horizontally shifted data).
-    // 12288 px = 76.8 rows. USB capture is removed in this build, so only the
+    // 11264 px = 70.4 rows (12 banks/76.8 rows before 32 KiB cartridge RAM
+    // needed a block). USB capture is removed in this build, so only the
     // LCD pixel is stored (18 bits) to fit the free block RAM.
-    // Twelve 1Kx18 banks: each maps to exactly one BSRAM (12 total).
-    localparam DEPTH = 12288;
-    wire [17:0] bank_q [11:0];
+    // Eleven 1Kx18 banks: each maps to exactly one BSRAM (11 total).
+    localparam DEPTH = 11264;
+    wire [17:0] bank_q [10:0];
     reg  [3:0]  lineBuffer_bank_r;
     wire [17:0] lineBuffer_q = bank_q[lineBuffer_bank_r];
 
@@ -171,7 +172,7 @@ module ST7785_panel_master(
                 
     wire lineBuffer_we = hValid && (lineBuffer_wrCount <= 8'd159);
     genvar bi;
-    generate for (bi = 0; bi < 12; bi = bi + 1) begin : g_bank
+    generate for (bi = 0; bi < 11; bi = bi + 1) begin : g_bank
         panel_line_bank u_bank(.wclk(hClk), .we(lineBuffer_we && lineBuffer_wa[13:10] == bi),
             .wa(lineBuffer_wa[9:0]), .wd(hColorPixel),
             .rclk(gClk), .ra(lineBuffer_ra[9:0]), .q(bank_q[bi]));

@@ -62,7 +62,27 @@ int main(int argc,char **argv) {
  }
  rom=tmpfile();assert(rom);assert(!fseek(rom,8u*1024*1024-1,SEEK_SET));fputc(0,rom);fflush(rom);
  assert(GGRom_Inspect(rom,&size)==ESP_ERR_INVALID_SIZE);fclose(rom);
+ /* Battery saves on a core that supports them. No save: nothing is staged,
+  * a new 32 KiB .SAV is used once the game writes. */
+ rom=fopen(path,"wb");assert(rom && fwrite(data,1,sizeof(data),rom)==sizeof(data));fclose(rom);
+ fclose(ExpectedRom);ExpectedRom=fopen(path,"rb");assert(ExpectedRom && GGRom_Inspect(ExpectedRom,&ExpectedRomSize)==ESP_OK);
+ SetActive(false);ClearActiveSave();GGCartCore=true;Writes=0;
+ assert(RunLoad(path)==ESP_OK && Active && GGCartSave && GGCartFileSize==32768 && !GGArmed && !GGStageWrites && !GGMirrorWrites);
+ char save[kPathSize];snprintf(save,sizeof(save),"%s",path);strcpy(strrchr(save,'.'),".SAV");
+ assert(!strcasecmp(ActiveSavePath,save));
+ /* An 8 KiB save: staged (four times, mirrored) and armed before start, the import confirmed,
+  * then the ROM mirror under the staging area restored. */
+ uint8_t sram[8192];for(unsigned i=0;i<sizeof(sram);i++)sram[i]=(uint8_t)(i*3+1);
+ FILE *sf=fopen(save,"wb");assert(sf && fwrite(sram,1,sizeof(sram),sf)==sizeof(sram));fclose(sf);
+ SetActive(false);ClearActiveSave();Writes=0;
+ assert(RunLoad(path)==ESP_OK && Active && GGCartSave && GGCartFileSize==8192 && GGArmed);
+ assert(GGStageWrites==32);for(unsigned k=0;k<4;k++)assert(!memcmp(GGStaged+k*8192,sram,8192));
+ assert(GGMirrorWrites==kStateFileGameGearPayload/kCartBulkBlockSize);
+ /* The core did not confirm the import: the game is not left running. */
+ SetActive(false);ClearActiveSave();Writes=0;GGImportFail=true;
+ assert(RunLoad(path)==ESP_FAIL && !Active && !GGCartSave);
+ GGImportFail=false;GGCartCore=false;unlink(save);
  fclose(ExpectedRom);unlink(path);unlink(base);
  assert(!Mounted && !Bulk && !SleepLocks);
- puts("PASS: GG source-byte mirroring, identity, fresh-frame wait, timeout/reset, short response, upload failure, unsupported headers and cleanup");
+ puts("PASS: GG battery save import (staging, arm before start, confirm, mirror repair), source-byte mirroring, identity, fresh-frame wait, timeout/reset, short response, upload failure, unsupported headers and cleanup");
 }

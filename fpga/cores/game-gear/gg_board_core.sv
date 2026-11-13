@@ -20,8 +20,17 @@ module gg_board_core(
  input [759:0] state_in, output [759:0] state_out,
  output reg state_frozen=0, output freeze_active,
  // While frozen: 0 work RAM, 1 cartridge RAM, 2 VRAM, 3 palette (12-bit word).
- input [1:0] mem_select, input [13:0] mem_address, input mem_write,
- input [11:0] mem_data, output [7:0] mem_q
+ input [1:0] mem_select, input [14:0] mem_address, input mem_write,
+ input [11:0] mem_data, output [7:0] mem_q,
+ // Battery save (cartridge RAM, also the EEPROM games' storage). boot_hold
+ // starts the core frozen before its first instruction so the engine can
+ // write the save first. cart_q reads cartridge RAM at mem_address through a
+ // second port while the game runs; cart_dirty records game writes, and
+ // cart_written which 1 KiB blocks they hit. cart_dirty_clear (a copy starts)
+ // moves cart_written to cart_snapshot and clears it in the same edge, so no
+ // write is lost; a write in that edge counts as before the copy.
+ input boot_hold, input cart_dirty_clear, output reg cart_dirty=0, output reg [7:0] cart_q=0,
+ output reg [31:0] cart_written=0, output reg [31:0] cart_snapshot=0
 );
 wire [229:0] z80_out; wire [127:0] vdp_out; wire [383:0] cram_out;
 wire [55:0] psg_out; wire [95:0] psg_ext_out; wire [3:0] psg_div_out;
@@ -74,7 +83,7 @@ always @(posedge clk) begin
  z80_set_q<=(state_apply && state_frozen) || canonicalize_cpu;
 end
 always @(posedge clk) begin
- if(!reset_n) begin frozen<=0;state_frozen<=0;settle<=0;end
+ if(!reset_n) begin frozen<=boot_hold;state_frozen<=boot_hold;settle<=0;end
  else if(state_release && state_frozen) begin frozen<=0;state_frozen<=0;end
  else if(!frozen) begin
   if(capture_boundary) begin frozen<=1;settle<=0;end
@@ -93,12 +102,13 @@ wire nvram_we;
 reg [7:0] ram_q,nvram_q;
 // Game Gear drives ram_a[13] low (system.vhd); 8 KiB frees block RAM.
 reg [7:0] ram[0:8191];
-// 16 KiB cartridge RAM (was 32 KiB) frees 8 BSRAM for the ROM cache. GG
-// cartridges use at most 8-16 KiB; bank bit 14 aliases.
-reg [7:0] nvram[0:16383];
+// 32 KiB cartridge RAM: two 16 KiB banks ($FFFC bit 2). Shining Force keeps
+// work RAM and its stack in the second bank, so aliasing the banks (16 KiB
+// until 2026-11) crashed it at boot.
+reg [7:0] nvram[0:32767];
 wire dma=state_frozen;
 wire [12:0] ra=dma ? mem_address[12:0] : ram_a[12:0];
-wire [13:0] na=dma ? mem_address : nvram_a[13:0];
+wire [14:0] na=dma ? mem_address : nvram_a[14:0];
 wire rw=dma ? mem_write && mem_select==0 : ram_we && !frozen;
 wire nw=dma ? mem_write && mem_select==1 : nvram_we && !frozen;
 wire [7:0] rd=dma ? mem_data[7:0] : ram_d, nd=dma ? mem_data[7:0] : nvram_d;
@@ -108,6 +118,12 @@ always @(posedge clk) begin
  if(rw) ram[ra] <= rd;
  if(nw) nvram[na] <= nd;
 end
+always @(posedge clk) cart_q <= nvram[mem_address];
+wire [31:0] cart_write_block=(!dma && nw) ? 32'd1<<na[14:10] : 32'd0;
+always @(posedge clk)
+ if(!reset_n) begin cart_dirty<=0;cart_written<=0;cart_snapshot<=0;end
+ else if(cart_dirty_clear) begin cart_snapshot<=cart_written|cart_write_block;cart_written<=0;cart_dirty<=0;end
+ else begin cart_written<=cart_written|cart_write_block;if(!dma && nw) cart_dirty<=1;end
 wire [11:0] cram_word=cram_out[12*mem_address[5:1] +: 12];
 assign mem_q=mem_select==0 ? ram_q : mem_select==1 ? nvram_q : mem_select==2 ? vram_q :
  mem_address[0] ? {4'd0,cram_word[11:8]} : cram_word[7:0];
@@ -242,10 +258,10 @@ system core(
  .ss_cram_A(mem_address[5:1]),
  .ss_cram_D(mem_data),
  .ss_vram_en(dma),
- .ss_vram_A({1'b0,mem_address}),
+ .ss_vram_A({1'b0,mem_address[13:0]}),
  .ss_vram_D(vram_q),
  .ss_vram_WE(dma && mem_write && mem_select==2),
- .ss_vram_WA({1'b0,mem_address}),
+ .ss_vram_WA({1'b0,mem_address[13:0]}),
  .ss_vram_WD(mem_data[7:0]),
  .psg_out(psg_out),
  .psg_in(psg_in),

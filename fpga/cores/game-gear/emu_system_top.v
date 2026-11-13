@@ -78,7 +78,10 @@ module emu_system_top
     input               virtual_state_freeze_toggle,
     input               virtual_state_release_toggle,
     input               virtual_state_load_toggle,
-    output  [3:0]       virtual_state_status,    // loaded, fault, frozen, busy (xclk)
+    input               virtual_cart_import,     // level, set before start
+    output  [5:0]       virtual_state_status,    // imported, cart dirty, loaded, fault, frozen, busy (xclk)
+    output  [31:0]      virtual_cart_written,    // 1 KiB cartridge RAM blocks written (xclk)
+    output  [31:0]      virtual_cart_snapshot,   // ... before the current copy
     input               virtual_snapshot_qclk,
     input   [9:0]       virtual_snapshot_qaddress,
     output  [7:0]       virtual_snapshot_qdata,
@@ -138,10 +141,11 @@ module emu_system_top
     // Native save state: the engine owns the ROM cache while the game is frozen.
     wire state_request,state_release,state_apply,state_frozen;
     wire [759:0] state_in,state_out;
-    wire [1:0] state_mem_select;wire [13:0] state_mem_address;
+    wire [1:0] state_mem_select;wire [14:0] state_mem_address;
     wire state_mem_write;wire [11:0] state_mem_data;wire [7:0] state_mem_q;
     wire state_owns_rom,state_rom_read,state_cache_invalidate;wire [23:0] state_rom_address;
     wire state_busy,state_fault,state_is_frozen,state_loaded,state_freeze_active,video_resume_ok;
+    wire state_boot_hold,state_cart_dirty_clear,state_cart_dirty,state_imported;wire [7:0] state_cart_q;
     gg_rom_bridge rom_bridge(.clk(xclk),.reset(xreset),
         .enable(!core_reset_x && !quiet_x[1]),.invalidate(stop_x[1] || state_cache_invalidate),
         .read(state_owns_rom ? state_rom_read : rom_read),
@@ -162,7 +166,10 @@ module emu_system_top
         .state_request(state_request),.state_release(state_release),.state_apply(state_apply),
         .state_in(state_in),.state_out(state_out),.state_frozen(state_frozen),
         .mem_select(state_mem_select),.mem_address(state_mem_address),.mem_write(state_mem_write),
-        .mem_data(state_mem_data),.mem_q(state_mem_q),.freeze_active(state_freeze_active));
+        .mem_data(state_mem_data),.mem_q(state_mem_q),.freeze_active(state_freeze_active),
+        .boot_hold(state_boot_hold),.cart_dirty_clear(state_cart_dirty_clear),
+        .cart_dirty(state_cart_dirty),.cart_q(state_cart_q),
+        .cart_written(virtual_cart_written),.cart_snapshot(virtual_cart_snapshot));
     gg_state_engine state_engine(.clk(xclk),.reset(core_reset_x),
         .freeze_toggle(virtual_state_freeze_toggle),.release_toggle(virtual_state_release_toggle),
         .load_toggle(virtual_state_load_toggle),.block_toggle(virtual_snapshot_request_toggle),
@@ -176,8 +183,10 @@ module emu_system_top
         .owns_rom(state_owns_rom),.cache_invalidate(state_cache_invalidate),.rom_address(state_rom_address),.rom_read(state_rom_read),
         .rom_data(rom_byte),.rom_ready(rom_ready),.rom_fault(rom_fault),
         .qclk(virtual_snapshot_qclk),.qaddress(virtual_snapshot_qaddress),.qdata(virtual_snapshot_qdata),
-        .video_resume_ok(video_resume_ok));
-    assign virtual_state_status={state_loaded,state_fault,state_is_frozen,state_busy};
+        .video_resume_ok(video_resume_ok),
+        .cart_import(virtual_cart_import),.boot_hold(state_boot_hold),
+        .cart_dirty_clear(state_cart_dirty_clear),.cart_q(state_cart_q),.imported(state_imported));
+    assign virtual_state_status={state_imported,state_cart_dirty,state_loaded,state_fault,state_is_frozen,state_busy};
     gg_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(!core_reset_x),
         .hold(state_freeze_active),.resume_ok(video_resume_ok),

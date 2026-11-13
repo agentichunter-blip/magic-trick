@@ -70,6 +70,23 @@ enum {
     kGGStatusFrozen = 0x02,
     kGGStatusFault = 0x04,
     kGGStatusLoaded = 0x10,
+    /* Game Gear battery saves (32 KiB cartridge RAM, also EEPROM games'
+     * storage): 17 (before start) arms the import of blocks 9-40 staged at the
+     * state address, which the core writes before its first instruction;
+     * blocks 9-40 can be read while the game runs. Status bit 5: written since the
+     * last block 9 read; bit 6: supported; bit 7: imported at start. */
+    kVirtualCommandGGCartImport = 17,
+    kGGCartFirstBlock = 9,
+    kGGCartBytes = 32 * 1024,
+    kGGStatusCartDirty = 0x20,
+    kGGStatusCartSave = 0x40,
+    kGGStatusImported = 0x80,
+    /* 18: 1 KiB cartridge RAM blocks written since the current copy started;
+     * 19: blocks written before it (a block 9 command while running starts a
+     * copy and moves the flags). */
+    kVirtualCommandGGCartWritten = 18,
+    kVirtualCommandGGCartSnapshot = 19,
+    kGGFullSavePeriod_ms = 30000,
     kVirtualCapabilityRtcState = 1 << 7,
     kVirtualStartMbc1m = 0x80,
     kVirtualStatusEnabled = 1 << 0,
@@ -120,6 +137,20 @@ static bool StateUncertain;
 static bool LoadRequested;
 static bool Active;
 static bool ActiveSavePending;
+/* Game Gear: battery save kept in ActiveSavePath, written at the size of the
+ * file found at start (128 B EEPROM, 8, 16 or 32 KiB; 32 KiB when new). */
+static bool GGCartSave;
+static uint32_t GGCartFileSize;
+/* Blocks written and not yet saved, and the blocks written in each of the
+ * last 40 checks (10 seconds at the 250 ms poll). A block written in 3 or
+ * more of them is the game's scratch memory (Shining Force rewrites some
+ * every few frames, irregularly); a real in-game save is one burst. Scratch
+ * blocks never trigger a save or hold one back; they are still written with
+ * any save, and on their own at most every 30 seconds. */
+enum { kGGHistory = 40, kGGScratchHits = 3 };
+static uint32_t GGPendingBlocks, GGHistory[kGGHistory];
+static unsigned GGHistoryNext;
+static TickType_t GGLastSave;
 static VirtualCartInfo_t ActiveInfo;
 static char ActiveSavePath[kPathSize];
 static char ActiveRtcPath[kPathSize];
@@ -1088,11 +1119,21 @@ static esp_err_t UploadSave(const char *pRomPath,
     return Result;
 }
 
+static esp_err_t ReadNativeStatus(uint32_t *status);
+static esp_err_t RestoreGGRomMirror(void);
+
 static esp_err_t QueryVirtualSaveDirty(bool *pDirty)
 {
     if (pDirty == NULL)
     {
         return ESP_ERR_INVALID_ARG;
+    }
+    if (ActiveInfo.GameGear)
+    {
+        uint32_t Status = 0;
+        ESP_RETURN_ON_ERROR(ReadNativeStatus(&Status), TAG, "GG save status");
+        *pDirty = (Status & kGGStatusCartDirty) != 0;
+        return ESP_OK;
     }
     CartLinkResponse_t Response = {0};
     ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStatus, NULL,
@@ -1102,8 +1143,219 @@ static esp_err_t QueryVirtualSaveDirty(bool *pDirty)
     return ESP_OK;
 }
 
+static esp_err_t ReadGGCartBlocks(uint8_t Command, uint32_t *pBlocks)
+{
+    CartLinkResponse_t Response = {0};
+    ESP_RETURN_ON_ERROR(VirtualCommandRaw(Command, 0, 0, &Response), TAG, "GG cart blocks");
+    *pBlocks = (uint32_t)Response.Data[0] | (uint32_t)Response.Data[1] << 8 |
+               (uint32_t)Response.Data[2] << 16 | (uint32_t)Response.Data[3] << 24;
+    return ESP_OK;
+}
+
+static uint32_t GGChronicBlocks(void)
+{
+    uint32_t Scratch = 0;
+    for (unsigned Block = 0; Block < 32; ++Block)
+    {
+        unsigned Hits = 0;
+        for (unsigned i = 0; i < kGGHistory; ++i) Hits += (GGHistory[i] >> Block) & 1u;
+        if (Hits >= kGGScratchHits) Scratch |= 1u << Block;
+    }
+    return Scratch;
+}
+
+static void GGRecordCheck(uint32_t Written)
+{
+    GGHistory[GGHistoryNext] = Written;
+    GGHistoryNext = (GGHistoryNext + 1) % kGGHistory;
+}
+
+/* Game Gear: decide whether the battery save needs writing. Needs no SD card:
+ * while the game runs, a block 9 command (its data is not fetched) moves the
+ * written-block flags into the snapshot, which is added to the pending set.
+ * Force: save anything pending (game switch, state load). */
+static esp_err_t GGCartSaveDue(bool Force, bool *pDue)
+{
+    *pDue = false;
+    if (!GGCartSave || ActiveSavePath[0] == '\0') { ActiveSavePending = false; return ESP_OK; }
+    uint32_t Status = 0;
+    ESP_RETURN_ON_ERROR(ReadNativeStatus(&Status), TAG, "GG save status");
+    const bool Frozen = (Status & kGGStatusFrozen) != 0;
+    if ((Status & kGGStatusCartDirty) && !Frozen)
+    {
+        if (++SaveSequence == 0) ++SaveSequence;
+        CartLinkResponse_t Response = {0};
+        uint32_t Snapshot = 0;
+        ESP_RETURN_ON_ERROR(VirtualCommandRaw(kVirtualCommandStateBlock, SaveSequence,
+                                              kGGCartFirstBlock, &Response), TAG, "GG save latch");
+        ESP_RETURN_ON_ERROR(ReadGGCartBlocks(kVirtualCommandGGCartSnapshot, &Snapshot), TAG, "GG snapshot");
+        GGPendingBlocks |= Snapshot;
+        GGRecordCheck(Snapshot);
+    }
+    else if (!(Status & kGGStatusCartDirty))
+    {
+        GGRecordCheck(0);
+    }
+    /* Frozen (state load): the game cannot write; a forced save covers it. */
+    if (Frozen && (Status & kGGStatusCartDirty)) GGPendingBlocks |= 0xffffffffu;
+    const bool Stale = GGPendingBlocks &&
+        (TickType_t)(xTaskGetTickCount() - GGLastSave) >= pdMS_TO_TICKS(kGGFullSavePeriod_ms);
+    *pDue = ActiveSavePending || (GGPendingBlocks & ~GGChronicBlocks()) ||
+            ((Force || Stale) && GGPendingBlocks);
+    return ESP_OK;
+}
+
+/* Game Gear: copy cartridge RAM (blocks 9-40) to the .SAV while the game runs,
+ * streamed 1 KiB at a time into a temporary file (no heap buffer). The copy
+ * is refused and retried when a block that is not scratch memory was written
+ * during it; while frozen the game cannot write, so the copy is complete. A
+ * file smaller than the RAM grows to 32 KiB once the game writes past it. */
+static esp_err_t GGCartCopy(void)
+{
+    uint32_t Status = 0;
+    ESP_RETURN_ON_ERROR(ReadNativeStatus(&Status), TAG, "GG save status");
+    const bool Frozen = (Status & kGGStatusFrozen) != 0;
+    const uint32_t FileBlocks = GGCartFileSize < kCartBulkBlockSize ? 1 : GGCartFileSize / kCartBulkBlockSize;
+    if (FileBlocks < 32 && (GGPendingBlocks >> FileBlocks) != 0 && GGPendingBlocks != 0xffffffffu)
+    {
+        printf("VIRTUAL_CART_SAVE grow=%lu->%u\n", (unsigned long)GGCartFileSize, (unsigned)kGGCartBytes);
+        GGCartFileSize = kGGCartBytes;
+    }
+    char Temp[kPathSize];
+    ESP_RETURN_ON_ERROR(MakeSidecarPath(ActiveSavePath, ".tmp", Temp), TAG, "save temporary path");
+    ESP_RETURN_ON_ERROR(RecoverSavePublish(ActiveSavePath), TAG, "recover save publication");
+    if (unlink(Temp) != 0 && errno != ENOENT) return ESP_FAIL;
+    FILE *pSave = fopen(Temp, "wb");
+    if (pSave == NULL) return ESP_FAIL;
+    esp_err_t Result = ESP_OK;
+    uint32_t Copied = 0;
+    for (uint32_t Offset = 0; Result == ESP_OK && Offset < GGCartFileSize; Offset += kCartBulkBlockSize)
+    {
+        if (++SaveSequence == 0) ++SaveSequence;
+        CartLinkResponse_t Response = {0};
+        Result = VirtualCommandRaw(kVirtualCommandStateBlock, SaveSequence,
+                                   (uint8_t)(kGGCartFirstBlock + Offset / kCartBulkBlockSize), &Response);
+        if (Result == ESP_OK)
+            Result = CartBulk_ReadVirtualBlock(SaveSequence, TransferBuffer);
+        if (Result == ESP_OK && Offset == 0 && !Frozen)
+        {
+            /* This first read started the copy: what was written since the
+             * decision is pending too. */
+            uint32_t Snapshot = 0;
+            Result = ReadGGCartBlocks(kVirtualCommandGGCartSnapshot, &Snapshot);
+            GGPendingBlocks |= Snapshot;
+        }
+        const uint32_t Count = GGCartFileSize - Offset < kCartBulkBlockSize
+            ? GGCartFileSize - Offset : kCartBulkBlockSize;
+        if (Result == ESP_OK && fwrite(TransferBuffer, 1, Count, pSave) != Count) Result = ESP_FAIL;
+        Copied |= 1u << (Offset / kCartBulkBlockSize);
+    }
+    if (Result == ESP_OK && !Frozen)
+    {
+        uint32_t During = 0;
+        Result = ReadGGCartBlocks(kVirtualCommandGGCartWritten, &During);
+        if (Result == ESP_OK && (During & Copied & ~GGChronicBlocks())) Result = ESP_ERR_NOT_FINISHED;
+    }
+    if (Result == ESP_OK) Result = FinishSaveFile(&pSave);
+    else { (void)fclose(pSave); pSave = NULL; }
+    if (Result == ESP_OK) Result = PublishSaveTemp(ActiveSavePath, Temp, GGCartFileSize);
+    if (Result != ESP_OK)
+    {
+        (void)unlink(Temp);
+        return Result;
+    }
+    printf("VIRTUAL_CART_SAVE blocks=%08lx scratch=%08lx\n",
+           (unsigned long)GGPendingBlocks, (unsigned long)GGChronicBlocks());
+    /* Blocks written during the copy stay flagged in the FPGA for the next one. */
+    GGPendingBlocks = 0;
+    ActiveSavePending = false;
+    GGLastSave = xTaskGetTickCount();
+    printf("VIRTUAL_CART_SAVE=PASS path=%s bytes=%lu\n", ActiveSavePath,
+           (unsigned long)GGCartFileSize);
+    return ESP_OK;
+}
+
+static esp_err_t PersistGGCartSave(bool Force)
+{
+    bool Due = false;
+    ESP_RETURN_ON_ERROR(GGCartSaveDue(Force, &Due), TAG, "GG save check");
+    return Due ? GGCartCopy() : ESP_OK;
+}
+
+/* Game Gear: find the battery save, stage it and arm the import (before
+ * start). Saving is enabled only when the core supports it and the existing
+ * save, if any, will be imported, so a save is never replaced by blank RAM. */
+static esp_err_t PrepareGGCartSave(const char *pRomPath, char SelectedPath[kPathSize],
+                                   bool *pArmed, bool *pEnabled, uint32_t *pFileSize)
+{
+    *pArmed = *pEnabled = false;
+    SelectedPath[0] = '\0';
+    uint32_t Status = 0;
+    if (ReadNativeStatus(&Status) != ESP_OK || !(Status & kGGStatusCartSave))
+    {
+        printf("VIRTUAL_CART_SAVE source=unsupported-core\n");
+        return ESP_OK;
+    }
+    char SavePath[kPathSize] = {0};
+    ESP_RETURN_ON_ERROR(MakeSavePath(pRomPath, false, SavePath), TAG, "save path");
+    ESP_RETURN_ON_ERROR(RecoverSavePublish(SavePath), TAG, "recover uppercase save");
+    FILE *pSave = fopen(SavePath, "rb");
+    if (pSave == NULL && errno == ENOENT)
+    {
+        ESP_RETURN_ON_ERROR(MakeSavePath(pRomPath, true, SavePath), TAG, "save path");
+        ESP_RETURN_ON_ERROR(RecoverSavePublish(SavePath), TAG, "recover lowercase save");
+        pSave = fopen(SavePath, "rb");
+    }
+    if (pSave == NULL)
+    {
+        if (errno != ENOENT) return ESP_FAIL;
+        printf("VIRTUAL_CART_SAVE source=new bytes=%u\n", (unsigned)kGGCartBytes);
+        (void)snprintf(SelectedPath, kPathSize, "%s", SavePath);
+        *pFileSize = kGGCartBytes;
+        *pEnabled = true;
+        return ESP_OK;
+    }
+    long Size = -1;
+    if (fseek(pSave, 0, SEEK_END) == 0) Size = ftell(pSave);
+    if (Size != 128 && Size != 8192 && Size != 16384 && Size != 32768)
+    {
+        fclose(pSave);
+        printf("VIRTUAL_CART_SAVE=REJECT path=%s bytes=%ld\n", SavePath, Size);
+        return ESP_ERR_INVALID_SIZE;
+    }
+    /* 128 B (EEPROM) fills the start; 8 and 16 KiB repeat through the 32 KiB,
+     * like a smaller chip mirrored across the address space. Streamed 1 KiB
+     * at a time (no heap buffer). */
+    esp_err_t Result = ESP_OK;
+    for (uint32_t Offset = 0; Result == ESP_OK && Offset < kGGCartBytes; Offset += kCartBulkBlockSize)
+    {
+        memset(TransferBuffer, 0xff, kCartBulkBlockSize);
+        const size_t Count = Size < kCartBulkBlockSize ? (size_t)Size : kCartBulkBlockSize;
+        if ((Size >= kCartBulkBlockSize || Offset == 0) &&
+            (fseek(pSave, (long)(Offset % (uint32_t)Size), SEEK_SET) != 0 ||
+             fread(TransferBuffer, 1, Count, pSave) != Count))
+            Result = ESP_FAIL;
+        if (Result == ESP_OK)
+            Result = CartBulk_WritePSRAMBlock(kRomBase + kGGStateRomAddress + kGGCartFirstBlock * kCartBulkBlockSize + Offset,
+                                              TransferBuffer);
+    }
+    fclose(pSave);
+    if (Result != ESP_OK) return Result;
+    CartLinkResponse_t Response = {0};
+    ESP_RETURN_ON_ERROR(VirtualCommandRaw(kVirtualCommandGGCartImport, 0, 1, &Response),
+                        TAG, "GG save import");
+    printf("VIRTUAL_CART_SAVE source=%s bytes=%ld\n", SavePath, Size);
+    (void)snprintf(SelectedPath, kPathSize, "%s", SavePath);
+    *pFileSize = (uint32_t)Size;
+    *pArmed = *pEnabled = true;
+    return ESP_OK;
+}
+
 static esp_err_t PersistActiveSave(void)
 {
+    /* Callers hold the SD card: a game switch or a state load, so anything
+     * pending is written. */
+    if (Active && ActiveInfo.GameGear) return PersistGGCartSave(true);
     if (!Active || ActiveInfo.RamSize == 0 ||
         !ActiveInfo.Mapper.HasBattery || ActiveSavePath[0] == '\0')
     {
@@ -1274,6 +1526,12 @@ static void ClearActiveSave(void)
     StateOnSdMask = 0;
     FpgaStateOwner = 0;
     ActiveSavePending = false;
+    GGCartSave = false;
+    GGCartFileSize = 0;
+    GGPendingBlocks = 0;
+    memset(GGHistory, 0, sizeof(GGHistory));
+    GGHistoryNext = 0;
+    GGLastSave = xTaskGetTickCount();
     ActiveRtcPersistedState = 0;
     ActiveRtcPersistedValid = false;
     ActiveRtcSupported = false;
@@ -1499,6 +1757,13 @@ static esp_err_t RunLoad(const char *pPath)
     }
     Result = UploadSave(pPath, &Info, SelectedSavePath);
     if (Result != ESP_OK) goto Cleanup;
+    bool GGArmed = false, GGEnabled = false;
+    uint32_t GGFileSize = 0;
+    if (Info.GameGear)
+    {
+        Result = PrepareGGCartSave(pPath, SelectedSavePath, &GGArmed, &GGEnabled, &GGFileSize);
+        if (Result != ESP_OK) goto Cleanup;
+    }
 
     Result = LoadRtcState(pPath, &Info, SelectedRtcPath, &RtcState,
                           &RtcPresent);
@@ -1510,6 +1775,18 @@ static esp_err_t RunLoad(const char *pPath)
     }
     Result = StartAndWaitForFrame(&Info, RtcState, &RtcSupported);
     if (Result != ESP_OK) goto Cleanup;
+    if (GGArmed)
+    {
+        /* Never run (and later save over) a game whose save did not load. */
+        uint32_t Status = 0;
+        Result = ReadNativeStatus(&Status);
+        if (Result == ESP_OK && (!(Status & kGGStatusImported) || (Status & kGGStatusFault)))
+        {
+            printf("VIRTUAL_CART_SAVE=IMPORT_FAIL status=%08lx\n", (unsigned long)Status);
+            Result = ESP_FAIL;
+        }
+        if (Result != ESP_OK) goto Cleanup;
+    }
 
     ActiveInfo = Info;
     (void)snprintf(ActiveRomPath, sizeof(ActiveRomPath), "%s", pPath);
@@ -1530,6 +1807,9 @@ static esp_err_t RunLoad(const char *pPath)
     (void)snprintf(ActiveRtcPath, sizeof(ActiveRtcPath), "%s",
                    SelectedRtcPath);
     ActiveSavePending = false;
+    GGCartSave = GGEnabled;
+    GGCartFileSize = GGFileSize;
+    if (GGArmed && RestoreGGRomMirror() != ESP_OK) printf("VIRTUAL_CART_SAVE_MIRROR=FAIL\n");
     ActiveRtcPersistedState = RtcState;
     ActiveRtcPersistedValid = RtcPresent;
     ActiveRtcSupported = RtcSupported;
@@ -1688,8 +1968,9 @@ static void SaveTask(void *pArg)
         sdmmc_card_t *pCard = NULL;
         bool Mounted = false;
         bool BulkOpen = false;
-        const bool HasBatteryRam = ActiveInfo.RamSize != 0 &&
-            ActiveInfo.Mapper.HasBattery && ActiveSavePath[0] != '\0';
+        const bool HasBatteryRam = ((ActiveInfo.RamSize != 0 &&
+            ActiveInfo.Mapper.HasBattery) || (ActiveInfo.GameGear && GGCartSave)) &&
+            ActiveSavePath[0] != '\0';
         const bool HasRtc = ActiveInfo.Mapper.HasRtc && ActiveRtcSupported &&
             ActiveRtcPath[0] != '\0';
         const TickType_t Now = xTaskGetTickCount();
@@ -1700,7 +1981,12 @@ static void SaveTask(void *pArg)
         {
             ActiveRtcLastCheck = Now;
         }
-        if (HasBatteryRam)
+        bool GGDue = false;
+        if (HasBatteryRam && ActiveInfo.GameGear)
+        {
+            Result = GGCartSaveDue(false, &GGDue);
+        }
+        else if (HasBatteryRam)
         {
             bool Dirty = false;
             Result = QueryVirtualSaveDirty(&Dirty);
@@ -1709,19 +1995,20 @@ static void SaveTask(void *pArg)
                 ActiveSavePending |= Dirty;
             }
         }
-        if (Result == ESP_OK && (ActiveSavePending || RtcDue))
+        const bool SaveWanted = ActiveInfo.GameGear ? GGDue : ActiveSavePending;
+        if (Result == ESP_OK && (SaveWanted || RtcDue))
         {
             Result = SDCard_Mount(&pCard);
             Mounted = Result == ESP_OK;
         }
-        if (Result == ESP_OK && Mounted && ActiveSavePending)
+        if (Result == ESP_OK && Mounted && SaveWanted)
         {
             Result = CartBulk_Begin();
             BulkOpen = Result == ESP_OK;
         }
-        if (Result == ESP_OK && ActiveSavePending)
+        if (Result == ESP_OK && SaveWanted)
         {
-            Result = PersistActiveSave();
+            Result = ActiveInfo.GameGear ? GGCartCopy() : PersistActiveSave();
         }
         if (Result == ESP_OK && Mounted && HasRtc)
         {
@@ -2062,7 +2349,7 @@ static esp_err_t GGStateCapture(bool load, unsigned slot)
 {
     const uint8_t bit = 1u << (slot - 1);
     esp_err_t result = ESP_ERR_INVALID_STATE;
-    bool mounted = false, bulk = false, frozen = false, submitted = false;
+    bool mounted = false, bulk = false, frozen = false, submitted = false, battery = false;
     sdmmc_card_t *card = NULL;
     uint32_t status = 0;
     CartLinkResponse_t response = {0};
@@ -2094,6 +2381,30 @@ static esp_err_t GGStateCapture(bool load, unsigned slot)
     }
     result = ImportStateFromSd(slot);
     if (result != ESP_OK) goto cleanup;
+    if (GGCartSave && ActiveSavePath[0])
+    {
+        // As on Game Boy: write the in-game save out, keep a numbered copy
+        // ("<game>.SAV.before-load-0001.sav"), and let the loaded state's save
+        // RAM continue in the .SAV. Games that never saved get no files.
+        struct stat saved;
+        uint32_t now = 0;
+        battery = stat(ActiveSavePath, &saved) == 0 || ActiveSavePending ||
+            (ReadNativeStatus(&now) == ESP_OK && (now & kGGStatusCartDirty));
+        if (battery)
+        {
+            ActiveSavePending = true;
+            result = PersistActiveSave();
+            if (result != ESP_OK) goto cleanup;
+            char backup[kPathSize];
+            if (StateSaveBranch_Create(ActiveSavePath, ActiveSavePath, GGCartFileSize,
+                                       backup, sizeof(backup)))
+            {
+                result = ESP_FAIL;
+                goto cleanup;
+            }
+            printf("STATE_BATTERY_BACKUP=%s\n", backup);
+        }
+    }
     // From here a failure may leave a partly restored game: keep it frozen.
     submitted = true; StateUncertain = true;
     result = VirtualCommand(kVirtualCommandGGLoad, NULL, &response);
@@ -2101,6 +2412,7 @@ static esp_err_t GGStateCapture(bool load, unsigned slot)
         result = WaitGGStatus(kGGStatusLoaded, kGGStatusLoaded | 1, true, 3000, &status);
     if (result != ESP_OK) { printf("STATE_REJECT=gg_load status=%08lx\n", (unsigned long)status); goto cleanup; }
     StateUncertain = false;
+    if (battery) ActiveSavePending = true;
     if (RestoreGGRomMirror() != ESP_OK) printf("STATE_GG_MIRROR=FAIL\n");
     printf("STATE_FILE_LOAD=PASS path=%s bytes=%u\n", ActiveStatePath[slot - 1],
            (unsigned)kStateFileGameGearPayload);

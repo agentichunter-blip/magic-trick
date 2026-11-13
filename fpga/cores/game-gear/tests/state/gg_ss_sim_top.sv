@@ -8,14 +8,17 @@ module gg_ss_sim_top(
  input [9:0] qaddress, output [7:0] qdata,
  output [23:0] rom_a, output rom_rd, output [8:0] x,y, output ce_pix, output [11:0] color,
  output [15:0] audioL,audioR, output ram_we, output [13:0] ram_a, output [7:0] ram_d, output rom_ready,
- output dbg_rom_fault, output [3:0] dbg_state, output [15:0] dbg_position
+ output dbg_rom_fault, output [3:0] dbg_state, output [15:0] dbg_position,
+ input cart_import, output imported, output cart_dirty,
+ output [31:0] cart_written, output [31:0] cart_snapshot
 );
  assign dbg_rom_fault=rom_fault; assign dbg_state=engine.state; assign dbg_position=engine.position;
  wire state_request,state_release,state_apply,state_frozen;
  wire [759:0] state_in,state_out;
- wire [1:0] mem_select;wire [13:0] mem_address;wire mem_write;wire [11:0] mem_data;wire [7:0] mem_q;
+ wire [1:0] mem_select;wire [14:0] mem_address;wire mem_write;wire [11:0] mem_data;wire [7:0] mem_q;
  wire owns_rom,eng_read,cache_invalidate;wire [23:0] eng_address;
  wire [7:0] rom_byte;wire rom_fault,rom_idle;
+ wire boot_hold,cart_dirty_clear;wire [7:0] cart_q;
  gg_rom_bridge #(.TIMEOUT_CYCLES(65536)) bridge(.clk(clk),.reset(!reset_n),.enable(reset_n),
   .invalidate(!reset_n || cache_invalidate),
   .read(owns_rom ? eng_read : rom_rd),.address(owns_rom ? eng_address : rom_a),
@@ -28,7 +31,9 @@ module gg_ss_sim_top(
   .ram_we(ram_we),.ram_a(ram_a),.ram_d(ram_d),
   .state_request(state_request),.state_release(state_release),.state_apply(state_apply),
   .state_in(state_in),.state_out(state_out),.state_frozen(state_frozen),
-  .mem_select(mem_select),.mem_address(mem_address),.mem_write(mem_write),.mem_data(mem_data),.mem_q(mem_q));
+  .mem_select(mem_select),.mem_address(mem_address),.mem_write(mem_write),.mem_data(mem_data),.mem_q(mem_q),
+  .boot_hold(boot_hold),.cart_dirty_clear(cart_dirty_clear),.cart_dirty(cart_dirty),.cart_q(cart_q),
+  .cart_written(cart_written),.cart_snapshot(cart_snapshot));
  gg_state_engine engine(.clk(clk),.reset(!reset_n),
   .freeze_toggle(freeze_t),.release_toggle(release_t),.load_toggle(load_t),.block_toggle(block_t),
   .block_number(block_number),.block_sequence(block_seq),
@@ -39,7 +44,8 @@ module gg_ss_sim_top(
   .mem_select(mem_select),.mem_address(mem_address),.mem_write(mem_write),.mem_data(mem_data),.mem_q(mem_q),
   .owns_rom(owns_rom),.cache_invalidate(cache_invalidate),.rom_address(eng_address),.rom_read(eng_read),
   .rom_data(rom_byte),.rom_ready(rom_ready),.rom_fault(rom_fault),
-  .qclk(clk),.qaddress(qaddress),.qdata(qdata),.video_resume_ok(1'b1));
+  .qclk(clk),.qaddress(qaddress),.qdata(qdata),.video_resume_ok(1'b1),
+  .cart_import(cart_import),.boot_hold(boot_hold),.cart_dirty_clear(cart_dirty_clear),.cart_q(cart_q),.imported(imported));
 endmodule
 
 module gowin_dpb_snapshot(input write_clock,write_enable,input [8:0] write_address,input [15:0] write_data,
