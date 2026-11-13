@@ -75,6 +75,10 @@ module emu_system_top
     input   [15:0]      virtual_snapshot_sequence,
     output              virtual_snapshot_ready,
     output  [15:0]      virtual_snapshot_ready_sequence,
+    input               virtual_state_freeze_toggle,
+    input               virtual_state_release_toggle,
+    input               virtual_state_load_toggle,
+    output  [3:0]       virtual_state_status,    // loaded, fault, frozen, busy (xclk)
     input               virtual_snapshot_qclk,
     input   [9:0]       virtual_snapshot_qaddress,
     output  [7:0]       virtual_snapshot_qdata,
@@ -130,9 +134,17 @@ module emu_system_top
         else reset_h_sync<={reset_h_sync[0],1'b0};
     end
     wire [23:0] rom_address;wire rom_read;wire [7:0] rom_byte;
+    // Native save state: the engine owns the ROM cache while the game is frozen.
+    wire state_request,state_release,state_apply,state_frozen;
+    wire [759:0] state_in,state_out;
+    wire [1:0] state_mem_select;wire [13:0] state_mem_address;
+    wire state_mem_write;wire [11:0] state_mem_data;wire [7:0] state_mem_q;
+    wire state_owns_rom,state_rom_read,state_cache_invalidate;wire [23:0] state_rom_address;
+    wire state_busy,state_fault,state_is_frozen,state_loaded;
     gg_rom_bridge rom_bridge(.clk(xclk),.reset(xreset),
-        .enable(!core_reset_x && !quiet_x[1]),.invalidate(stop_x[1]),
-        .read(rom_read),.address(rom_address),.data(rom_byte),.ready(rom_ready),
+        .enable(!core_reset_x && !quiet_x[1]),.invalidate(stop_x[1] || state_cache_invalidate),
+        .read(state_owns_rom ? state_rom_read : rom_read),
+        .address(state_owns_rom ? state_rom_address : rom_address),.data(rom_byte),.ready(rom_ready),
         .idle(rom_idle),.fault(rom_fault),.request(virtual_xrequest),
         .bus_read(virtual_xread),.bus_address(virtual_xaddress),
         .bus_write_data(virtual_xwritedata),.bus_length(virtual_xlength),
@@ -145,7 +157,25 @@ module emu_system_top
         .rom_do(rom_byte),.rom_a(rom_address),.rom_rd(rom_read),
         .color(color),.x(pixel_x),.y(pixel_y),.ce_pix(pixel),
         .audioL(audio_left),.audioR(audio_right),.hblank(),.vblank(),
-        .ram_we(),.ram_a(),.ram_d());
+        .ram_we(),.ram_a(),.ram_d(),
+        .state_request(state_request),.state_release(state_release),.state_apply(state_apply),
+        .state_in(state_in),.state_out(state_out),.state_frozen(state_frozen),
+        .mem_select(state_mem_select),.mem_address(state_mem_address),.mem_write(state_mem_write),
+        .mem_data(state_mem_data),.mem_q(state_mem_q));
+    gg_state_engine state_engine(.clk(xclk),.reset(core_reset_x),
+        .freeze_toggle(virtual_state_freeze_toggle),.release_toggle(virtual_state_release_toggle),
+        .load_toggle(virtual_state_load_toggle),.block_toggle(virtual_snapshot_request_toggle),
+        .block_number(virtual_snapshot_block),.block_sequence(virtual_snapshot_sequence),
+        .block_ready(virtual_snapshot_ready),.block_ready_sequence(virtual_snapshot_ready_sequence),
+        .busy(state_busy),.fault(state_fault),.frozen(state_is_frozen),.loaded(state_loaded),
+        .state_request(state_request),.state_release(state_release),.state_apply(state_apply),
+        .state_in(state_in),.state_out(state_out),.state_frozen(state_frozen),
+        .mem_select(state_mem_select),.mem_address(state_mem_address),.mem_write(state_mem_write),
+        .mem_data(state_mem_data),.mem_q(state_mem_q),
+        .owns_rom(state_owns_rom),.cache_invalidate(state_cache_invalidate),.rom_address(state_rom_address),.rom_read(state_rom_read),
+        .rom_data(rom_byte),.rom_ready(rom_ready),.rom_fault(rom_fault),
+        .qclk(virtual_snapshot_qclk),.qaddress(virtual_snapshot_qaddress),.qdata(virtual_snapshot_qdata));
+    assign virtual_state_status={state_loaded,state_fault,state_is_frozen,state_busy};
     gg_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(!core_reset_x),
         .pixel(pixel),.x(pixel_x),.y(pixel_y),.color(color),
@@ -177,9 +207,6 @@ module emu_system_top
     // Persistent saves/RTC/snapshot upload are intentionally unsupported here.
     assign virtual_save_dirty=0;
     assign virtual_rtc_state=0;
-    assign virtual_snapshot_ready=0;
-    assign virtual_snapshot_ready_sequence=0;
-    assign virtual_snapshot_qdata=0;
     assign gbc_mode=1;
     assign gpd=0;
     assign boot_rom_enabled=0;

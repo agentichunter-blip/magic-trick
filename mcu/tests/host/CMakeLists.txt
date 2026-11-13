@@ -215,7 +215,7 @@ add_executable(native_control_test native_control_test.c "${FW_ROOT}/main/native
 target_link_libraries(native_control_test PRIVATE lvgl_host m)
 add_test(NAME native_state_menu_controller COMMAND native_control_test)
 
-add_executable(gg_load_test gg_load_test.c "${FW_ROOT}/main/cart_mapper.c" "${FW_ROOT}/main/cart_rtc.c" "${FW_ROOT}/main/cheat_patch.c")
+add_executable(gg_load_test gg_load_test.c "${FW_ROOT}/main/cart_mapper.c" "${FW_ROOT}/main/cart_rtc.c" "${FW_ROOT}/main/cheat_patch.c" "${FW_ROOT}/main/state_file.c")
 target_compile_options(gg_load_test PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(gg_load_test PRIVATE ${DEAD_STRIP})
 target_link_libraries(gg_load_test PRIVATE lvgl_host m)
@@ -241,3 +241,9 @@ target_compile_options(native_state_sd_test PRIVATE -ffunction-sections -fdata-s
 target_link_options(native_state_sd_test PRIVATE ${DEAD_STRIP})
 target_link_libraries(native_state_sd_test PRIVATE lvgl_host m)
 add_test(NAME native_state_sd_persistence COMMAND native_state_sd_test)
+
+add_executable(native_gg_state_test native_gg_state_test.c "${FW_ROOT}/main/state_save_branch.c" "${FW_ROOT}/main/cart_rtc.c" "${FW_ROOT}/main/state_file.c")
+target_compile_options(native_gg_state_test PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(native_gg_state_test PRIVATE ${DEAD_STRIP})
+target_link_libraries(native_gg_state_test PRIVATE lvgl_host m)
+add_test(NAME native_state_game_gear COMMAND native_gg_state_test)

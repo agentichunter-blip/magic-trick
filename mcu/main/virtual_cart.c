@@ -59,6 +59,17 @@ enum {
     kVirtualCommandStateBlock = 14,
     kVirtualCommandStateImport = 15,
     kStateSlotBase = 0x440000,
+    /* Game Gear save states (gg_state_engine.sv): 10 freezes, 14 reads a block,
+     * 11 restores a payload staged at ROM address 0x3F0000 (inside the 4 MiB ROM
+     * window, above any Game Gear ROM; the MCU rewrites the ROM mirror there
+     * afterwards), 16 releases. Status bit 1 = frozen, bit 4 = load complete. */
+    kVirtualCommandGGFreeze = 10,
+    kVirtualCommandGGLoad = 11,
+    kVirtualCommandGGRelease = 16,
+    kGGStateRomAddress = 0x3F0000,
+    kGGStatusFrozen = 0x02,
+    kGGStatusFault = 0x04,
+    kGGStatusLoaded = 0x10,
     kVirtualCapabilityRtcState = 1 << 7,
     kVirtualStartMbc1m = 0x80,
     kVirtualStatusEnabled = 1 << 0,
@@ -113,6 +124,8 @@ static bool ActiveSavePending;
 static VirtualCartInfo_t ActiveInfo;
 static char ActiveSavePath[kPathSize];
 static char ActiveRtcPath[kPathSize];
+static char ActiveRomPath[kPathSize];
+static uint32_t GGRomCrc;
 /* SD copy of the native state ("<rom>.state"); empty when unavailable. */
 /* Three save-state slots per game: "<rom>.state", ".state2", ".state3". The
  * FPGA has one working slot; FpgaStateOwner names the slot it holds (0: none). */
@@ -495,9 +508,12 @@ static esp_err_t UploadRomPatched(FILE *pRom, const VirtualCartInfo_t *pInfo, co
     if (pInfo->GameGear) {
         /* Fill the entire bounded region, matching the simulator's mirroring.
          * Rewind only at ROM boundaries; never upload GB cheats or save bytes. */
+        GGRomCrc=0;
         for (uint32_t offset=0;offset<kMaximumRomSize;offset+=sizeof(TransferBuffer)) {
             if (offset % pInfo->RomSize == 0 && fseek(pRom,0,SEEK_SET)) return ESP_FAIL;
             if (fread(TransferBuffer,1,sizeof(TransferBuffer),pRom)!=sizeof(TransferBuffer)) return ESP_FAIL;
+            /* The ROM's CRC identifies the game in its save-state files. */
+            if (offset<pInfo->RomSize) GGRomCrc=StateFile_Crc32(GGRomCrc,TransferBuffer,sizeof(TransferBuffer));
             ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase+offset,TransferBuffer), TAG,"GG ROM upload");
             RomBrowserUI_SetProgress(offset+sizeof(TransferBuffer),kMaximumRomSize);
         }
@@ -1256,6 +1272,7 @@ static void ClearActiveSave(void)
     ActiveSavePath[0] = '\0';
     ActiveRtcPath[0] = '\0';
     memset(ActiveStatePath, 0, sizeof(ActiveStatePath));
+    ActiveRomPath[0] = '\0';
     StateOnSdMask = 0;
     FpgaStateOwner = 0;
     ActiveSavePending = false;
@@ -1467,6 +1484,7 @@ static esp_err_t RunLoad(const char *pPath)
     ClearActiveSave();
 
     Result = UploadRomPatched(pRom, &Info, &Cheats);
+    if (Info.GameGear) Info.GlobalChecksum = (uint16_t)(GGRomCrc ^ (GGRomCrc >> 16));
     if (Result != ESP_OK) goto Cleanup;
     if (fclose(pRom) != 0)
     {
@@ -1496,6 +1514,7 @@ static esp_err_t RunLoad(const char *pPath)
     if (Result != ESP_OK) goto Cleanup;
 
     ActiveInfo = Info;
+    (void)snprintf(ActiveRomPath, sizeof(ActiveRomPath), "%s", pPath);
     (void)snprintf(ActiveSavePath, sizeof(ActiveSavePath), "%s",
                    SelectedSavePath);
     StateOnSdMask = 0;
@@ -1504,7 +1523,7 @@ static esp_err_t RunLoad(const char *pPath)
     {
         char *pState = ActiveStatePath[Slot - 1];
         struct stat StateStat;
-        if (!Info.GameGear && MakeStatePath(pPath, Slot, pState) == ESP_OK &&
+        if (MakeStatePath(pPath, Slot, pState) == ESP_OK &&
             stat(pState, &StateStat) == 0 && S_ISREG(StateStat.st_mode))
         {
             StateOnSdMask |= 1u << (Slot - 1);
@@ -1760,7 +1779,8 @@ static void PrintNativeDebug(const char *phase)
 /* Games whose mapper the native state engine captures and restores. */
 static bool NativeMapperSupported(const VirtualCartInfo_t *pInfo)
 {
-    if (pInfo->GameGear) return false;
+    /* Game Gear: the core's status reports whether its engine is present. */
+    if (pInfo->GameGear) return pInfo->RomSize != 0;
     switch (pInfo->Mapper.Kind)
     {
     case kCartMapper_Mbc1:
@@ -1782,6 +1802,12 @@ static void ActiveStateGame(StateFileGame_t *pGame)
     pGame->RamSize = ActiveInfo.RamSize;
     pGame->GlobalChecksum = ActiveInfo.GlobalChecksum;
     pGame->CartType = ActiveInfo.Mapper.Type;
+    if (ActiveInfo.GameGear)
+    {
+        pGame->RamSize = 0;
+        pGame->CartType = 0;
+        pGame->Engine = kStateEngine_GameGear;
+    }
 }
 
 static esp_err_t WaitNativeIdle(uint32_t *pStatus)
@@ -1803,7 +1829,7 @@ static esp_err_t ExportStateToSd(unsigned Slot)
     if (!pPath[0]) return ESP_ERR_INVALID_STATE;
     StateFileGame_t Game;
     ActiveStateGame(&Game);
-    const uint32_t Length = StateFile_PayloadLength(Game.RamSize);
+    const uint32_t Length = StateFile_GamePayloadLength(&Game);
     char Temp[kPathSize];
     ESP_RETURN_ON_ERROR(MakeSidecarPath(pPath, ".tmp", Temp), TAG,
                         "state temporary path");
@@ -1826,7 +1852,7 @@ static esp_err_t ExportStateToSd(unsigned Slot)
             Result = CartBulk_ReadVirtualBlock(SaveSequence, TransferBuffer);
         if (Result != ESP_OK) break;
         if (Offset == 0 &&
-            !StateFile_PayloadSignatureOk(TransferBuffer, sizeof(TransferBuffer)))
+            !StateFile_GamePayloadSignatureOk(&Game, TransferBuffer, sizeof(TransferBuffer)))
         {
             Result = ESP_ERR_INVALID_RESPONSE;
             break;
@@ -1904,13 +1930,15 @@ static esp_err_t ImportStateFromSd(unsigned Slot)
         if (Count < kCartBulkBlockSize)
             memset(TransferBuffer + Count, 0, kCartBulkBlockSize - Count);
         if (Offset == 0 &&
-            !StateFile_PayloadSignatureOk(TransferBuffer, sizeof(TransferBuffer)))
+            !StateFile_GamePayloadSignatureOk(&Game, TransferBuffer, sizeof(TransferBuffer)))
         {
             Result = ESP_ERR_INVALID_VERSION;
             break;
         }
         Crc = StateFile_Crc32(Crc, TransferBuffer, Count);
-        Result = CartBulk_WritePSRAMBlock(kStateSlotBase + Offset, TransferBuffer);
+        const uint32_t Base = Game.Engine == kStateEngine_GameGear
+            ? kRomBase + kGGStateRomAddress : kStateSlotBase;
+        Result = CartBulk_WritePSRAMBlock(Base + Offset, TransferBuffer);
     }
     if (Result == ESP_OK && fgetc(pFile) != EOF) Result = ESP_ERR_INVALID_SIZE;
     if (fclose(pFile) != 0 && Result == ESP_OK) Result = ESP_FAIL;
@@ -1920,6 +1948,8 @@ static esp_err_t ImportStateFromSd(unsigned Slot)
         Result = ESP_ERR_INVALID_CRC;
     }
     if (Result != ESP_OK) return Result;
+    /* Game Gear: staged and verified; the caller asks the FPGA to load it. */
+    if (Game.Engine == kStateEngine_GameGear) return ESP_OK;
 
     CartLinkResponse_t Response = {0};
     ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStateImport, NULL, &Response),
@@ -1951,6 +1981,8 @@ esp_err_t VirtualCart_NativeSlotInfo(bool *Supported,uint8_t *ValidMask,bool *Un
     uint32_t status=0;esp_err_t result=ESP_OK;
     if(*Supported) {
         result=ReadNativeStatus(&status);
+        // A core without a state engine refuses the status command.
+        if(result==ESP_ERR_INVALID_RESPONSE || result==ESP_ERR_NOT_SUPPORTED) { result=ESP_OK;status=0; }
         *Supported=result==ESP_OK && (status&8)!=0;
         /* Valid in the FPGA slot, or loadable from the SD card copy. */
         if(*Supported) {
@@ -1985,6 +2017,118 @@ esp_err_t VirtualCart_StateCaptureForSession(bool load,uint32_t Session)
 {
     return VirtualCart_StateCaptureSlot(load,1,Session);
 }
+/* Game Gear: poll the engine status until (status & Mask) == Want. While
+ * waiting for a load, the fault bit ends the wait early. */
+static esp_err_t WaitGGStatus(uint32_t Want, uint32_t Mask, bool FaultEnds,
+                              unsigned Timeout_ms, uint32_t *pStatus)
+{
+    const TickType_t Started = xTaskGetTickCount();
+    for (;;)
+    {
+        ESP_RETURN_ON_ERROR(ReadNativeStatus(pStatus), TAG, "GG state status");
+        if ((*pStatus & Mask) == Want) return ESP_OK;
+        if (FaultEnds && (*pStatus & kGGStatusFault)) return ESP_FAIL;
+        if ((TickType_t)(xTaskGetTickCount() - Started) >= pdMS_TO_TICKS(Timeout_ms))
+            return ESP_ERR_TIMEOUT;
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+}
+
+/* The payload was staged over the ROM mirror at kGGStateRomAddress; put the
+ * mirror back so a game selecting those banks reads its own ROM again. */
+static esp_err_t RestoreGGRomMirror(void)
+{
+    if (!ActiveRomPath[0] || ActiveInfo.RomSize == 0) return ESP_ERR_INVALID_STATE;
+    FILE *pRom = fopen(ActiveRomPath, "rb");
+    if (pRom == NULL) return ESP_FAIL;
+    esp_err_t Result = ESP_OK;
+    for (uint32_t Offset = kGGStateRomAddress;
+         Result == ESP_OK && Offset < kGGStateRomAddress + kStateFileGameGearPayload;
+         Offset += kCartBulkBlockSize)
+    {
+        if (fseek(pRom, (long)(Offset % ActiveInfo.RomSize), SEEK_SET) != 0 ||
+            fread(TransferBuffer, 1, kCartBulkBlockSize, pRom) != kCartBulkBlockSize)
+            Result = ESP_FAIL;
+        else
+            Result = CartBulk_WritePSRAMBlock(kRomBase + Offset, TransferBuffer);
+    }
+    (void)fclose(pRom);
+    return Result;
+}
+
+/* Game Gear save/load. The FPGA keeps no copy: SAVE freezes the game, writes
+ * the frozen state straight to "<rom>.state<n>" and releases it; LOAD freezes,
+ * stages the verified file in PSRAM, lets the FPGA restore it and releases.
+ * A file that fails its checks is refused before anything in the game changes. */
+static esp_err_t GGStateCapture(bool load, unsigned slot)
+{
+    const uint8_t bit = 1u << (slot - 1);
+    esp_err_t result = ESP_ERR_INVALID_STATE;
+    bool mounted = false, bulk = false, frozen = false, submitted = false;
+    sdmmc_card_t *card = NULL;
+    uint32_t status = 0;
+    CartLinkResponse_t response = {0};
+    result = ReadNativeStatus(&status);
+    if (result != ESP_OK || !(status & 8))
+    {
+        printf("STATE_REJECT=gg_engine_missing\n");
+        result = ESP_ERR_INVALID_STATE;
+        goto cleanup;
+    }
+    if (status & (1 | kGGStatusFrozen) || (load && !(StateOnSdMask & bit)))
+    {
+        printf("STATE_REJECT=snapshot_status value=%08lx\n", (unsigned long)status);
+        result = ESP_ERR_INVALID_STATE;
+        goto cleanup;
+    }
+    result = SDCard_Mount(&card); if (result != ESP_OK) goto cleanup; mounted = true;
+    result = CartBulk_Begin(); if (result != ESP_OK) goto cleanup; bulk = true;
+    result = VirtualCommand(kVirtualCommandGGFreeze, NULL, &response);
+    if (result != ESP_OK) goto cleanup;
+    frozen = true;
+    result = WaitGGStatus(kGGStatusFrozen, kGGStatusFrozen | 1, false, 1000, &status);
+    if (result != ESP_OK) { printf("STATE_REJECT=gg_freeze_timeout\n"); goto cleanup; }
+    if (!load)
+    {
+        result = ExportStateToSd(slot);
+        if (result == ESP_OK) StateOnSdMask |= bit;
+        goto cleanup;
+    }
+    result = ImportStateFromSd(slot);
+    if (result != ESP_OK) goto cleanup;
+    // From here a failure may leave a partly restored game: keep it frozen.
+    submitted = true; StateUncertain = true;
+    result = VirtualCommand(kVirtualCommandGGLoad, NULL, &response);
+    if (result == ESP_OK)
+        result = WaitGGStatus(kGGStatusLoaded, kGGStatusLoaded | 1, true, 3000, &status);
+    if (result != ESP_OK) { printf("STATE_REJECT=gg_load status=%08lx\n", (unsigned long)status); goto cleanup; }
+    StateUncertain = false;
+    if (RestoreGGRomMirror() != ESP_OK) printf("STATE_GG_MIRROR=FAIL\n");
+    printf("STATE_FILE_LOAD=PASS path=%s bytes=%u\n", ActiveStatePath[slot - 1],
+           (unsigned)kStateFileGameGearPayload);
+cleanup:
+    if (frozen && (!submitted || !StateUncertain))
+    {
+        esp_err_t release = VirtualCommand(kVirtualCommandGGRelease, NULL, &response);
+        if (release == ESP_OK)
+            release = WaitGGStatus(0, kGGStatusFrozen, false, 1000, &status);
+        if (release != ESP_OK)
+        {
+            printf("STATE_REJECT=gg_release error=%s\n", esp_err_to_name(release));
+            StateUncertain = true;
+            if (result == ESP_OK) result = release;
+        }
+    }
+    if (bulk) CartBulk_End();
+    if (mounted)
+    {
+        const esp_err_t unmount = SDCard_Unmount(card);
+        if (result == ESP_OK) result = unmount;
+    }
+    (void)SetRunning(false);
+    return result;
+}
+
 esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
 {
     if(slot<1 || slot>kStateSlots) return ESP_ERR_INVALID_ARG;
@@ -1994,6 +2138,10 @@ esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
     if(Session && Session!=NativeSession) {
         (void)SetRunning(false);
         return ESP_ERR_INVALID_STATE;
+    }
+    if(Active && ActiveInfo.GameGear) {
+        LastStateSdFailed=false; // no FPGA copy: a save is on the SD card or fails
+        return GGStateCapture(load,slot);
     }
     esp_err_t result=ESP_ERR_INVALID_STATE;
     bool mounted=false,bulk=false,paused=false,submitted=false;

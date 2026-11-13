@@ -33,6 +33,17 @@ uint32_t StateFile_PayloadLength(uint32_t RamSize)
     return kStateFileCoreBytes + RamSize;
 }
 
+static bool IsGameGear(const StateFileGame_t *pGame) { return pGame->Engine == kStateEngine_GameGear; }
+static uint32_t EngineSignature(const StateFileGame_t *pGame)
+{
+    return IsGameGear(pGame) ? kStateFileGameGearSignature : kStateFileEngineSignature;
+}
+
+uint32_t StateFile_GamePayloadLength(const StateFileGame_t *pGame)
+{
+    return IsGameGear(pGame) ? kStateFileGameGearPayload : StateFile_PayloadLength(pGame->RamSize);
+}
+
 /* Layout:
  *  0 magic "CMST"         4 version          6 header size
  *  8 payload length      12 payload CRC-32  16 engine signature
@@ -49,7 +60,7 @@ void StateFile_EncodeHeader(const StateFileGame_t *pGame, uint32_t PayloadLength
     Put16(Header + 6, kStateFileHeaderSize);
     Put32(Header + 8, PayloadLength);
     Put32(Header + 12, PayloadCrc);
-    Put32(Header + 16, kStateFileEngineSignature);
+    Put32(Header + 16, EngineSignature(pGame));
     Put32(Header + 20, pGame->RomSize);
     Put32(Header + 24, pGame->RamSize);
     Put16(Header + 28, pGame->GlobalChecksum);
@@ -69,14 +80,14 @@ StateFileResult_t StateFile_DecodeHeader(const uint8_t Header[kStateFileHeaderSi
         return kStateFile_BadVersion;
     if (Get32(Header + 60) != StateFile_Crc32(0, Header, 60))
         return kStateFile_BadHeaderCrc;
-    if (Get32(Header + 16) != kStateFileEngineSignature) return kStateFile_BadEngine;
+    if (Get32(Header + 16) != EngineSignature(pGame)) return kStateFile_BadEngine;
     if (Get32(Header + 20) != pGame->RomSize || Get32(Header + 24) != pGame->RamSize ||
         Get16(Header + 28) != pGame->GlobalChecksum || Header[30] != pGame->CartType ||
         memcmp(Header + 32, pGame->Title, sizeof(pGame->Title)) != 0)
         return kStateFile_WrongGame;
     const uint32_t Length = Get32(Header + 8);
     if (pGame->RamSize > kStateFileMaxRamSize ||
-        Length != StateFile_PayloadLength(pGame->RamSize) || Length > kStateFileSlotSize)
+        Length != StateFile_GamePayloadLength(pGame) || Length > kStateFileSlotSize)
         return kStateFile_BadLength;
     *pPayloadLength = Length;
     *pPayloadCrc = Get32(Header + 12);
@@ -86,6 +97,12 @@ StateFileResult_t StateFile_DecodeHeader(const uint8_t Header[kStateFileHeaderSi
 bool StateFile_PayloadSignatureOk(const uint8_t *pPayload, size_t Size)
 {
     return Size >= 8 && Get32(pPayload + 4) == kStateFileEngineSignature;
+}
+
+bool StateFile_GamePayloadSignatureOk(const StateFileGame_t *pGame,
+                                      const uint8_t *pPayload, size_t Size)
+{
+    return Size >= 8 && Get32(pPayload + 4) == EngineSignature(pGame);
 }
 
 const char *StateFile_ResultName(StateFileResult_t Result)

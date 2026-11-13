@@ -647,6 +647,14 @@ module top #(parameter ISSIMU=0)
     localparam [7:0]  VIRTUAL_CART_RTC_SNAPSHOT = 8'd7;
     localparam [7:0]  VIRTUAL_CART_QUIESCE = 8'd8;
     localparam [7:0]  VIRTUAL_CART_RESUME = 8'd9;
+    // Native save state (gg_state_engine.sv). 10 freezes at a frame boundary,
+    // 14 fills the 1 KiB block buffer, 11 restores a payload staged in PSRAM,
+    // 16 releases the freeze, 12 reports status.
+    localparam [7:0]  VIRTUAL_STATE_FREEZE = 8'd10;
+    localparam [7:0]  VIRTUAL_STATE_LOAD = 8'd11;
+    localparam [7:0]  VIRTUAL_STATE_STATUS = 8'd12;
+    localparam [7:0]  VIRTUAL_STATE_BLOCK = 8'd14;
+    localparam [7:0]  VIRTUAL_STATE_RELEASE = 8'd16;
     wire virtual_request_selected = cart_request_operation == 3'h7 &&
                                     cart_request_address == VIRTUAL_CART_MAGIC;
     reg virtual_response_valid;
@@ -677,6 +685,21 @@ module top #(parameter ISSIMU=0)
     reg [8:0] virtual_rom_mask_g;
     reg virtual_rtc_timestamp_toggle_g;
     reg virtual_snapshot_request_toggle_g;
+    reg virtual_state_freeze_toggle_g;
+    reg virtual_state_release_toggle_g;
+    reg virtual_state_load_toggle_g;
+    wire [3:0] virtual_state_status_x;
+    (* ASYNC_REG="TRUE" *) reg [3:0] virtual_state_status_meta_g = 4'd0;
+    (* ASYNC_REG="TRUE" *) reg [3:0] virtual_state_status_g = 4'd0;
+    always @(posedge gClk) begin
+        virtual_state_status_meta_g <= virtual_state_status_x;
+        virtual_state_status_g <= virtual_state_status_meta_g;
+    end
+    wire virtual_state_busy_g = virtual_state_status_g[0];
+    wire virtual_state_frozen_g = virtual_state_status_g[1];
+    // Bits: 0 busy, 1 frozen, 2 fault, 3 supported, 4 load complete.
+    wire [31:0] virtual_state_word_g = {16'h5353, 11'd0, virtual_state_status_g[3], 1'b1,
+        virtual_state_status_g[2], virtual_state_frozen_g, virtual_state_busy_g};
     reg [6:0] virtual_snapshot_block_g;
     reg [15:0] virtual_snapshot_sequence_g;
     wire [28:0] virtual_rtc_state_h;
@@ -840,6 +863,9 @@ module top #(parameter ISSIMU=0)
             virtual_rom_mask_g <= 9'd0;
             virtual_rtc_timestamp_toggle_g <= 1'b0;
             virtual_snapshot_request_toggle_g <= 1'b0;
+            virtual_state_freeze_toggle_g <= 1'b0;
+            virtual_state_release_toggle_g <= 1'b0;
+            virtual_state_load_toggle_g <= 1'b0;
             virtual_snapshot_block_g <= 7'd0;
             virtual_snapshot_sequence_g <= 16'd0;
         end else begin
@@ -899,8 +925,38 @@ module top #(parameter ISSIMU=0)
                         if (!virtual_pause_allowed_g)
                             virtual_response_status <= 4'h3;
                     end
-                    VIRTUAL_CART_SAVE_BLOCK: begin
-                        if (!virtual_enable_g ||
+                    // Game Gear battery RAM is not uploaded; the block buffer
+                    // belongs to the save-state engine.
+                    VIRTUAL_CART_SAVE_BLOCK: virtual_response_status <= 4'h3;
+                    VIRTUAL_STATE_STATUS:
+                        virtual_response_data <= virtual_state_word_g;
+                    VIRTUAL_STATE_FREEZE: begin
+                        virtual_response_data <= virtual_state_word_g;
+                        if (!virtual_enable_g || virtual_state_busy_g ||
+                            virtual_state_frozen_g)
+                            virtual_response_status <= 4'h3;
+                        else virtual_state_freeze_toggle_g <=
+                            !virtual_state_freeze_toggle_g;
+                    end
+                    VIRTUAL_STATE_LOAD: begin
+                        virtual_response_data <= virtual_state_word_g;
+                        if (!virtual_enable_g || virtual_state_busy_g ||
+                            !virtual_state_frozen_g)
+                            virtual_response_status <= 4'h3;
+                        else virtual_state_load_toggle_g <=
+                            !virtual_state_load_toggle_g;
+                    end
+                    VIRTUAL_STATE_RELEASE: begin
+                        virtual_response_data <= virtual_state_word_g;
+                        if (virtual_state_busy_g || !virtual_state_frozen_g)
+                            virtual_response_status <= 4'h3;
+                        else virtual_state_release_toggle_g <=
+                            !virtual_state_release_toggle_g;
+                    end
+                    VIRTUAL_STATE_BLOCK: begin
+                        virtual_response_data <= virtual_state_word_g;
+                        if (!virtual_enable_g || virtual_state_busy_g ||
+                            !virtual_state_frozen_g ||
                             cart_request_aux_value[7] != 0) begin
                             virtual_response_status <= 4'h3;
                         end else begin
@@ -1199,6 +1255,10 @@ module top #(parameter ISSIMU=0)
         .virtual_snapshot_ready(virtual_snapshot_ready_x),
         .virtual_snapshot_ready_sequence(
             virtual_snapshot_ready_sequence_x),
+        .virtual_state_freeze_toggle(virtual_state_freeze_toggle_g),
+        .virtual_state_release_toggle(virtual_state_release_toggle_g),
+        .virtual_state_load_toggle(virtual_state_load_toggle_g),
+        .virtual_state_status(virtual_state_status_x),
         .virtual_snapshot_qclk(QSPI_CLK),
         .virtual_snapshot_qaddress(qspi_cart_read_address[9:0]),
         .virtual_snapshot_qdata(qspi_virtual_read_data),

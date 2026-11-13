@@ -1,13 +1,17 @@
 // Preserve the board PLL. xclk = 2 * 33.554432 MHz; emulate the SMS
 // 53.693175 MHz enable schedule with bounded one-xclk quantization.
-module gg_clock_enables #(parameter integer HOST_HZ=67108864,
+module gg_state_clock #(parameter integer HOST_HZ=67108864,
  parameter integer MASTER_HZ=53693175)(
+ input wire hold,restore,input wire [31:0] state_in,output wire [31:0] state_out,
  input wire clk,reset_n, output reg cpu, vdp, pixel, sprite);
  reg [26:0] accumulator;
  reg [4:0] phase;
+ assign state_out={phase,accumulator};
  wire [27:0] sum={1'b0,accumulator}+28'(MASTER_HZ);
  always @(negedge clk or negedge reset_n) begin
   if(!reset_n) begin accumulator<=0;phase<=0;cpu<=0;vdp<=0;pixel<=0;sprite<=0;end
+  else if(restore) begin accumulator<=state_in[26:0];phase<=state_in[31:27];cpu<=0;vdp<=0;pixel<=0;sprite<=0;end
+  else if(hold) begin cpu<=0;vdp<=0;pixel<=0;sprite<=0;end
   else begin
    cpu<=0;vdp<=0;pixel<=0;sprite<=0;
    if(sum>=HOST_HZ) begin

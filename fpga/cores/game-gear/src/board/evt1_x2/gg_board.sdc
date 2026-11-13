@@ -41,3 +41,23 @@ set_max_delay -from [get_regs {u_emu_system_top/audio_cdc/held_*_s0}] -to [get_r
 # Gray pointer bits must arrive within one source cycle (xclk ~14.9 ns).
 set_max_delay -from [get_regs {u_emu_system_top/video_cdc/fifo/wgray_*_s0}] -to [get_regs {u_emu_system_top/video_cdc/fifo/wm_*_s0}] 14
 set_max_delay -from [get_regs {u_emu_system_top/video_cdc/fifo/rgray_*_s0}] -to [get_regs {u_emu_system_top/video_cdc/fifo/rm_*_s0}] 50
+
+# Native save state (gg_state_engine.sv, gg_board_core.sv). The restore data
+# changes only during a load, long before the apply, and every restore strobe
+# is held for two cycles while all core clock enables are stopped (frozen), so
+# a late arrival only repeats the same register load. The freeze flag itself is
+# not relaxed: it switches while the game runs.
+set_multicycle_path -from [get_regs {u_emu_system_top/state_engine/state_in_*}] -setup -end 2
+set_multicycle_path -from [get_regs {u_emu_system_top/state_engine/state_in_*}] -hold -end 1
+set_multicycle_path -from [get_regs {u_emu_system_top/core/z80_set_q*}] -setup -end 2
+set_multicycle_path -from [get_regs {u_emu_system_top/core/z80_set_q*}] -hold -end 1
+set_multicycle_path -from [get_regs {u_emu_system_top/core/apply_q*}] -setup -end 2
+set_multicycle_path -from [get_regs {u_emu_system_top/core/apply_q*}] -hold -end 1
+# Every T80 register updates only on the CPU clock enable (about one xclk cycle
+# in 19) or on the save-state set while frozen, so Z80-internal paths have at
+# least two cycles. Paths into the Z80 from elsewhere (ROM data, the enable)
+# keep their single-cycle requirement. The one T80 exception, the NMI edge
+# detector (OldNMI_n/NMI_s update every cycle), does not exist here: NMI_n is
+# constant in Game Gear mode and synthesis removes it. Re-check if that changes.
+set_multicycle_path -from [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -to [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -setup -end 2
+set_multicycle_path -from [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -to [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -hold -end 1
