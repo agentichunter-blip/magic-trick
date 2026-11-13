@@ -5,12 +5,15 @@
 #include "osd_shared.h"
 #include "tab_shared.h"
 
+#include <stdbool.h>
+
 typedef enum TabID {
     kTabID_Backups, /* Games: first in the visible tab order. */
     kTabID_Status,
     kTabID_Display,
     kTabID_Controls,
     kTabID_Palette,
+    kTabID_ColorTemp, /* ModRetro v4.6: replaces Palette in color games. */
     kTabID_System,
     kNumTabIDs,
 
@@ -34,6 +37,9 @@ typedef struct MenuTab {
     union {
         TabCollection_t* Menu;
     };
+
+    // Optional: if NULL, tab is always active; otherwise evaluated during left/right tab navigation.
+    bool (*fnIsActive)(void);
 
 } MenuTab_t;
 

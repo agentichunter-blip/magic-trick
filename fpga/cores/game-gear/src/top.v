@@ -395,11 +395,14 @@ module top #(parameter ISSIMU=0)
         .frameBlendEnable(system_control[1]),
         .colorCorrectionEnableLCD(system_control[2]),
         .colorCorrectionEnableUVC(system_control[3]),
+        // system_control[10:8]: color temperature level (0 neutral .. 5).
+        .colorTempLevel(system_control[10:8]),
+        .colorTempApply(!(core_gb_lcd_repeat && !cart_video_selected)), // Game Gear picture; not the stand-in frames during a save state (already adjusted in the framebuffer)
         .voltageLow(low_battery),
         .lowBattDispMode(system_control[14:13]),
-        .showTimer(1'b0), //system_control[8]),
-        .runTimer(system_control[9]),
-        .resetTimer(system_control[10]),
+        .showTimer(1'b0), // system_control[10:8] is the color temperature level
+        .runTimer(1'b0),
+        .resetTimer(1'b0),
         .gSecondEna(secondEna),
         .gPercentEna(percentEna),
         .debug_system(debug_system),
@@ -425,7 +428,7 @@ module top #(parameter ISSIMU=0)
         // While a save state freezes the game, its stand-in rows repeat the
         // previous frame (read back in step from the framebuffer), so the
         // picture holds still under the menu.
-        .gb_lcd_data(core_gb_lcd_repeat && !cart_video_selected ?
+        .gb_lcd_data_in(core_gb_lcd_repeat && !cart_video_selected ?
                      hWrBurstQ[14:0] : display_gb_lcd_data)
     );
 

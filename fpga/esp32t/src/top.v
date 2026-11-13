@@ -379,6 +379,8 @@ module top #(parameter ISSIMU=0)
         .frameBlendEnable(system_control[1]),
         .colorCorrectionEnableLCD(system_control[2]),
         .colorCorrectionEnableUVC(system_control[3]),
+        .colorTempLevel(3'd0),
+        .colorTempApply(1'b0),
         .voltageLow(low_battery),
         .lowBattDispMode(system_control[14:13]),
         .showTimer(1'b0), //system_control[8]),
@@ -406,7 +408,7 @@ module top #(parameter ISSIMU=0)
         .gb_lcd_mode(display_gb_lcd_mode),
         .gb_lcd_on(display_gb_lcd_on),
         .gb_lcd_vsync(display_gb_lcd_vsync),
-        .gb_lcd_data(display_gb_lcd_data)
+        .gb_lcd_data_in(display_gb_lcd_data)
     );
 
     wire [15:0] left, right;

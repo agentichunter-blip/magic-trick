@@ -28,6 +28,11 @@ module vid_system_top #(parameter ISSIMU=0)
     input               frameBlendEnable,
     input               colorCorrectionEnableLCD,
     input               colorCorrectionEnableUVC,
+    // Color temperature 0 (neutral) to 5 (warmest), as in ModRetro's stock
+    // firmware v4.6 (oss-chromatic-console-fpga video.v, GPL-3.0). Applied to
+    // the game picture only when colorTempApply is high.
+    input       [2:0]   colorTempLevel,
+    input               colorTempApply,
     input               voltageLow,
     input [1:0]         lowBattDispMode,
     input               showTimer,
@@ -52,7 +57,7 @@ module vid_system_top #(parameter ISSIMU=0)
 
     output              LCD_INIT_DONE,
     input               gb_lcd_clkena,
-    input [14:0]        gb_lcd_data,
+    input [14:0]        gb_lcd_data_in,
     input [1:0]         gb_lcd_mode,
     input               gb_lcd_on,
     input               gb_lcd_vsync
@@ -107,6 +112,37 @@ module vid_system_top #(parameter ISSIMU=0)
 
     assign  hGBWrite    = gb_lcd_clkena;
     assign  hGBNewLine  = ~hHsync&hHsync_r1;
+    // Color temperature, ModRetro's math unchanged: bright pixels (all three
+    // channels in the upper half) get red +level, green +level/2, blue -level;
+    // pixels with two channels in the upper half get half that; others none.
+    function [4:0] sat_add5;
+        input [4:0] val;
+        input [2:0] delta;
+        reg [5:0] sum;
+        begin
+            sum = {1'b0, val} + {3'b0, delta};
+            sat_add5 = sum[5] ? 5'd31 : sum[4:0];
+        end
+    endfunction
+    function [4:0] sat_sub5;
+        input [4:0] val;
+        input [2:0] delta;
+        begin
+            sat_sub5 = (val < {2'b0, delta}) ? 5'd0 : (val - {2'b0, delta});
+        end
+    endfunction
+    wire [4:0] ct_r = gb_lcd_data_in[4:0];
+    wire [4:0] ct_g = gb_lcd_data_in[9:5];
+    wire [4:0] ct_b = gb_lcd_data_in[14:10];
+    wire [2:0] color_temp_level = (colorTempLevel > 3'd5) ? 3'd5 : colorTempLevel;
+    wire ct_bright_hi  = ct_r[4] & ct_g[4] & ct_b[4];
+    wire ct_bright_mid = (ct_r[4] & ct_g[4]) | (ct_r[4] & ct_b[4]) | (ct_g[4] & ct_b[4]);
+    wire [2:0] ct_delta = ct_bright_hi  ? color_temp_level :
+                          ct_bright_mid ? {1'b0, color_temp_level[2:1]} : 3'd0;
+    wire [2:0] ct_green_delta = {1'b0, ct_delta[2:1]};
+    wire [14:0] gb_lcd_data = colorTempApply ?
+        {sat_sub5(ct_b, ct_delta), sat_add5(ct_g, ct_green_delta), sat_add5(ct_r, ct_delta)} : gb_lcd_data_in;
+
     assign  hGBData     = {1'd0, gb_lcd_data[14:0]};
 
     reg [7:0] screenX;

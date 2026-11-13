@@ -7,6 +7,8 @@
 #include "cart_link.h"
 #include "cart_bulk.h"
 #include "color_correct_lcd.h"
+#include "color_temp_hotkey.h"
+#include "gbc_color_temp.h"
 #include "color_correct_usb.h"
 #include "crc8_sae_j1850.h"
 #include "driver/uart.h"
@@ -396,18 +398,40 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
     {
         case kRxCmd_VoltageAA:
         {
-            result = (float)rxdata/2048.0f;
-            result = (10.0f + 2.2f)*(result/(2.2f));
-            float aa_voltage = result - 0.1f;
-            Battery_UpdateVoltage(aa_voltage, kBatteryKind_AA);
+            /* ModRetro v4.6: bit 15 names the PCB revision (0 = 100-0171_06,
+             * 1 = 100-0843-02, scale 0.9 found empirically). FPGAs that
+             * predate it send 0 there. */
+            const uint8_t pcb_version = (uint8_t)(rxdata >> 15);
+            result = (float)(rxdata & 0x7FFF)/2048.0f;
+            if (pcb_version == 1)
+            {
+                result = 0.9f * (470.0f + 100.0f)*(result/(100.0f));
+            }
+            else
+            {
+                result = (10.0f + 2.2f)*(result/(2.2f));
+                result = result - 0.1f;
+            }
+            Battery_UpdateVoltage(result, kBatteryKind_AA);
             break;
         }
         case kRxCmd_VoltageLiPo:
         {
-            result = (float)rxdata/2048.0f;
-            result = (10.0f + 2.2f)*(result/(2.2f));
-            float lipo_voltage = result - 0.1f;
-            Battery_UpdateVoltage(lipo_voltage, kBatteryKind_LiPo);
+            /* ModRetro v4.6: bit 15 names the PCB revision (0 = 100-0171_06,
+             * 1 = 100-0843-02, scale 0.9 found empirically). FPGAs that
+             * predate it send 0 there. */
+            const uint8_t pcb_version = (uint8_t)(rxdata >> 15);
+            result = (float)(rxdata & 0x7FFF)/2048.0f;
+            if (pcb_version == 1)
+            {
+                result = 0.9f * (470.0f + 100.0f)*(result/(100.0f));
+            }
+            else
+            {
+                result = (10.0f + 2.2f)*(result/(2.2f));
+                result = result - 0.1f;
+            }
+            Battery_UpdateVoltage(result, kBatteryKind_LiPo);
             break;
         }
         case kRxCmd_Buttons:
@@ -418,6 +442,22 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
             else
             {
                 OSD_SetVisiblityState(true);
+            }
+            {
+                /* ModRetro v4.6 hotkey, menu closed: in color games Menu + Up
+                 * is warmer and Menu + Down cooler (the same steps as A/B on
+                 * COLOR TEMP); in Game Boy games Menu + Up/Down cycles the
+                 * palette. Tx may be paused while the OSD is hidden. */
+                static ColorTempHotkey_t ColorTempKeys;
+                const int ColorTempStep = ColorTempHotkey_Update(&ColorTempKeys, (uint16_t)rxdata);
+                if (ColorTempStep != 0)
+                {
+                    FPGA_Tx_Resume();
+                    if (Style_IsGBCMode())
+                        (void)GBCColorTemp_OnButton(ColorTempStep > 0 ? kButton_A : kButton_B, kButtonState_Pressed, NULL);
+                    else
+                        Style_CycleFromHotkey(ColorTempStep > 0);
+                }
             }
             Button_UpdateRouted(rxdata, NativeStateControl_Buttons(rxdata));
             break;
@@ -475,7 +515,8 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
             const bool GBCMode = (bool)((pMsg->PayloadU32 >> 1) & 1);
 
             PwrMgr_SetLPM(InLPM);
-            Style_SetGBCMode(GBCMode);
+            /* Game Gear games are color games too: Color Temp tab, no palette. */
+            Style_SetGBCMode(GBCMode || CoreSwitch_IsTarget(true));
             break;
         }
         case kRxCmd_Reserved:

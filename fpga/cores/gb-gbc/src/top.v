@@ -358,6 +358,7 @@ module top #(parameter ISSIMU=0)
         .core_frame_valid(core_frame_valid_h)
     );
 
+    wire gbc_mode;   // GBC game running (color temperature applies)
     vid_system_top #(ISSIMU)
     u_vid_system_top(
         .gClk(gClk),
@@ -386,11 +387,14 @@ module top #(parameter ISSIMU=0)
         .frameBlendEnable(system_control[1]),
         .colorCorrectionEnableLCD(system_control[2]),
         .colorCorrectionEnableUVC(system_control[3]),
+        // system_control[10:8]: color temperature level (0 neutral .. 5).
+        .colorTempLevel(system_control[10:8]),
+        .colorTempApply(gbc_mode), // Game Boy Color games only, as in ModRetro's firmware
         .voltageLow(low_battery),
         .lowBattDispMode(system_control[14:13]),
-        .showTimer(1'b0), //system_control[8]),
-        .runTimer(system_control[9]),
-        .resetTimer(system_control[10]),
+        .showTimer(1'b0), // system_control[10:8] is the color temperature level
+        .runTimer(1'b0),
+        .resetTimer(1'b0),
         .gSecondEna(secondEna),
         .gPercentEna(percentEna),
         .debug_system(debug_system),
@@ -413,7 +417,7 @@ module top #(parameter ISSIMU=0)
         .gb_lcd_mode(display_gb_lcd_mode),
         .gb_lcd_on(display_gb_lcd_on),
         .gb_lcd_vsync(display_gb_lcd_vsync),
-        .gb_lcd_data(display_gb_lcd_data)
+        .gb_lcd_data_in(display_gb_lcd_data)
     );
 
     wire [15:0] left, right;
@@ -593,7 +597,6 @@ module top #(parameter ISSIMU=0)
     wire [63:0] paletteBGIn;
     wire [63:0] paletteOBJ0In;
     wire [63:0] paletteOBJ1In;
-    wire gbc_mode;
     wire [63:0] gpd;
 
     wire [15:0] core_cart_address;

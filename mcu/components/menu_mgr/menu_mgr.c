@@ -16,6 +16,7 @@ LV_FONT_DECLARE(chromatic_banner);
 #include "rom_browser_ui.h"
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 LV_IMG_DECLARE(menu_status);
@@ -55,6 +56,8 @@ static OSD_Result_t MenuMgr_Draw(void* arg);
 static OSD_Result_t MenuMgr_OnTransition(void *arg);
 static void MenuMgr_NextTab(void);
 static void MenuMgr_PrevTab(void);
+static bool MenuMgr_IsTabActive(TabID_t eID);
+static TabID_t MenuMgr_FindNextActiveTab(TabID_t eFrom, bool forward);
 
 static lv_obj_t *Box(lv_obj_t *pScreen, int X, int Y, int Width, int Height)
 {
@@ -107,17 +110,19 @@ static void PaintTabs(lv_event_t *Event)
     lv_area_t Bounds;lv_obj_get_coords(lv_event_get_target(Event),&Bounds);
     const lv_color_t Accent=_Ctx.pMenus[_Ctx.eCurTab]->Accent;
     const bool PickerFocus=_Ctx.eCurTab==kTabID_Backups && RomBrowserUI_HasPickerFocus();
-    for(unsigned I=0;I<kNumTabIDs;I++)
+    /* Only active tabs are drawn: Palette and Color Temp share one cell. */
+    for(unsigned I=0,Slot=0;I<kNumTabIDs;I++)
     {
+        if(!MenuMgr_IsTabActive((TabID_t)I))continue;
         const bool Selected=I==(unsigned)_Ctx.eCurTab;
-        const int X=Bounds.x1+I*18;
+        const int X=Bounds.x1+(Slot++)*18;
         lv_area_t Cell={X+1,Bounds.y1+1,X+16,Bounds.y1+14};
         lv_draw_rect_dsc_t Rect;lv_draw_rect_dsc_init(&Rect);
         Rect.bg_color=lv_color_black();Rect.bg_opa=LV_OPA_COVER;
         Rect.border_width=1;Rect.radius=3;
         Rect.border_color=Selected && !PickerFocus?Accent:lv_color_hex(0x666666);
         lv_draw_rect(Context,&Rect,&Cell);
-        const lv_img_dsc_t *Glyph=I==kTabID_Backups?&BackupGlyph:&NativeTabGlyphs[I-1];
+        const lv_img_dsc_t *Glyph=I==kTabID_Backups?&BackupGlyph:&NativeTabGlyphs[I==kTabID_ColorTemp?kTabID_Palette-1:I>kTabID_ColorTemp?I-2:I-1];
         lv_area_t Image={X+5,Bounds.y1+(I==kTabID_Backups?3:4),X+5+Glyph->header.w-1,Bounds.y1+(I==kTabID_Backups?3:4)+Glyph->header.h-1};
         lv_draw_img_dsc_t Ink;lv_draw_img_dsc_init(&Ink);
         Ink.recolor=lv_color_hex(Selected?0xffffff:0x999999);Ink.recolor_opa=LV_OPA_COVER;
@@ -207,6 +212,15 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
         TabCollection_t *List=_Ctx.pMenus[kTabID_System]->Menu;
         if(List)List->pCurrent=(TabItem_t *)sys_dlist_peek_head(&List->WidgetList);
         NativeStateUI_Open();
+    }
+
+    /* The game can change between a Game Boy and a color game while the menu
+     * was left on Palette or Color Temp: show the counterpart tab. */
+    if ((_Ctx.eCurTab == kTabID_Palette || _Ctx.eCurTab == kTabID_ColorTemp)
+        && !MenuMgr_IsTabActive(_Ctx.eCurTab))
+    {
+        MenuMgr_OnTransition(NULL);
+        _Ctx.eCurTab = (_Ctx.eCurTab == kTabID_Palette) ? kTabID_ColorTemp : kTabID_Palette;
     }
 
     const TabID_t eID = _Ctx.eCurTab;
@@ -344,30 +358,75 @@ static OSD_Result_t MenuMgr_OnButton(const Button_t Button, const ButtonState_t 
 
 static void MenuMgr_NextTab(void)
 {
-    TabID_t eNextID = _Ctx.eCurTab + 1;
-    if (eNextID >= kNumTabIDs)
+    const TabID_t eNextID = MenuMgr_FindNextActiveTab(_Ctx.eCurTab, true);
+
+    if (eNextID == _Ctx.eCurTab)
     {
-        eNextID = kTabID_First;
+        return;
     }
 
     // Clean up the old tab data
-    MenuMgr_OnTransition(NULL);
-
+    (void)MenuMgr_OnTransition(NULL);
     _Ctx.eCurTab = eNextID;
 }
 
 static void MenuMgr_PrevTab(void)
 {
-    TabID_t ePrevID = _Ctx.eCurTab - 1;
-    if ((signed) ePrevID < 0)
+    const TabID_t ePrevID = MenuMgr_FindNextActiveTab(_Ctx.eCurTab, false);
+
+    if (ePrevID == _Ctx.eCurTab)
     {
-        ePrevID = kTabID_Last;
+        return;
     }
 
     // Clean up the old tab data
-    MenuMgr_OnTransition(NULL);
-
+    (void)MenuMgr_OnTransition(NULL);
     _Ctx.eCurTab = ePrevID;
+}
+
+static bool MenuMgr_IsTabActive(TabID_t eID)
+{
+    if ((unsigned)eID >= kNumTabIDs)
+    {
+        return false;
+    }
+
+    MenuTab_t *const pTab = _Ctx.pMenus[eID];
+    if (pTab == NULL)
+    {
+        return false;
+    }
+
+    if (pTab->fnIsActive == NULL)
+    {
+        return true;
+    }
+
+    return pTab->fnIsActive();
+}
+
+static TabID_t MenuMgr_FindNextActiveTab(TabID_t eFrom, bool forward)
+{
+    TabID_t eCandidate = eFrom;
+
+    for (size_t i = 0; i < kNumTabIDs; i++)
+    {
+        if (forward)
+        {
+            eCandidate = (eCandidate + 1 >= kNumTabIDs) ? kTabID_First : eCandidate + 1;
+        }
+        else
+        {
+            eCandidate = ((signed)eCandidate - 1 < 0) ? kTabID_Last : eCandidate - 1;
+        }
+
+        if (MenuMgr_IsTabActive(eCandidate))
+        {
+            return eCandidate;
+        }
+    }
+
+    return eFrom;
 }
 
 static OSD_Result_t MenuMgr_OnTransition(void *arg)

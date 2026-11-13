@@ -25,7 +25,7 @@ static bool SlotValid(unsigned Slot) { return Slot>=1 && Slot<=kNativeStateSlots
 static bool Request(bool Load,unsigned Slot) {
     bool Accepted=false;portENTER_CRITICAL(&Lock);
     if(Slot>=1 && Slot<=kNativeStateSlots && !Pending && !InFlight && Session && View.Available && View.Supported && (!Load || SlotValid(Slot))) {
-        DismissAt=0;CancelDismiss=false;PendingSession=Session;PendingSlot=Slot;Pending=Load?2:1;View.Phase=Load?kStateUILoading:kStateUISaving;Accepted=true;
+        DismissAt=0;View.Closing=false;CancelDismiss=false;PendingSession=Session;PendingSlot=Slot;Pending=Load?2:1;View.Phase=Load?kStateUILoading:kStateUISaving;Accepted=true;
         // The slot used last becomes the shortcuts' slot.
         if(View.Slot!=Slot){View.Slot=(uint8_t)Slot;View.Valid=SlotValid(Slot);SlotSetting=(int)Slot;}
     }
@@ -40,9 +40,14 @@ uint16_t NativeStateControl_Buttons(uint16_t Raw) {
     const uint16_t Pressed=Raw&~RawButtons&0xff;RawButtons=Raw;
     unsigned Event=NativeShortcut_Update(&Keys,Raw,Now,View.Shortcuts,&Consume);
     if(Event && !ShortcutEvent && !Pending && !InFlight){ShortcutEvent=Event;ShortcutSession=Session;}
-    if(Pressed && (InFlight || DismissAt))CancelDismiss=true;
+    if(Pressed && (InFlight || DismissAt)){CancelDismiss=true;View.Closing=false;}
     portEXIT_CRITICAL(&Lock);
     return Consume?(Raw&0x300):Raw;
+}
+void NativeStateControl_DebugShortcut(unsigned Event) {
+    portENTER_CRITICAL(&Lock);
+    if(Event>=1 && Event<=2 && !ShortcutEvent && !Pending && !InFlight){ShortcutEvent=Event;ShortcutSession=Session;}
+    portEXIT_CRITICAL(&Lock);
 }
 static void Error(const char *Text) { portENTER_CRITICAL(&Lock);View.Phase=kStateUIError;snprintf(View.Message,sizeof(View.Message),"%s",Text);portEXIT_CRITICAL(&Lock); }
 static void Step(void) {
@@ -88,6 +93,7 @@ static void Step(void) {
             portEXIT_CRITICAL(&Lock);
             if(Closed)FPGA_Tx_PulseButtons(0x100);
             portENTER_CRITICAL(&Lock);unsigned Slot=View.Slot;portEXIT_CRITICAL(&Lock);
+            printf("NATIVE_SHORTCUT event=%u slot=%u menu_closed=%u t=%lu\n",Event,Slot,Closed?1u:0u,(unsigned long)Millis());
             if(!SameGame || !Request(Event==2,Slot)) {
                 portENTER_CRITICAL(&Lock);FromShortcut=false;portEXIT_CRITICAL(&Lock);
                 char Text[32];snprintf(Text,sizeof(Text),"Slot %u is empty",Slot);
@@ -108,18 +114,23 @@ static void Step(void) {
                 R==ESP_ERR_TIMEOUT?"Save busy - try again":
                 (R==ESP_ERR_INVALID_CRC || R==ESP_ERR_INVALID_VERSION || R==ESP_ERR_INVALID_SIZE)?"State file on SD\ncard is damaged":
                 R==ESP_ERR_NOT_FOUND?"No state available":"State action failed");}
-            // A successful load closes the menu so play resumes at once; a
-            // shortcut action also closes it after briefly showing the result.
-            if(R==ESP_OK && (FromShortcut || Operation==2))DismissAt=Millis()+(FromShortcut ? 1200 : 300);
+            // A successful load closes the menu so play resumes; a shortcut
+            // action closes it too. The result is shown large until then.
+            if(R==ESP_OK && (FromShortcut || Operation==2)){DismissAt=Millis()+(FromShortcut ? 1200 : 800);View.Closing=true;}
+            const unsigned Phase=View.Phase;const uint32_t Dismiss=DismissAt;const uint16_t Raw=RawButtons;
             FromShortcut=false;portEXIT_CRITICAL(&Lock);
+            printf("NATIVE_UI done op=%u result=%s phase=%u dismiss_at=%lu raw=%03x t=%lu\n",Operation,esp_err_to_name(R),
+                   Phase,(unsigned long)Dismiss,Raw,(unsigned long)Millis());
         }
         portENTER_CRITICAL(&Lock);
         // Bit 9 set: the menu is already closed (pulsing would reopen it).
         // Buttons still held: wait for their release, then close.
         bool Close=DismissAt && (int32_t)(Millis()-DismissAt)>=0;
+        bool Decided=false;const uint16_t Raw=RawButtons;const bool Cancel=CancelDismiss;
         if(Close && !CancelDismiss && !(RawButtons&0x200) && (RawButtons&0x1ff))Close=false;
-        else if(Close){Close=!CancelDismiss && !(RawButtons&0x3ff);DismissAt=0;}
+        else if(Close){Close=!CancelDismiss && !(RawButtons&0x3ff);DismissAt=0;View.Closing=false;Decided=true;}
         portEXIT_CRITICAL(&Lock);
+        if(Decided)printf("NATIVE_UI dismiss close=%u raw=%03x cancel=%u t=%lu\n",Close?1u:0u,Raw,Cancel?1u:0u,(unsigned long)Millis());
         if(Close)FPGA_Tx_PulseButtons(0x100);
 }
 static void Worker(void *Arg) {

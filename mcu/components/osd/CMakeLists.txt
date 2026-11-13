@@ -6,6 +6,7 @@ idf_component_register(SRCS
                         "palette/palette.c"
                         "palette/style.c"
                         "display/frameblend.c"
+                        "palette/gbc_color_temp.c"
                         "display/color_correct_lcd.c"
                         "display/color_correct_usb.c"
                         "display/low_batt_icon_ctl.c"

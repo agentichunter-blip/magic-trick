@@ -12,6 +12,8 @@ typedef struct {
     bool Supported, Valid, Shortcuts, Available;
     uint8_t ValidMask, Slot; /* Slot: 1-3, used by the shortcuts and the last action. */
     NativeStatePhase Phase;
+    /* The menu closes by itself shortly: show the result large, then go. */
+    bool Closing;
     char Message[64];
 } NativeStateView;
 typedef void (*NativeStateRead)(NativeStateView *);

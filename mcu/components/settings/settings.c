@@ -22,6 +22,7 @@ static const char* NVS_KeyStr[kNumSettingKeys] = {
     [kSettingKey_LowBattIconCtl]   = "lbi-ctl",
     [kSettingKey_PaletteStyleID]   = "plt-style-id",
     [kSettingKey_PCBackupMode]     = "pc_backup",
+    [kSettingKey_GBCColorTemp]     = "gbc-ctemp",   /* same key as ModRetro's firmware */
 };
 
 const SettingValue_t DefaultSettings[kNumSettingKeys] = {
@@ -35,7 +36,7 @@ const SettingValue_t DefaultSettings[kNumSettingKeys] = {
     },
     [kSettingKey_ColorCorrectUSB] = {
         .eType = kSettingDataType_U8,
-        .U8 = 1,
+        .U8 = 0, /* ModRetro v4.6 default */
     },
     [kSettingKey_PlayerNum] = {
         .eType = kSettingDataType_U8,
@@ -66,6 +67,10 @@ const SettingValue_t DefaultSettings[kNumSettingKeys] = {
         .U8 = 0,
     },
     [kSettingKey_PCBackupMode] = {
+        .eType = kSettingDataType_U8,
+        .U8 = 0,
+    },
+    [kSettingKey_GBCColorTemp] = {
         .eType = kSettingDataType_U8,
         .U8 = 0,
     }

@@ -27,6 +27,7 @@
 #include "fpga_rx.h"
 #include "fpga_tx.h"
 #include "frameblend.h"
+#include "gbc_color_temp.h"
 #include "fw.h"
 #include "osd.h"
 #include "osd_default.h"
@@ -188,6 +189,7 @@ static void register_update_callbacks(void)
     ColorCorrectLCD_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     ColorCorrectUSB_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     FrameBlend_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
+    GBCColorTemp_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     ScreenTransitCtl_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     DPadCtl_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     LowBattIconCtl_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
@@ -204,6 +206,7 @@ static void persist_storage_init(void)
 
     const fnSettingApply_t fnApplySetting[kNumSettingKeys] = {
         [kSettingKey_FrameBlend]       = FrameBlend_ApplySetting,
+        [kSettingKey_GBCColorTemp]     = GBCColorTemp_ApplySetting,
         [kSettingKey_ColorCorrectLCD]  = ColorCorrectLCD_ApplySetting,
         [kSettingKey_ColorCorrectUSB]  = ColorCorrectUSB_ApplySetting,
         [kSettingKey_PlayerNum]        = PlayerNum_ApplySetting,

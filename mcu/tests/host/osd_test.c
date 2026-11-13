@@ -143,6 +143,10 @@ static void Snapshot(const char *Name) {
     }
     fclose(pFile);
 }
+/* As on the device: Palette in Game Boy games, Color Temp in color games. */
+static bool ColorGame;
+static bool PaletteActive(void) { return !ColorGame; }
+static bool ColorTempActive(void) { return ColorGame; }
 static bool JobReady, ArtReady, ArtRequested, ArtMissing;
 static bool ArtMargin, VideoMargin, VideoEdgePixel;
 static unsigned ArtRequests;
@@ -272,6 +276,8 @@ int main(void) {
             pTab->Widget.fnOnTransition = Firmware_OnTransition;
             pTab->Widget.fnOnButton = Firmware_OnButton;
         }
+        if (i == kTabID_Palette) pTab->fnIsActive = PaletteActive;
+        if (i == kTabID_ColorTemp) pTab->fnIsActive = ColorTempActive;
         if (i == kTabID_Backups) {
             pTab->Accent = lv_color_hex(0x66ff66);
             pTab->Widget.fnDraw = RomBrowserUI_Draw;
@@ -920,6 +926,14 @@ int main(void) {
     Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL);
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateView.Shortcuts && StateSaves==2 && StateLoads==1);
     DrawScreen(&Menu,Screen);Snapshot("state-shortcuts");
+    {   /* Color games swap Palette for Color Temp in the same tab cell and
+         * icon, so the tab bar (rows 7-22) looks the same in both kinds. */
+        static lv_color_t GameBoyTabs[160*16];
+        memcpy(GameBoyTabs,&Frame[7*160],sizeof(GameBoyTabs));
+        ColorGame=true;DrawScreen(&Menu,Screen);Snapshot("state-shortcuts-color-game");
+        assert(memcmp(GameBoyTabs,&Frame[7*160],sizeof(GameBoyTabs))==0);
+        ColorGame=false;DrawScreen(&Menu,Screen);
+    }
     Menu.fnOnButton(kButton_Left,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL);DrawScreen(&Menu,Screen);assert(!NativeStateUI_IsOpen());
     NativeStateUI_RequestOpen();Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);assert(StateSaves==2 && !NativeStateUI_IsOpen());DrawScreen(&Menu,Screen);assert(NativeStateUI_IsOpen());

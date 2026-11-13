@@ -1,6 +1,7 @@
 #include "gg_cheats.h"
 #include "core_switch.h"
 #include "virtual_cart.h"
+#include "native_state_control.h"
 #include "gg_rom.h"
 #include "state_save_branch.h"
 #include "state_file.h"
@@ -2554,6 +2555,15 @@ static int NativeLoadCommand(int argc,char **argv)
     esp_err_t result=VirtualCart_StateCaptureSlot(true,ConsoleSlot(argc,argv),0);
     printf("STATE_LOAD=%s\n",esp_err_to_name(result));return result!=ESP_OK;
 }
+static int NativeShortcutCommand(int argc,char **argv)
+{
+    const unsigned Event=argc>1 ? (unsigned)atoi(argv[1]) : 1;
+    if(Event<1 || Event>2) { printf("NATIVE_SHORTCUT=REJECT event=%u\n",Event); return 1; }
+    NativeStateControl_DebugShortcut(Event);
+    printf("NATIVE_SHORTCUT=QUEUED event=%u\n",Event);
+    return 0;
+}
+
 static int NativeStatusCommand(int argc,char **argv)
 {
     (void)argc;(void)argv;uint32_t status=0;
@@ -2604,9 +2614,10 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
     const esp_console_cmd_t NativeCommands[]={
       {.command="statesave",.help="Save native state to slot 1-3 (default 1)",.hint="[slot]",.func=NativeSaveCommand},
       {.command="stateload",.help="Load native state from slot 1-3 (default 1) into a separate battery-save branch",.hint="[slot]",.func=NativeLoadCommand},
-      {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand}
+      {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},
+      {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand}
     };
-    for(unsigned i=0;i<3;++i) {
+    for(unsigned i=0;i<sizeof(NativeCommands)/sizeof(NativeCommands[0]);++i) {
       esp_err_t err=esp_console_cmd_register(&NativeCommands[i]);if(err!=ESP_OK) return err;
     }
     esp_err_t Result = esp_console_cmd_register(&Load);

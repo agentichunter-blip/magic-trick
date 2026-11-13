@@ -13,6 +13,7 @@
 #include "fpga_common.h"
 #include "fw.h"
 #include "frameblend.h"
+#include "gbc_color_temp.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "low_batt_icon_ctl.h"
@@ -134,8 +135,11 @@ void FPGA_TxTask(void *arg)
             const uint16_t IgnoreDiagonalInputs = (uint16_t)(DPadCtl_GetState() == kDPadCtlState_RejectDiag);
             const uint16_t EnableScreenTransitionFix  = (uint16_t)(ScreenTransitCtl_GetState() == kScreenTransitCtlState_On);
             const uint16_t LowBattIconControl = (uint16_t)(LowBattIconCtl_GetState());
+            /* Bits 10:8 (the cores' unused timer inputs): color temperature
+             * level, 0 neutral to 5 warmest (ModRetro's levels). */
+            const uint16_t ColorTemp = (uint16_t)(GBCColorTemp_GetLevel() & 7u);
 
-            const uint16_t Payload = ( (frame_blending << 1) | (color_correct << 2) | ismuted | (playernum << 4) | (EnableScreenTransitionFix << 12) | (IgnoreDiagonalInputs << 11) | (LowBattIconControl << 13));
+            const uint16_t Payload = ( (frame_blending << 1) | (color_correct << 2) | ismuted | (playernum << 4) | (EnableScreenTransitionFix << 12) | (IgnoreDiagonalInputs << 11) | (LowBattIconControl << 13) | (ColorTemp << 8));
             const size_t Size = SetupTxBuffer(TxBuffer, kTxCmd_SysCtrl, sizeof(Payload), (void*)&Payload);
             (void) uart_write_bytes(UART_NUM_1, TxBuffer, Size);
         }

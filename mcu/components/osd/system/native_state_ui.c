@@ -11,6 +11,7 @@ static bool Expanded;
 static unsigned Slot;
 static atomic_bool OpenRequested;
 void NativeStateUI_RequestOpen(void) { atomic_store(&OpenRequested,true); }
+
 bool NativeStateUI_TakeOpenRequest(void) { return atomic_exchange(&OpenRequested,false); }
 static unsigned Choice;
 static const uint32_t Accent=0xff3399;
@@ -73,6 +74,16 @@ OSD_Result_t NativeStateUI_Draw(void *Screen) {
         else{snprintf(Text,sizeof(Text),"%s slot %u...",S.Phase==kStateUISaving?"Saving to":"Loading",S.Slot);lv_label_set_text(Status,Text);}
         Show(Note,true);lv_label_set_text_static(Note,"Keep the game open.");lv_label_set_text_static(Footer,"PLEASE WAIT");return kOSD_Result_Ok;
     }
+    if(S.Closing && (S.Phase==kStateUISaved || S.Phase==kStateUILoaded)) {
+        /* A shortcut, or Load in this menu: the result in the same place as
+         * "Saving/Loading...", then the menu closes and the game continues. */
+        Slot=0;Choice=S.Slot?S.Slot-1:0;
+        lv_label_set_text_static(Title,"SAVE STATES");
+        lv_obj_set_pos(Status,6,30);lv_obj_set_width(Status,120);
+        snprintf(Text,sizeof(Text),"%s\nSlot %u",S.Phase==kStateUISaved?"State saved":"State loaded",S.Slot);
+        lv_label_set_text(Status,Text);
+        Show(Note,false);lv_label_set_text_static(Footer,"");return kOSD_Result_Ok;
+    }
     lv_obj_set_pos(Status,4,17);lv_obj_set_width(Status,124);
     bool Usable=S.Available && S.Supported;
     if(Slot && !Usable)CloseSlot();
@@ -92,7 +103,7 @@ OSD_Result_t NativeStateUI_Draw(void *Screen) {
     const char *StatusText=S.Phase==kStateUISaved?"State saved":S.Phase==kStateUILoaded?"State restored":
         S.Phase==kStateUIError?S.Message:!S.Available?"Unavailable right now":!S.Supported?"No supported game":NULL;
     if(StatusText)lv_label_set_text(Status,StatusText);
-    else if(Choice==3)lv_label_set_text_static(Status,"MENU+UP / hold DOWN");
+    else if(Choice==3)lv_label_set_text_static(Status,"MENU+SEL / MENU+START");
     else{snprintf(Text,sizeof(Text),"Shortcuts use slot %u",S.Slot);lv_label_set_text(Status,S.Shortcuts?Text:"Kept on the SD card");}
     for(unsigned I=0;I<kNativeStateSlots;I++) {
         snprintf(Text,sizeof(Text),"Slot %u: %s",I+1,Saved(&S,I+1)?"Saved":"Empty");

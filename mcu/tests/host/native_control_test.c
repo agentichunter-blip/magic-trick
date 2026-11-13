@@ -66,14 +66,14 @@ int main(void){
  PC=true;Refresh();assert(!Request(false,1));PC=false;
  Uncertain=true;Refresh();assert(!Request(true,1));Uncertain=false;Refresh();
  SetShortcuts(true);Step();assert(View.Shortcuts);
- assert(NativeStateControl_Buttons(0x310)==0x300);Clock+=40;
- assert(NativeStateControl_Buttons(0x210)==0x200);Clock+=40;
+ assert(NativeStateControl_Buttons(0x302)==0x300);Clock+=40;
+ assert(NativeStateControl_Buttons(0x202)==0x200);Clock+=40;
  assert(NativeStateControl_Buttons(0x200)==0x200);Step();assert(Opens==1 && Pulses==1 && Saves==2);
  NativeStateControl_Buttons(0);Clock+=1200;Step();assert(Pulses==2);
- NativeStateControl_Buttons(0x310);Clock+=40;NativeStateControl_Buttons(0x200);Step();
+ NativeStateControl_Buttons(0x302);Clock+=40;NativeStateControl_Buttons(0x200);Step();
  NativeStateControl_Buttons(0x08);Clock+=1200;Step();assert(Pulses==3); /* A cancels auto-close. */
  NativeStateControl_Buttons(0x200);Clock+=40;
- NativeStateControl_Buttons(0x310);Clock+=40;NativeStateControl_Buttons(0x200);
+ NativeStateControl_Buttons(0x302);Clock+=40;NativeStateControl_Buttons(0x200);
  unsigned Before=Saves;++Game;Step();assert(Saves==Before && View.Phase==kStateUIError);
  SettingResult=ESP_FAIL;SetShortcuts(false);Step();assert(View.Shortcuts && View.Phase==kStateUIError && StoredSetting==1);
  SettingResult=ESP_OK;SetShortcuts(false);Step();assert(!View.Shortcuts && StoredSetting==0);
@@ -91,8 +91,8 @@ int main(void){
  assert(!Request(true,2) && !Request(false,0) && !Request(false,4) && !Request(true,4));
  unsigned S0=Saves;assert(Request(false,2));assert(View.Slot==2 && !View.Valid);Step();
  assert(Saves==S0+1 && LastSlot==2 && HasStoredSlot && StoredSlot==2 && View.Valid && View.ValidMask==3);
- NativeStateControl_Buttons(0x310);Clock+=40;NativeStateControl_Buttons(0x200);Step();
- assert(Saves==S0+2 && LastSlot==2); /* MENU+UP uses the current slot. */
+ NativeStateControl_Buttons(0x302);Clock+=40;NativeStateControl_Buttons(0x200);Step();
+ assert(Saves==S0+2 && LastSlot==2); /* MENU+SELECT uses the current slot. */
  unsigned L0=Loads;assert(Request(true,1));Step();assert(Loads==L0+1 && LastSlot==1 && StoredSlot==1);
  assert(Request(true,2));Step();assert(LastSlot==2 && StoredSlot==2);
  Mask=1;Refresh();assert(!View.Valid && View.ValidMask==1); /* slot 2's file went missing */
@@ -105,14 +105,22 @@ int main(void){
   * wait for its release. A new press keeps the menu open; a menu the player
   * already closed is not pulsed (that would reopen it). */
  Mask=3;Refresh();
+ /* The result shows large (Closing) for 0.8 s, then the menu closes. */
  NativeStateControl_Buttons(0x08);unsigned P0=Pulses;
- assert(Request(true,1));Step();assert(View.Phase==kStateUILoaded);
- Clock+=300;Step();assert(Pulses==P0);
- NativeStateControl_Buttons(0);Clock+=40;Step();assert(Pulses==P0+1);
+ assert(Request(true,1));Step();assert(View.Phase==kStateUILoaded && View.Closing);
+ Clock+=500;Step();assert(Pulses==P0 && View.Closing);
+ Clock+=300;Step();assert(Pulses==P0 && View.Closing);   /* A still held: wait */
+ NativeStateControl_Buttons(0);Clock+=40;Step();assert(Pulses==P0+1 && !View.Closing);
  Clock+=1000;Step();assert(Pulses==P0+1);
- assert(Request(true,1));Step();NativeStateControl_Buttons(0x04);NativeStateControl_Buttons(0);Clock+=300;Step();assert(Pulses==P0+1);
- assert(Request(true,1));Step();NativeStateControl_Buttons(0x200);Clock+=300;Step();assert(Pulses==P0+1);
- /* A menu Save leaves the menu open. */
- NativeStateControl_Buttons(0);assert(Request(false,1));Step();Clock+=1500;Step();assert(Pulses==P0+1);
- puts("PASS async native controller: empty slot, duplicate requests, autosave wait, errors, stale game, PC/recovery lockout, persisted shortcuts and feedback, three slots, menu close after Load");
+ assert(Request(true,1));Step();NativeStateControl_Buttons(0x04);assert(!View.Closing);
+ NativeStateControl_Buttons(0);Clock+=800;Step();assert(Pulses==P0+1);
+ assert(Request(true,1));Step();NativeStateControl_Buttons(0x200);Clock+=800;Step();assert(Pulses==P0+1 && !View.Closing);
+ /* A menu Save leaves the menu open and shows the result in the slot list. */
+ NativeStateControl_Buttons(0);assert(Request(false,1));Step();assert(!View.Closing);Clock+=1500;Step();assert(Pulses==P0+1);
+ /* A shortcut shows its result large for 1.2 s, then closes the menu. */
+ NativeStateControl_Buttons(0x302);Clock+=40;NativeStateControl_Buttons(0x200);Step();
+ assert(View.Phase==kStateUISaved && View.Closing);
+ NativeStateControl_Buttons(0);Clock+=1100;Step();assert(Pulses==P0+2 && View.Closing);
+ Clock+=200;Step();assert(Pulses==P0+3 && !View.Closing);
+ puts("PASS async native controller: empty slot, duplicate requests, autosave wait, errors, stale game, PC/recovery lockout, persisted shortcuts and feedback, three slots, menu close after Load, large result before closing");
 }
