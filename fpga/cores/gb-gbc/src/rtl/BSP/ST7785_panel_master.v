@@ -1,4 +1,7 @@
 module ST7785_panel_master(
+    // ModRetro 18.10+: with the power switch off on USB power, keep the panel
+    // timing running but write black (the backlight is off too).
+    input               appear_off,
     input               gClk,
     input               nRST,
 
@@ -239,11 +242,11 @@ module ST7785_panel_master(
             if(LCD_EN)
             begin
                 if(phase == 2)
-                    LCD_DB <= color_pixelp[17:12]; // Blue
+                    LCD_DB <= appear_off ? 6'd0 : color_pixelp[17:12]; // Blue
                 if(phase == 1)
-                    LCD_DB <= color_pixelp[11:6]; // Green
+                    LCD_DB <= appear_off ? 6'd0 : color_pixelp[11:6]; // Green
                 if(phase == 0)
-                    LCD_DB <= color_pixelp[5:0]; // Red
+                    LCD_DB <= appear_off ? 6'd0 : color_pixelp[5:0]; // Red
 
                 LCD_DB_UVC <= color_pixeluvc;
                 LCD_ENABLE_UVC <= LCD_DEI_r2;

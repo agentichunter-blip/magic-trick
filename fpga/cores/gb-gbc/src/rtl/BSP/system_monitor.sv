@@ -1,6 +1,10 @@
 // system_monitor.v
 
 module system_monitor(
+    // ModRetro 18.9-18.14 board support
+    input               appear_off,      // power switch off on USB power
+    input               VERSION_DET,     // 1 = original board, 0 = revised board
+    output              POWERED_BY_LIPO,
     input reload_allowed,
     output reload_n, reload_hold,
     input               clk,
@@ -236,6 +240,16 @@ module system_monitor(
 
     reg [13:0] volt;
     wire       bat_is_LI;
+   // ModRetro 18.14: raw ADC thresholds by board (VERSION_DET 1 = original,
+   // 0 = revised). Original-board values are the pre-18.9 ones.
+   // Red LED and low-battery icon: about 20% AA / 17% LiPo.
+   wire [13:0] low_battery_threshold = VERSION_DET
+       ? (bat_is_LI ? 14'd1182 : 14'd1071)
+       : (bat_is_LI ? 14'd1238 : 14'd1118);
+   // AA power save entry and recovery (separate recovery level avoids toggling).
+   wire [13:0] power_save_enter_threshold = VERSION_DET ? 14'd979 : 14'd1019;
+   wire [13:0] power_save_exit_threshold  = VERSION_DET ? 14'd1293 : 14'd1357;
+   wire [13:0] VOLTAGE_1V8 = VERSION_DET ? 14'd700 : 14'd646;
 
     always@(posedge clk or posedge reset)
     begin
@@ -316,13 +330,13 @@ module system_monitor(
             end
 
             if (volt >= 700) begin // ~1.8V
-               if (~lowpowerBacklight && ~bat_is_LI && volt < 979) begin // below 2.55 V
+               if (~lowpowerBacklight && ~bat_is_LI && volt < power_save_enter_threshold) begin // below 2.55 V
                   request_SystemStatusExtended <= 1'b1;
                   lowpowerBacklight            <= 1'b1;
                   lowerpowerOldBL              <= brightness;
                end
 
-               if (lowpowerBacklight && ~bat_is_LI && volt > 1293) begin // above 3.4 V
+               if (lowpowerBacklight && ~bat_is_LI && volt > power_save_exit_threshold) begin // above 3.4 V
                   request_SystemStatusExtended <= 1'b1;
                   lowpowerBacklight            <= 1'b0;
                   brightness                   <= lowerpowerOldBL;
@@ -339,8 +353,10 @@ module system_monitor(
     reg menuDown = 1'b0;
     always@(posedge clk)
     begin
-        if(reset) begin
+        if(reset | appear_off) begin   // ModRetro 18.14: no menu while the unit appears off
             menuDisabled <= 1'b1;
+            btnMenu_r1 <= 1'b1; // active-low button: released
+            btnMenu_r2 <= 1'b1;
         end else begin
             btnMenu_r1 <= BTN_MENU;
             btnMenu_r2 <= btnMenu_r1;
@@ -393,7 +409,9 @@ module system_monitor(
         else
             lcdcount <= 'd0;
 
-    assign LCD_PWM = LCD_INIT_DONE&LCD_BACKLIGHT_INIT ? (lcdcount <= {brightness[3:0], 4'd0}) : 1'd0;
+    // ModRetro 18.10+: backlight off while the unit appears off.
+    assign LCD_PWM = appear_off ? 1'd0 :
+                     LCD_INIT_DONE&LCD_BACKLIGHT_INIT ? (lcdcount <= {brightness[3:0], 4'd0}) : 1'd0;
 
 
     // 8.388608Mhz clock -> ~119.2ns
@@ -426,9 +444,7 @@ module system_monitor(
    reg [8:0]  volt_cnt;
    reg        transmitVolt;
 
-   wire [13:0] VOLTAGE_FULL   = bat_is_LI ? 14'd1423 : 14'd1367; //  3.75V LI : 3.6V AA
-   wire [13:0] VOLTAGE_CRIT   = bat_is_LI ? 14'd1145 : 14'd997;  //  3.0V  LI : 2.6V AA
-   wire [13:0] VOLTAGE_RED    = bat_is_LI ? 14'd1182 : 14'd1071; //  3.1V  LI : 2.8V AA
+   assign POWERED_BY_LIPO = bat_is_LI;
 
    reg blink;
 
@@ -489,17 +505,21 @@ module system_monitor(
          LED_Yellow  <= 1'd0;
          LED_White   <= 1'd0;
 
-         if (volt >= 700) begin // ~1.8V
+         if (volt >= VOLTAGE_1V8) begin
 
-            if (pmic_sys_status[2]) begin // charging
+            if (pmic_sys_status[2]) begin // BQ24296M REG08 PG_STAT: input power good
 
-               if(bat_is_LI && volt < VOLTAGE_FULL) begin
+               // ModRetro 18.14: white while REG08 CHRG_STAT says precharge (01) or
+               // fast charge (10); the battery voltage crosses a 'full' level
+               // repeatedly near full charge, so it isn't used.
+               if (bat_is_LI && ((pmic_sys_status[5:4] == 2'b01) ||
+                                 (pmic_sys_status[5:4] == 2'b10))) begin
                   LED_White   <= 1'd1;
                end
 
             end else begin
 
-               if(volt < VOLTAGE_RED) begin
+               if(volt < low_battery_threshold) begin
                   low_battery <= 1'd1;
                   if (blink) LED_Red <= 1'd1;
                end
@@ -618,7 +638,9 @@ module system_monitor(
         case (tx_channel)
             0, 1, 2, 3, 4, 5, 6:
                 case (tx_bytepos)
-                    0: tx_senddata = {2'd0, telemetry_data[13:8]};
+                    // ModRetro 18.9: battery packets carry the board in bit 15
+                    // (1 = revised board; old firmware reads 0 as the original).
+                    0: tx_senddata = {(tx_channel <= 1) ? !VERSION_DET : 1'b0, 1'd0, telemetry_data[13:8]};
                     1: tx_senddata = telemetry_data[7:0];
                     default: tx_senddata = 8'd0;
                 endcase

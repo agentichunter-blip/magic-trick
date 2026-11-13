@@ -2,6 +2,7 @@
 
 module vid_system_top #(parameter ISSIMU=0)
 (
+    input               appear_off,   // power switch off on USB power: black, backlight off
     input               gClk,
     input               hClk,
     input               pClk,
@@ -450,6 +451,7 @@ module vid_system_top #(parameter ISSIMU=0)
                                  overlayActive ? overlayColor : hColorPixelUVCCorrected;
 
     ST7785_panel_master u_ST7785_panel_master(
+        .appear_off(appear_off),
         .gClk(gClk),
         .nRST(LCD_INIT_DONE),
         .hClk(hClk),

@@ -43,7 +43,7 @@ module emu_system_top
     output  [7:0]       CART_D_OUT,
     output              CART_D_OE,
     output              CART_RD,
-    inout               CART_RST,
+    input               CART_RST,   // unused; cartridge_interface owns the pin
     output              CART_WR,
 
     input               virtual_enable,
@@ -233,7 +233,6 @@ module emu_system_top
     assign CART_WR=1;
     assign CART_D_OUT=0;
     assign CART_D_OE=0;
-    assign CART_RST=1'bz;
     assign LINK_CLK=1'bz;
     assign LINK_OUT=1;
     assign IR_LED=0;

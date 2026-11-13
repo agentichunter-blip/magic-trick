@@ -28,6 +28,8 @@ module top #(parameter ISSIMU=0)
     inout               CART_RST,
     output              CART_WR,
     output              CART_DATA_DIR_E,
+    output              CART_CTRL_OE,   // revised boards: cartridge level-shifter enable
+    output              CART_PWR_EN,    // revised boards: cartridge power
 
     input               CART_DET,
     input               CART_AUDIN,
@@ -41,7 +43,6 @@ module top #(parameter ISSIMU=0)
     output              SDIO_LS,
     input               POWER_ON_FPGA,
     output              POWER_DOWN_IO,
-    input               VBUS_DET,
 
     output reg          ESP32_IO0,
 
@@ -65,12 +66,6 @@ module top #(parameter ISSIMU=0)
     output  reg         FPGA_LED_G,
     output  reg         FPGA_LED_B,
 
-    output  [2:0]       HDMI_D_P,
-    output  [2:0]       HDMI_D_N,
-    output              HDMI_CLK_P,
-    output              HDMI_CLK_N,
-    input               HDMI_SBU1_HPD,
-    output              HDMI_SBU2_CEC,
 
     input               IR_RX,
     output              IR_LED,
@@ -91,7 +86,9 @@ module top #(parameter ISSIMU=0)
     inout               LINK_CLK,
     input               LINK_IN,
     output              LINK_OUT,
-    output              LINK_SD,
+    input               LINK_SD,        // ModRetro 18.9: input; FPGA side of the shifter only listens
+    output              LINK_CLK_DIR_LV, // link clock level-shifter direction (1 = FPGA drives)
+    output              LINK_SD_DIR_LV,
 
     output              PS_CE_N,
     output              PS_CLK,
@@ -101,7 +98,6 @@ module top #(parameter ISSIMU=0)
     inout               SCL,
     inout               SDA,
 
-    input               USBC_FLIP,
     inout               usb_dxp_io,
     inout               usb_dxn_io,
     input               usb_rxdp_i,
@@ -111,7 +107,12 @@ module top #(parameter ISSIMU=0)
     inout               usb_term_dn_io,
 
     input               VBAT_ADC_P,
-    input               VBAT_ADC_N
+    input               VBAT_ADC_N,
+
+    input               VERSION_DET,    // 1 = original board (weak pull-up), 0 = revised board
+    input               VERSION_DET2,
+    input               DISPLAY_ID,
+    output              CHG_EN_FPGA
 );
 
     assign POWER_DOWN_IO = 1'bZ;
@@ -120,7 +121,16 @@ module top #(parameter ISSIMU=0)
     wire    BIST_failed;
     wire    BIST_finished;
 
-    assign FPGA_LED_EN = 1'd1;
+    // ModRetro 18.9-18.14 board support. POWER_ON_FPGA is high when the
+    // Chromatic is on USB power with its switch off: the unit then appears off
+    // (LED, backlight, picture, menu, audio, USB). Unlike ModRetro, an emulator
+    // reset doesn't blank the screen here: Magic Trick's library runs while the
+    // core is held in reset.
+    wire appear_off = POWER_ON_FPGA;
+    assign FPGA_LED_EN = !POWER_ON_FPGA;
+    assign CHG_EN_FPGA = 1'b1;      // as in ModRetro 18.14
+    assign LINK_SD_DIR_LV = 1'b0;   // SD line unused: FPGA side is always an input
+    assign LINK_CLK_DIR_LV = 1'b0;  // no link play in the Game Gear core: listen only
 
     wire lock_o;
 
@@ -369,6 +379,7 @@ module top #(parameter ISSIMU=0)
 
     vid_system_top #(ISSIMU)
     u_vid_system_top(
+        .appear_off(appear_off),
         .gClk(gClk),
         .hClk(hClk),
         .pClk(pClk),
@@ -436,7 +447,11 @@ module top #(parameter ISSIMU=0)
     wire [7:0]  volume;
     wire        hHeadphones;
 
-    aud_system_top u_aud_system_top(
+    aud_system_top_8_16 u_aud_system_top(
+        .appear_off(appear_off),
+        .VERSION_DET(VERSION_DET),
+        .POWER_ON_FPGA(POWER_ON_FPGA),
+        .temperature(),
         .gClk(gClk),
         .hClk(hClk),
         .reset_n(lock_o),
@@ -444,7 +459,7 @@ module top #(parameter ISSIMU=0)
         .right(right),
         .AUD_BCLK(AUD_BCLK),
         .AUD_DIN(AUD_DIN),
-        .AUD_DOUT(),
+        .AUD_DOUT(1'b0),
         .AUD_MCLK(AUD_MCLK),
         .AUD_RESET(AUD_RESET),
         .AUD_WCLK(AUD_WCLK),
@@ -1104,10 +1119,44 @@ module top #(parameter ISSIMU=0)
     wire        maintenance_cart_data_oe;
     wire [7:0]  physical_cart_data_out;
     wire        physical_cart_data_oe;
-    wire [7:0]  physical_cart_data_in = CART_D;
+    wire [7:0]  physical_cart_data_in;
+    wire [15:0] mux_cart_address;
+    wire        mux_cart_clock, mux_cart_cs_n, mux_cart_read_n, mux_cart_write_n;
+    wire        cartridge_ready;
 
-    assign CART_D = physical_cart_data_oe ? physical_cart_data_out : 8'hzz;
-    assign CART_DATA_DIR_E = ~physical_cart_data_oe;
+    // ModRetro 18.11 cartridge power and level-shifter sequencing. On revised
+    // boards the cartridge is powered and its pins released in steps after the
+    // switch turns on, and driven low/unpowered while off (no leakage on USB
+    // power). Original boards keep their previous behavior.
+    reg [1:0] cartridge_reset_sync = 2'b00;
+    always @(posedge hClk or negedge lock_o)
+        if (!lock_o) cartridge_reset_sync <= 2'b00;
+        else cartridge_reset_sync <= {cartridge_reset_sync[0], 1'b1};
+    cartridge_interface u_cartridge_interface (
+        .clk(hClk),
+        .reset_n(cartridge_reset_sync[1]),
+        .cartridge_enable(~POWER_ON_FPGA),
+        .version_detect(VERSION_DET),
+        .cartridge_ready(cartridge_ready),
+        .core_a(mux_cart_address),
+        .core_clk(mux_cart_clock),
+        .core_cs(mux_cart_cs_n),
+        .core_rd(mux_cart_read_n),
+        .core_wr(mux_cart_write_n),
+        .core_d_out(physical_cart_data_out),
+        .core_d_in(physical_cart_data_in),
+        .core_data_dir_e(~physical_cart_data_oe),
+        .CART_A(CART_A),
+        .CART_CLK(CART_CLK),
+        .CART_CS(CART_CS),
+        .CART_RD(CART_RD),
+        .CART_WR(CART_WR),
+        .CART_D(CART_D),
+        .CART_RST(CART_RST),
+        .CART_DATA_DIR_E(CART_DATA_DIR_E),
+        .CART_CTRL_OE(CART_CTRL_OE),
+        .CART_PWR_EN(CART_PWR_EN)
+    );
 
     cart_bus_owner_mux u_cart_bus_owner_mux(
         .maintenance_active(1'b0) /* GG prototype: physical cartridge bus remains idle */,
@@ -1125,11 +1174,11 @@ module top #(parameter ISSIMU=0)
         .maintenance_write_n(maintenance_cart_write_n),
         .maintenance_data_out(maintenance_cart_data_out),
         .maintenance_data_oe(maintenance_cart_data_oe),
-        .physical_address(CART_A),
-        .physical_clock(CART_CLK),
-        .physical_cs_n(CART_CS),
-        .physical_read_n(CART_RD),
-        .physical_write_n(CART_WR),
+        .physical_address(mux_cart_address),
+        .physical_clock(mux_cart_clock),
+        .physical_cs_n(mux_cart_cs_n),
+        .physical_read_n(mux_cart_read_n),
+        .physical_write_n(mux_cart_write_n),
         .physical_data_out(physical_cart_data_out),
         .physical_data_oe(physical_cart_data_oe)
     );
@@ -1232,7 +1281,7 @@ module top #(parameter ISSIMU=0)
         .xclk(xClk),
         .reset_n(~memrst_hclk && BIST_finished && !BIST_failed), // GG: wait for PSRAM BIST
         .xreset(memrst),
-        .POWER_GOOD(~POWER_ON_FPGA),
+        .POWER_GOOD(cartridge_ready),   // ModRetro 18.11: run once the cartridge is up
         .maintenance_reset_h(cart_maintenance_reset_h | core_reload_hold_h),
         .virtual_attempt_reset_h(virtual_attempt_reset_h),
         .virtual_quiesce_h(virtual_quiesce_h),
@@ -1401,14 +1450,6 @@ module top #(parameter ISSIMU=0)
     wire clk24;
     wire [7:0] debugs;
 
-    assign HDMI_D_P[2] = lcd_on_int;
-    assign HDMI_D_N[2] = hDrawOSD;
-    assign HDMI_D_P[1] = lcd_off_overwrite;
-    assign HDMI_D_N[1] = display_gb_lcd_on;
-    assign HDMI_D_P[0] = display_gb_lcd_vsync;
-    assign HDMI_D_N[0] = display_gb_lcd_mode[1];
-    assign HDMI_CLK_P = display_gb_lcd_clkena;
-    assign HDMI_CLK_N = hGBWrite;
 
     reg hr1;
     reg vr1;
@@ -1454,7 +1495,7 @@ module top #(parameter ISSIMU=0)
 
     usbuvcuart_top u_usb_top(
         .CLK_24MHz(CLK_24MHz),
-        .ERST(usbrst),
+        .ERST(usbrst | POWER_ON_FPGA),   // ModRetro 18.11: USB held in reset while switched off
         .pClk(PHY_CLKOUT),
         .usblocked(usblocked),
         .hClk(gClk),
@@ -1511,6 +1552,9 @@ module top #(parameter ISSIMU=0)
         ? BTN_MENU_ored : 1'b1;
 
     system_monitor u_system_monitor(
+        .appear_off(appear_off),
+        .VERSION_DET(VERSION_DET),
+        .POWERED_BY_LIPO(),
         .gg_cheat_request(gg_cheat_request), .gg_cheat_payload(gg_cheat_payload),
         .reload_allowed(!virtual_enable_g && !virtual_start_pending_g && !cart_maintenance_request_g),
         .reload_n(GW_BACKGROUND_RECONFIG_N), .reload_hold(core_reload_hold_g),

@@ -21,7 +21,8 @@ module tlv320_init#(
 );
 
     localparam numregs = 64; 
-    localparam numregsactual = 64; 
+    // ModRetro 18.11: the state machine writes indices 0 through numregsactual inclusive.
+    localparam numregsactual = numregs - 1;
     reg [15:0] tlv320regs [numregs-1:0] /* synthesis syn_romstyle = "block_rom" */;
     initial
     begin

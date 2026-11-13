@@ -353,6 +353,7 @@ module top #(parameter ISSIMU=0)
 
     vid_system_top #(ISSIMU)
     u_vid_system_top(
+        .appear_off(1'b0),
         .gClk(gClk),
         .hClk(hClk),
         .pClk(pClk),

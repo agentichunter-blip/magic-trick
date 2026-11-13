@@ -373,6 +373,19 @@ static bool ProcessByte(uint8_t NextByte, RxMsg_t *pMsg)
     return false;  // No valid message reconstructed yet
 }
 
+/* Logs the board revision the FPGA reports in battery packets (bit 15), once
+ * per change: original boards (100-0171) or revised ones (100-0843). */
+static void LogBoardRevision(const uint16_t RawBattery)
+{
+    static int Logged = -1;
+    const int Revised = (int)(RawBattery >> 15);
+    if (Revised != Logged)
+    {
+        Logged = Revised;
+        printf("BOARD revision=%s\n", Revised ? "revised" : "original");
+    }
+}
+
 static void ProcessMessage(const RxMsg_t *const pMsg)
 {
     if (pMsg == NULL)
@@ -412,6 +425,7 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
                 result = (10.0f + 2.2f)*(result/(2.2f));
                 result = result - 0.1f;
             }
+            LogBoardRevision(rxdata);
             Battery_UpdateVoltage(result, kBatteryKind_AA);
             break;
         }
@@ -431,6 +445,7 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
                 result = (10.0f + 2.2f)*(result/(2.2f));
                 result = result - 0.1f;
             }
+            LogBoardRevision(rxdata);
             Battery_UpdateVoltage(result, kBatteryKind_LiPo);
             break;
         }

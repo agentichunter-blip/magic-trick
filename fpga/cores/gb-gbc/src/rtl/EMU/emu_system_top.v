@@ -44,7 +44,7 @@ module emu_system_top
     output  [7:0]       CART_D_OUT,
     output              CART_D_OE,
     output              CART_RD,
-    inout               CART_RST,
+    input               CART_RST,   // read only: cartridge_interface owns the pin
     output              CART_WR,
 
     input               virtual_enable,
@@ -85,6 +85,7 @@ module emu_system_top
     output              IR_LED,
 
     inout               LINK_CLK,
+    output              LINK_CLK_DIR_LV,
     input               LINK_IN,
     output              LINK_OUT,
 
@@ -236,7 +237,6 @@ module emu_system_top
     wire sel_cram = a[15:13] == 3'b101;           // 8k cart ram at $a000
     wire cart_oe = (rd & ~a[15]) | (sel_cram & rd);
 
-    assign CART_RST = 1'bZ;
 
     reg gbreset;
     reg gbreset_ungated;
@@ -338,6 +338,8 @@ module emu_system_top
         serial_data_out_r1 <= serial_data_out;
     end
 
+    // ModRetro 18.9: link clock level-shifter direction follows the clock source.
+    assign LINK_CLK_DIR_LV = sc_int_clock2_r1;
     assign LINK_CLK = sc_int_clock2_r1 ? serial_clk_out_r1 : 1'bZ;
     assign serial_clk_in = LINK_CLK_r1;
 

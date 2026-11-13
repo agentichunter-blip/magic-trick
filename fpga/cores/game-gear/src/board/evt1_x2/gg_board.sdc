@@ -4,7 +4,8 @@ create_generated_clock -name hclk -source [get_ports {CLK_FPGA}] -master_clock e
 create_generated_clock -name gclk -source [get_ports {CLK_FPGA}] -master_clock exclk -divide_by 4 -multiply_by 1 [get_pins {u_Gowin_PLL/PLLA_inst/CLKOUT3}]
 create_generated_clock -name xclk -source [get_ports {CLK_FPGA}] -master_clock exclk -divide_by 1 -multiply_by 2 [get_pins {u_Gowin_PLL/PLLA_inst/CLKOUT4}]
 
-create_generated_clock -name aud_shift_clk -source [get_pins {u_Gowin_PLL/PLLA_inst/CLKOUT3}] -master_clock gclk -divide_by 2 [get_pins {u_aud_system_top/count_*_s0/CLK u_aud_system_top/AUD_WCLK_s0/CLK u_aud_system_top/stereo_sr_*_s0/CLK}]
+// Audio serialization uses gclk with an alternate-cycle enable (ModRetro 18.11):
+// there is no divided audio clock domain any more.
 
 create_clock -name sclk -period 25 [get_ports {QSPI_CLK}]
 create_clock -name exclk -period 29.802322 [get_ports {CLK_FPGA}]
