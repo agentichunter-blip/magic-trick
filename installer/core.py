@@ -3,15 +3,15 @@ import hashlib, json, os, re, struct, subprocess, sys, threading, time
 from pathlib import Path
 import fpga
 
-RELEASE = '1.0.0-beta.3'          # firmware this installer installs
-INSTALLER_VERSION = '1.0.0-beta.6'
+RELEASE = '1.0.0-beta.4'          # firmware this installer installs
+INSTALLER_VERSION = '1.0.0-beta.7'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
-    'mcu': ('magic-trick-1.0.0-beta.3-mcu.bin', '6fd950a8a2f2edc2b6bfc5d3189080090936611dca94cb07b4e2e5b38e30635d'),
+    'mcu': ('magic-trick-1.0.0-beta.4-mcu.bin', 'f3dad1181858ea119943f28fc33529fa454c3fe79d96b2b6ead4a42f7c36f9c6'),
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', 'cc4de5b69bf5afe6e06566ea7fde32bd2cc09b4c16e7845a066eae08fd1f6a11'),
-    'fpga_gg': ('magic-trick-game-gear.fs', 'cafa5ff80e6f1e03c5f296029f808e8bc769dd73367fca51955f0245ffea3f0c'),
+    'fpga_gg': ('magic-trick-game-gear.fs', '21fcf90c2608130a701595686b5ed98cb3f8102af9761b212d1af6f59cdb8649'),
     'fpga_chromagic': ('chromagic-1.0.1-fpga.fs', '79791d915060a9898c9be6adc7ab22f298cbea9619c6bb765b8667db62c337a2'),
 }
 TABLE_OFFSET = 0x8000
