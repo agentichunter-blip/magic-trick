@@ -12,17 +12,28 @@
 static atomic_uchar CoreIdentity;
 static const char Namespace[] = "core_switch";
 static const char Key[] = "path";
+static const char HopsKey[] = "hops";
 
 void CoreSwitch_ObserveVersion(uint8_t Major, uint8_t Minor)
 {
-    atomic_store(&CoreIdentity, Major == 50 && (Minor == 1 || Minor == 2) ? Minor : 0);
+    atomic_store(&CoreIdentity, Major == 50 && Minor >= 1 && Minor <= 3 ? Minor : 0);
 }
 bool CoreSwitch_IsSupported(void) { return atomic_load(&CoreIdentity) != 0; }
-bool CoreSwitch_IsTarget(bool GameGear) { return atomic_load(&CoreIdentity) == (GameGear ? 2 : 1); }
-static bool IsGameGear(const char *Path)
+CoreSystem_t CoreSwitch_Current(void) { return (CoreSystem_t)atomic_load(&CoreIdentity); }
+bool CoreSwitch_IsCore(CoreSystem_t System) { return System != kCoreSystem_None && atomic_load(&CoreIdentity) == System; }
+bool CoreSwitch_IsTarget(bool GameGear) { return CoreSwitch_IsCore(GameGear ? kCoreSystem_GG : kCoreSystem_GB); }
+CoreSystem_t CoreSwitch_SystemForPath(const char *Path)
 {
-    const char *Extension = strrchr(Path, '.');
-    return Extension && !strcasecmp(Extension, ".gg");
+    const char *Extension = Path ? strrchr(Path, '.') : NULL;
+    if (Extension && !strcasecmp(Extension, ".gg")) return kCoreSystem_GG;
+    if (Extension && (!strcasecmp(Extension, ".lnx") || !strcasecmp(Extension, ".lyx") ||
+                      !strcasecmp(Extension, ".o"))) return kCoreSystem_Lynx;
+    return kCoreSystem_GB;
+}
+CoreSystem_t CoreSwitch_NextCore(CoreSystem_t System)
+{
+    return System == kCoreSystem_GB ? kCoreSystem_GG : System == kCoreSystem_GG ? kCoreSystem_Lynx :
+        System == kCoreSystem_Lynx ? kCoreSystem_GB : kCoreSystem_None;
 }
 static esp_err_t ClearPending(void)
 {
@@ -31,6 +42,9 @@ static esp_err_t ClearPending(void)
     if (Result != ESP_OK) return Result;
     Result = nvs_erase_key(Handle, Key);
     if (Result == ESP_ERR_NVS_NOT_FOUND) Result = ESP_OK;
+    esp_err_t HopsResult = nvs_erase_key(Handle, HopsKey);
+    if (HopsResult == ESP_ERR_NVS_NOT_FOUND) HopsResult = ESP_OK;
+    if (Result == ESP_OK) Result = HopsResult;
     if (Result == ESP_OK) Result = nvs_commit(Handle);
     nvs_close(Handle);
     return Result;
@@ -44,17 +58,21 @@ bool CoreSwitch_HasPending(void)
     nvs_close(Handle);
     return Result == ESP_OK;
 }
-esp_err_t CoreSwitch_TakePending(char Path[LAST_GAME_PATH_SIZE])
+esp_err_t CoreSwitch_TakePendingHops(char Path[LAST_GAME_PATH_SIZE], uint8_t *pHops)
 {
     if (!Path) return ESP_ERR_INVALID_ARG;
     Path[0] = 0;
+    if (pHops) *pHops = 1;
     nvs_handle_t Handle;
     esp_err_t Result = nvs_open(Namespace, NVS_READONLY, &Handle);
     if (Result != ESP_OK) return Result;
     size_t Size = LAST_GAME_PATH_SIZE;
     Result = nvs_get_str(Handle, Key, Path, &Size);
+    uint8_t Hops = 1;
+    if (Result == ESP_OK && nvs_get_u8(Handle, HopsKey, &Hops) != ESP_OK) Hops = 1;
     nvs_close(Handle);
     if (Result == ESP_ERR_NVS_NOT_FOUND) return Result;
+    if (pHops) *pHops = Hops;
     /* Clear corrupt/oversized records too. A failed clear never authorizes launch. */
     const esp_err_t ClearResult = ClearPending();
     if (ClearResult != ESP_OK) Result = ClearResult;
@@ -62,16 +80,26 @@ esp_err_t CoreSwitch_TakePending(char Path[LAST_GAME_PATH_SIZE])
     if (Result != ESP_OK) Path[0] = 0;
     return Result;
 }
-esp_err_t CoreSwitch_Request(const char *Path)
+esp_err_t CoreSwitch_TakePending(char Path[LAST_GAME_PATH_SIZE])
+{
+    return CoreSwitch_TakePendingHops(Path, NULL);
+}
+static const char *Name(CoreSystem_t System)
+{
+    return System == kCoreSystem_GG ? "GG" : System == kCoreSystem_Lynx ? "LYNX" : "GB_GBC";
+}
+static esp_err_t Reload(const char *Path, uint8_t Hops)
 {
     if (!LastGame_ValidPath(Path)) return ESP_ERR_INVALID_ARG;
     if (!CoreSwitch_IsSupported()) return ESP_ERR_NOT_SUPPORTED;
-    const bool GameGear = IsGameGear(Path);
-    if (CoreSwitch_IsTarget(GameGear)) return ESP_ERR_INVALID_STATE;
+    const CoreSystem_t Target = CoreSwitch_SystemForPath(Path);
+    if (CoreSwitch_IsCore(Target)) return ESP_ERR_INVALID_STATE;
+    if (Hops > kCoreSwitchMaxHops) return ESP_ERR_INVALID_STATE;
     nvs_handle_t Handle;
     esp_err_t Result = nvs_open(Namespace, NVS_READWRITE, &Handle);
     if (Result != ESP_OK) return Result;
     Result = nvs_set_str(Handle, Key, Path);
+    if (Result == ESP_OK && Hops > 1) Result = nvs_set_u8(Handle, HopsKey, Hops);
     if (Result == ESP_OK) Result = nvs_commit(Handle);
     nvs_close(Handle);
     if (Result != ESP_OK) {
@@ -79,11 +107,14 @@ esp_err_t CoreSwitch_Request(const char *Path)
         return Result;
     }
     const uint16_t Nonce = (uint16_t)esp_random();
-    printf("CORE_SWITCH target=%s pending=committed\n", GameGear ? "GG" : "GB_GBC");
-    Result = FPGA_Tx_CoreReload(0xa1, GameGear, Nonce);
+    const CoreSystem_t Next = CoreSwitch_NextCore(CoreSwitch_Current());
+    printf("CORE_SWITCH target=%s next=%s hop=%u pending=committed\n", Name(Target), Name(Next), (unsigned)Hops);
+    /* The target byte is informational: the FPGA boots its static next slot. */
+    const uint8_t TargetByte = Next == kCoreSystem_GG ? 1 : 0;
+    Result = FPGA_Tx_CoreReload(0xa1, TargetByte, Nonce);
     if (Result == ESP_OK) {
         vTaskDelay(pdMS_TO_TICKS(20));
-        Result = FPGA_Tx_CoreReload(0xa2, GameGear, Nonce);
+        Result = FPGA_Tx_CoreReload(0xa2, TargetByte, Nonce);
     }
     if (Result == ESP_OK) {
         /* Real reconfiguration resets the ESP32. Never restart it to conceal
@@ -94,4 +125,10 @@ esp_err_t CoreSwitch_Request(const char *Path)
     const esp_err_t ClearResult = ClearPending();
     printf("CORE_SWITCH failed=%s pending_clear=%s\n", esp_err_to_name(Result), esp_err_to_name(ClearResult));
     return ClearResult == ESP_OK ? Result : ClearResult;
+}
+esp_err_t CoreSwitch_Request(const char *Path) { return Reload(Path, 1); }
+esp_err_t CoreSwitch_Continue(const char *Path, uint8_t Hops)
+{
+    if (Hops >= kCoreSwitchMaxHops) return ESP_ERR_INVALID_STATE;
+    return Reload(Path, (uint8_t)(Hops + 1));
 }

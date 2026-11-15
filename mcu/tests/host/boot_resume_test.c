@@ -14,8 +14,12 @@
 static char SwitchPath[LAST_GAME_PATH_SIZE];
 static esp_err_t SwitchResult=ESP_ERR_NVS_NOT_FOUND;
 static bool SwitchTarget=true;
-esp_err_t CoreSwitch_TakePending(char *Path) { strcpy(Path,SwitchPath);SwitchPath[0]=0;return SwitchResult; }
+esp_err_t CoreSwitch_TakePendingHops(char *Path,uint8_t *Hops) { strcpy(Path,SwitchPath);SwitchPath[0]=0;if(Hops)*Hops=1;return SwitchResult; }
 bool CoreSwitch_IsTarget(bool GG) { (void)GG;return SwitchTarget; }
+bool CoreSwitch_IsCore(CoreSystem_t S) { (void)S;return SwitchTarget; }
+CoreSystem_t CoreSwitch_SystemForPath(const char *P) { (void)P;return kCoreSystem_GB; }
+static unsigned Continues;
+esp_err_t CoreSwitch_Continue(const char *P,uint8_t H) { (void)P;(void)H;++Continues;return ESP_ERR_INVALID_STATE; }
 bool CoreSwitch_HasPending(void) { return SwitchPath[0]!=0; }
 int64_t esp_timer_get_time(void) { return 0; }
 void Button_ResetAll(void) {}

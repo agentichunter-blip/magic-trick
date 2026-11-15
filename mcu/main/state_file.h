@@ -5,8 +5,10 @@
  * - Game Boy / Game Boy Color: the FPGA snapshot slot exactly as gb_savestates
  *   wrote it to PSRAM (8-byte engine header, 128 internal 64-bit registers,
  *   WRAM, VRAM, OAM, HRAM, then cartridge RAM).
- * - Game Gear: 41 blocks of 1 KiB from gg_state_engine (block 0 header and
- *   registers, then work RAM, cartridge RAM and VRAM). */
+ * - Game Gear: 57 blocks of 1 KiB from gg_state_engine (block 0 header and
+ *   registers, then work RAM, cartridge RAM and VRAM).
+ * - Atari Lynx: 65 blocks of 1 KiB, MiSTer AtariLynx's savestate image as
+ *   lynx_state_engine stages it (header, registers, 64 KiB RAM). */
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,11 +24,15 @@ enum {
     /* Game Gear payload: bytes 4,5 = 'g','g', byte 6 = layout version 1. */
     kStateFileGameGearSignature = 0x00026767, /* 'g','g', layout 2 (32 KiB cart RAM) */
     kStateFileGameGearPayload = 57 * 1024,
+    /* Lynx payload: bytes 4..7 = MiSTer STATESIZE (16640 32-bit words). */
+    kStateFileLynxSignature = 0x00004100,
+    kStateFileLynxPayload = 65 * 1024,
 };
 
 typedef enum {
     kStateEngine_GameBoy = 0,
     kStateEngine_GameGear = 1,
+    kStateEngine_Lynx = 2,
 } StateEngine_t;
 
 typedef struct {

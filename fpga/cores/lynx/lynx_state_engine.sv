@@ -14,6 +14,8 @@
 // LOAD (frozen): the MCU has staged a payload at the same address; the core
 //   checks its size word, resets and loads itself, and stays paused.
 // RELEASE: the game continues.
+// Diagnostics: BLOCK 64-108 reads the panel framebuffer instead (PSRAM
+// 0x10000, 160x144 BGR555 words, 320-byte rows: 45 KiB), any time.
 module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer BLOCKS=65)(
  input clk, reset,
  input freeze_toggle, release_toggle, load_toggle, block_toggle,
@@ -64,6 +66,10 @@ module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer 
  reg [9:0] offset=0; reg [6:0] block=0; reg [15:0] request_sequence=0;
  reg [7:0] low_byte=0;
  assign x_write_data=bus_data[word_i*16 +: 16];
+ wire screen_block=block>=7'd64;
+ wire block_valid=screen_block ? block<7'd109 : block<BLOCKS;
+ wire [23:0] block_address=screen_block ? 24'h800000+24'h010000+{8'd0,block-7'd64,10'd0}+{14'd0,offset}
+                                        : STAGE+{7'd0,block,10'd0}+{14'd0,offset};
  // The state lies at 32-bit word addresses base + 0..16639 (base has zero
  // low bits), so the low 15 bits are the offset.
  wire [16:0] ss_byte={ss_adr[14:0],2'b00};
@@ -87,6 +93,8 @@ module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer 
      end else if(t_edge[3]) begin
       t_seen[3]<=t_sync[3];
       block<=block_number;request_sequence<=block_sequence;block_ready<=0;
+      // The framebuffer changes under the cache: never serve stale lines.
+      if(block_number>=7'd64) cache_invalidate<=1;
       offset<=0;state<=BLOCK_READ;
      end else if(t_edge[2]) begin
       t_seen[2]<=t_sync[2];
@@ -134,13 +142,13 @@ module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer 
      end
     end
     BLOCK_READ: begin
-     rom_read<=1;rom_address<=STAGE+{7'd0,block,10'd0}+{14'd0,offset};
+     rom_read<=1;rom_address<=block_address;
      if(rom_fault) begin rom_read<=0;fault<=1;state<=IDLE; end
-     else if(rom_read && rom_ready && rom_address==STAGE+{7'd0,block,10'd0}+{14'd0,offset}) begin
-      // Blocks past the image read as zero.
-      if(!offset[0]) low_byte<=block<BLOCKS ? rom_data : 8'h00;
+     else if(rom_read && rom_ready && rom_address==block_address) begin
+      // Blocks past the image (and past the framebuffer) read as zero.
+      if(!offset[0]) low_byte<=block_valid ? rom_data : 8'h00;
       else begin buffer_write<=1;buffer_address<=offset[9:1];
-       buffer_data<={block<BLOCKS ? rom_data : 8'h00,low_byte}; end
+       buffer_data<={block_valid ? rom_data : 8'h00,low_byte}; end
       if(offset==10'd1023) begin
        rom_read<=0;block_ready_sequence<=request_sequence;block_ready<=1;state<=IDLE;
       end else offset<=offset+1'b1;

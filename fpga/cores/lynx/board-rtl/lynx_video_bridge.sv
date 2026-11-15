@@ -157,7 +157,8 @@ module lynx_video_bridge #(
  end
 
  wire take;wire [19:0] value;
- gg_async_fifo fifo(.wclk(xclk),.wrst(xreset),.wvalid(event_valid),.wdata(event_data),
+ // At most one event per 3 hclk against one read per hclk: 8 entries.
+ gg_async_fifo #(.ABITS(3)) fifo(.wclk(xclk),.wrst(xreset),.wvalid(event_valid),.wdata(event_data),
   .full(),.overflow(overflow),.rclk(hclk),.rrst(hreset),.rvalid(take),.rdata(value));
  always @(posedge hclk or posedge hreset) begin
   if(hreset) begin lcd_pixel<=0;lcd_data<=0;lcd_repeat<=0;lcd_mode<=0;lcd_on<=0;lcd_vsync<=0;end

@@ -907,6 +907,21 @@ static int SDCommand(int argc, char **argv)
     return Result == ESP_OK ? 0 : 1;
 }
 
+/* Diagnostics: switch PC mode as the menu setting does (persisted). The
+ * console moves to its PC-mode baud rate once the mode applies. */
+static int ModeCommand(int argc, char **argv)
+{
+    if (argc != 2 || (strcmp(argv[1], "on") && strcmp(argv[1], "off")))
+    {
+        printf("usage: pcmode on|off\n");
+        return 1;
+    }
+    PCBackupMode_Update(strcmp(argv[1], "on") ? kPCBackupModeState_Off : kPCBackupModeState_On);
+    printf("PCMODE %s\n", argv[1]);
+    fflush(stdout);
+    return 0;
+}
+
 static int StatusCommand(int argc, char **argv)
 {
     (void)argc;
@@ -958,6 +973,11 @@ esp_err_t PCBackup_RegisterConsoleCommand(void)
         .command = "pcsd", .help = "ChroMagician SD file access", .func = SDCommand,
     };
     ESP_RETURN_ON_ERROR(esp_console_cmd_register(&SD), TAG, "register SD access");
+    const esp_console_cmd_t Mode = {
+        .command = "pcmode", .help = "Switch PC mode on or off (as the menu setting)",
+        .hint = "on|off", .func = ModeCommand,
+    };
+    ESP_RETURN_ON_ERROR(esp_console_cmd_register(&Mode), TAG, "register PC mode");
     const esp_console_cmd_t Status = {
         .command = "pcstatus", .help = "Report PC mode and physical cartridge presence",
         .func = StatusCommand,

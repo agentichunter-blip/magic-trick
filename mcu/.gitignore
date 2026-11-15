@@ -4,3 +4,8 @@ sdkconfig
 tools/__pycache__/
 tools/pc-backup/target/
 tools/pc-backup/.env.local
+build-lynx/
+build-lynx-sdkconfig
+build-lynx.log
+build-host/
+managed_components

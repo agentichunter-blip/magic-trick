@@ -234,14 +234,17 @@ bool BootResume_PlayIntro(const BootResumeCartridge_t *Cartridge,
 void BootResume_Run(const BootResumeCartridge_t *Cartridge)
 {
     char Path[LAST_GAME_PATH_SIZE];
-    const esp_err_t PendingResult = CoreSwitch_TakePending(Path);
+    uint8_t Hops = 1;
+    const esp_err_t PendingResult = CoreSwitch_TakePendingHops(Path, &Hops);
     if (Interrupted()) return;
     PwrMgr_InhibitSleep();
     if (PendingResult == ESP_OK) {
-        const char *Extension = strrchr(Path, '.');
-        const bool GameGear = Extension && !strcasecmp(Extension, ".gg");
-        if (!CoreSwitch_IsTarget(GameGear)) {
-            printf("CORE_SWITCH resume=wrong_core; pending consumed\n");
+        if (!CoreSwitch_IsCore(CoreSwitch_SystemForPath(Path))) {
+            /* Three cores in a cycle: this reload may have landed on the core
+             * between. Reload once more (bounded); a refusal falls back. */
+            printf("CORE_SWITCH resume=intermediate hop=%u\n", (unsigned)Hops);
+            const esp_err_t ContinueResult = CoreSwitch_Continue(Path, Hops);
+            printf("CORE_SWITCH resume=wrong_core continue=%s; pending consumed\n", esp_err_to_name(ContinueResult));
             goto Fallback;
         }
         /* Explicit selection outranks cartridge auto-resume. The pending record

@@ -148,7 +148,9 @@ module emu_system_top
     wire [15:0] bridge_xwritedata;wire [10:0] bridge_xlength;
     assign rom_read=state_owns_rom ? state_rom_read : core_rom_read;
     assign rom_address=state_owns_rom ? state_rom_address : core_rom_address;
-    gg_rom_bridge rom_bridge(.clk(xclk),.reset(xreset),
+    // 8 lines (512 bytes): Lynx cartridge reads are sequential, and the tags
+    // live in flip-flops (block RAM is full).
+    gg_rom_bridge #(.LINE_BITS(3)) rom_bridge(.clk(xclk),.reset(xreset),
         .enable(!core_reset_x && !quiet_x[1]),.invalidate(stop_x[1] || state_cache_invalidate),
         .read(rom_read),.address(rom_address),.data(rom_byte),.ready(rom_ready),
         .idle(rom_idle),.fault(rom_fault),.request(bridge_xrequest),

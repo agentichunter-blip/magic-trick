@@ -258,10 +258,10 @@ module top #(parameter ISSIMU=0)
     wire [47:0] gg_cheat_payload;
     wire [128:0] gg_code_x;
     wire [31:0] gg_cheat_status_g;
-    gg_cheat_loader u_gg_cheat_loader(.gclk(gClk),.xclk(xClk),.reset(~lock_o),
-        .allowed(!virtual_enable_g && !virtual_start_pending_g && !cart_maintenance_request_g && !core_reload_hold_g),
-        .request(gg_cheat_request),.payload(gg_cheat_payload),.status(gg_cheat_status_g),
-        .code_x(gg_code_x),.clear_x(gg_clear_x));
+    // Atari Lynx: no Game Gear cheat engine; the cheat status reads 0.
+    assign gg_code_x = 129'd0;
+    assign gg_clear_x = 1'b0;
+    assign gg_cheat_status_g = 32'd0;
     wire core_reload_hold_g;
     reg core_reload_hold_meta = 0, core_reload_hold_h = 0;
     always @(posedge hClk or negedge lock_o)

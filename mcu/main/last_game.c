@@ -24,7 +24,8 @@ bool LastGame_ValidPath(const char *Path)
         if (*Part) ++Part;
     }
     const char *Extension = strrchr(Path, '.');
-    return Extension && (!strcasecmp(Extension, ".gb") || !strcasecmp(Extension, ".gbc") || !strcasecmp(Extension, ".gg"));
+    return Extension && (!strcasecmp(Extension, ".gb") || !strcasecmp(Extension, ".gbc") || !strcasecmp(Extension, ".gg") ||
+                         !strcasecmp(Extension, ".lnx") || !strcasecmp(Extension, ".lyx") || !strcasecmp(Extension, ".o"));
 }
 
 esp_err_t LastGame_Read(char Path[LAST_GAME_PATH_SIZE])

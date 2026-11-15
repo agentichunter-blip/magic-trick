@@ -33,15 +33,16 @@ uint32_t StateFile_PayloadLength(uint32_t RamSize)
     return kStateFileCoreBytes + RamSize;
 }
 
-static bool IsGameGear(const StateFileGame_t *pGame) { return pGame->Engine == kStateEngine_GameGear; }
 static uint32_t EngineSignature(const StateFileGame_t *pGame)
 {
-    return IsGameGear(pGame) ? kStateFileGameGearSignature : kStateFileEngineSignature;
+    return pGame->Engine == kStateEngine_GameGear ? kStateFileGameGearSignature :
+        pGame->Engine == kStateEngine_Lynx ? kStateFileLynxSignature : kStateFileEngineSignature;
 }
 
 uint32_t StateFile_GamePayloadLength(const StateFileGame_t *pGame)
 {
-    return IsGameGear(pGame) ? kStateFileGameGearPayload : StateFile_PayloadLength(pGame->RamSize);
+    return pGame->Engine == kStateEngine_GameGear ? kStateFileGameGearPayload :
+        pGame->Engine == kStateEngine_Lynx ? kStateFileLynxPayload : StateFile_PayloadLength(pGame->RamSize);
 }
 
 /* Layout:

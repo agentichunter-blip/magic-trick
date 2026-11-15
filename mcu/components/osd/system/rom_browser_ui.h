@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef enum { kRomPlatformUnknown, kRomPlatformGB, kRomPlatformGBC, kRomPlatformGG } RomPlatform_t;
+typedef enum { kRomPlatformUnknown, kRomPlatformGB, kRomPlatformGBC, kRomPlatformGG, kRomPlatformLynx } RomPlatform_t;
 
 typedef struct RomBrowserDataSource {
     esp_err_t (*Open)(size_t *pCount);

@@ -18,6 +18,11 @@ static bool SwitchCapable;
 static unsigned Switches;
 bool CoreSwitch_IsSupported(void) { return SwitchCapable; }
 bool CoreSwitch_IsTarget(bool GG) { return SwitchCapable && GG==GGCore; }
+bool CoreSwitch_IsCore(CoreSystem_t S) { return SwitchCapable && (S==kCoreSystem_GG)==GGCore && S!=kCoreSystem_Lynx; }
+CoreSystem_t CoreSwitch_SystemForPath(const char *P) {
+ const char *E=strrchr(P,'.');
+ return E && !strcasecmp(E,".gg") ? kCoreSystem_GG : E && (!strcasecmp(E,".lnx") || !strcasecmp(E,".lyx") || !strcasecmp(E,".o")) ? kCoreSystem_Lynx : kCoreSystem_GB;
+}
 esp_err_t CoreSwitch_Request(const char *Path) {
  assert(Path && !Mounted && !Bulk && !Active && !Started);++Switches;return ESP_ERR_TIMEOUT;
 }

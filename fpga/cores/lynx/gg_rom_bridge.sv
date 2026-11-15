@@ -28,7 +28,10 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144, parameter intege
  (* syn_ramstyle="registers" *) reg [TB-1:0] tags[0:LINES-1];
  reg [15:0] cmem[0:LINES*32-1];
 
- wire in_range=address[23:22]==0; // ROM region 0x020000..0x41ffff, max 4 MiB
+ // ROM region 0x020000..0x41ffff (max 4 MiB). Lynx copy: address bit 23 set
+ // reads PSRAM directly (address[22:0]), used to read the panel framebuffer
+ // back for diagnostics (lynx_state_engine.sv, blocks 64-108).
+ wire in_range=address[23:22]==0 || address[23];
 
  // Registered read path (block RAM). Data is valid for the address sampled
  // on the previous edge; ready also requires that address to be current.
@@ -90,7 +93,7 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144, parameter intege
    end else if(enable && !invalidate && !fault && read && in_range && rd_current && !rd_hit && !just_filled) begin
     busy<=1;discard<=0;words<=0;timeout_count<=0;
     line_valid[rd_index]<=1'b0;fill_index<=rd_index;pending_tag<=rd_addr[23:IB+6];
-    bus_address<=23'h020000+{rd_addr[21:6],6'b0};request<=1;
+    bus_address<=(rd_addr[23] ? 23'h000000 : 23'h020000)+{rd_addr[22:6],6'b0};request<=1;
    end
   end
  end

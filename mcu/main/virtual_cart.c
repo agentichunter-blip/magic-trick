@@ -3,6 +3,7 @@
 #include "virtual_cart.h"
 #include "native_state_control.h"
 #include "gg_rom.h"
+#include "lynx_rom.h"
 #include "state_save_branch.h"
 #include "state_file.h"
 #include "last_game.h"
@@ -25,6 +26,9 @@
 #include "rom_browser.h"
 #include "rom_browser_ui.h"
 #include "sd_card.h"
+#ifdef ESP_PLATFORM
+#include "mbedtls/base64.h"
+#endif
 
 #include <errno.h>
 #include <stdbool.h>
@@ -68,6 +72,15 @@ enum {
     kVirtualCommandGGLoad = 11,
     kVirtualCommandGGRelease = 16,
     kGGStateRomAddress = 0x3F0000,
+    /* Atari Lynx (lynx_board_core.sv, lynx_state_engine.sv): the ROM window
+     * holds an info block at 0, the boot ROM at 0x200 and the game file at
+     * 0x1000; save states are staged at 0x200000 (65 KiB). */
+    kLynxInfoAddress = 0x000000,
+    kLynxBiosAddress = 0x000200,
+    kLynxFileAddress = 0x001000,
+    kLynxStateRomAddress = 0x200000,
+    kLynxFlagBios = 0x01,
+    kLynxFlagLock60 = 0x02,
     kGGStatusFrozen = 0x02,
     kGGStatusFault = 0x04,
     kGGStatusLoaded = 0x10,
@@ -123,8 +136,17 @@ typedef struct {
     uint8_t MapperSelect;
     bool Mbc1m;
     bool GameGear;
+    bool Lynx;
+    LynxRomInfo_t LynxRom;
     char Title[17];
 } VirtualCartInfo_t;
+
+/* Core identity byte in the status response (byte 3): 0 GB/GBC, 'G' Game
+ * Gear, 'L' Atari Lynx. */
+static uint8_t CoreTag(const VirtualCartInfo_t *pInfo)
+{
+    return pInfo->GameGear ? 0x47 : pInfo->Lynx ? 0x4c : 0;
+}
 
 static const char *TAG = "VirtualCart";
 static const char *RomDirectory = "/sdcard/CHROMAGIC/BACKUPS/";
@@ -329,7 +351,8 @@ static esp_err_t ResolvePath(const char *pInput, char Output[kPathSize])
     const char *pSlash = strrchr(Output, '/');
     const char *pDot = strrchr(Output, '.');
     if (pDot == NULL || (pSlash != NULL && pDot < pSlash) ||
-        (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0 && strcasecmp(pDot, ".gg") != 0))
+        (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0 && strcasecmp(pDot, ".gg") != 0 &&
+         CoreSwitch_SystemForPath(Output) != kCoreSystem_Lynx))
     {
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -532,6 +555,69 @@ static esp_err_t VirtualCommand(uint8_t Command,
     return VirtualCommandRaw(
         Command, pInfo != NULL ? pInfo->Configuration : 0,
         pInfo != NULL ? pInfo->ConfigurationHigh : 0, pResponse);
+}
+
+/* The Lynx boot ROM (512 bytes, not included): the Lynx folder, the
+ * CHROMAGIC/BIOS folder, or next to the game. */
+static bool ReadLynxBios(const char *pRomPath, uint8_t Bios[kLynxBiosSize])
+{
+    char Beside[kPathSize];
+    const char *pSlash = strrchr(pRomPath, '/');
+    const int Length = pSlash ? (int)(pSlash - pRomPath) : 0;
+    snprintf(Beside, sizeof(Beside), "%.*s/lynxboot.img", Length, pRomPath);
+    const char *const Paths[] = {
+        "/sdcard/CHROMAGIC/BACKUPS/LYNX/lynxboot.img",
+        "/sdcard/CHROMAGIC/BIOS/lynxboot.img",
+        "/sdcard/CHROMAGIC/BACKUPS/LYNX/[BIOS] Atari Lynx (World).lyx",
+        "/sdcard/CHROMAGIC/BIOS/[BIOS] Atari Lynx (World).lyx",
+        Beside,
+    };
+    for (unsigned i = 0; i < sizeof(Paths) / sizeof(Paths[0]); ++i)
+    {
+        FILE *f = fopen(Paths[i], "rb");
+        if (!f) continue;
+        const size_t n = fread(Bios, 1, kLynxBiosSize, f);
+        const bool Exact = n == kLynxBiosSize && fgetc(f) == EOF;
+        fclose(f);
+        if (Exact)
+        {
+            printf("LYNX_BIOS=%s\n", Paths[i]);
+            return true;
+        }
+    }
+    return false;
+}
+
+static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const char *pPath)
+{
+    /* Block 0: info block, then the boot ROM at 0x200. */
+    memset(TransferBuffer, 0, sizeof(TransferBuffer));
+    const bool Bios = ReadLynxBios(pPath, TransferBuffer + kLynxBiosAddress);
+    if (!Bios && !pInfo->LynxRom.Bs93)
+    {
+        printf("LYNX_BIOS=missing (put lynxboot.img in CHROMAGIC/BACKUPS/LYNX)\n");
+        return ESP_ERR_NOT_FOUND;
+    }
+    uint8_t *Info = TransferBuffer + kLynxInfoAddress;
+    memcpy(Info, "LXC1", 4);
+    const uint32_t Size = pInfo->LynxRom.Size;
+    Info[4] = (uint8_t)Size; Info[5] = (uint8_t)(Size >> 8);
+    Info[6] = (uint8_t)(Size >> 16); Info[7] = (uint8_t)(Size >> 24);
+    Info[8] = (Bios ? kLynxFlagBios : 0) | kLynxFlagLock60;
+    ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase, TransferBuffer), TAG, "Lynx info");
+    GGRomCrc = 0;
+    if (fseek(pRom, 0, SEEK_SET)) return ESP_FAIL;
+    for (uint32_t Offset = 0; Offset < Size; Offset += sizeof(TransferBuffer))
+    {
+        const size_t Count = Size - Offset < sizeof(TransferBuffer) ? Size - Offset : sizeof(TransferBuffer);
+        memset(TransferBuffer, 0xff, sizeof(TransferBuffer));
+        if (fread(TransferBuffer, 1, Count, pRom) != Count) return ESP_FAIL;
+        GGRomCrc = StateFile_Crc32(GGRomCrc, TransferBuffer, Count);
+        ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + kLynxFileAddress + Offset, TransferBuffer),
+                            TAG, "Lynx ROM upload");
+        RomBrowserUI_SetProgress(Offset + Count, Size);
+    }
+    return ESP_OK;
 }
 
 static esp_err_t UploadRomPatched(FILE *pRom, const VirtualCartInfo_t *pInfo, const CheatPlan_t *Cheats)
@@ -1560,7 +1646,7 @@ static esp_err_t PrepareAndWaitForReset(const VirtualCartInfo_t *pInfo,
                                 ((uint16_t)Response.Data[1] << 8);
         if ((Status & Required) == Required &&
             (Status & kVirtualStatusEnabled) == 0 &&
-            (!pInfo->GameGear || (Response.Data[3]==0x47 && Response.Data[2]==1 && !(Status & 0x4000))))
+            (!CoreTag(pInfo) || (Response.Data[3]==CoreTag(pInfo) && Response.Data[2]==1 && !(Status & 0x4000))))
         {
             if (pRtcSupported != NULL)
             {
@@ -1578,13 +1664,13 @@ static esp_err_t StartAndWaitForFrame(const VirtualCartInfo_t *pInfo,
                                       uint32_t RtcState,
                                       bool *pRtcSupported)
 {
-    if (pInfo->GameGear) {
+    if (pInfo->GameGear || pInfo->Lynx) {
         CartLinkResponse_t response={0};
         ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStart,pInfo,&response),TAG,"GG start");
         for (unsigned poll=0;poll<kVirtualBootPolls;poll++) {
             ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStatus,NULL,&response),TAG,"GG status");
             uint16_t flags=(uint16_t)response.Data[0] | ((uint16_t)response.Data[1]<<8);
-            if (response.Data[3]!=0x47 || response.Data[2]!=1) return ESP_ERR_NOT_SUPPORTED;
+            if (response.Data[3]!=CoreTag(pInfo) || response.Data[2]!=1) return ESP_ERR_NOT_SUPPORTED;
             /* Bit 13 means reset/fault while enabled; bit 14 is a fresh frame.
              * Reset is normal during start propagation. Never accept stale ready. */
             if ((flags & 0x603b)==0x403b) return ESP_OK;
@@ -1684,7 +1770,14 @@ static esp_err_t RunLoad(const char *pPath)
     }
     const char *extension=strrchr(pPath,'.');
     Info.GameGear=extension && !strcasecmp(extension,".gg");
-    if (Info.GameGear) {
+    Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;
+    if (Info.Lynx) {
+        Result=LynxRom_Inspect(pRom,&Info.LynxRom);
+        Info.RomSize=Info.LynxRom.Size;
+        Info.MappedRomSize=Info.LynxRom.Size;
+        /* The state file identifies the game by title, size and CRC. */
+        snprintf(Info.Title,sizeof(Info.Title),"%.16s",Info.LynxRom.Title);
+    } else if (Info.GameGear) {
         Result=GGRom_Inspect(pRom,&Info.RomSize);
         if(Result==ESP_OK) Result=Cheats_Prepare(pPath,pRom,&Cheats);
         Info.MappedRomSize=kMaximumRomSize;
@@ -1708,9 +1801,9 @@ static esp_err_t RunLoad(const char *pPath)
     CartLinkResponse_t identity={0};
     Result=VirtualCommand(kVirtualCommandStatus,NULL,&identity);
     if (Result!=ESP_OK) goto Cleanup;
-    bool ggCore=identity.Data[3]==0x47 && identity.Data[2]==1;
-    if ((Info.GameGear && !ggCore) || (!Info.GameGear && identity.Data[3]!=0)) {
-        if (!CoreSwitch_IsSupported() || CoreSwitch_IsTarget(Info.GameGear)) {
+    const bool coreMatches=identity.Data[3]==CoreTag(&Info) && (!CoreTag(&Info) || identity.Data[2]==1);
+    if (!coreMatches) {
+        if (!CoreSwitch_IsSupported() || CoreSwitch_IsCore(CoreSwitch_SystemForPath(pPath))) {
             Result=ESP_ERR_NOT_SUPPORTED;
             goto Cleanup;
         }
@@ -1740,8 +1833,8 @@ static esp_err_t RunLoad(const char *pPath)
     SetActive(false);
     ClearActiveSave();
 
-    Result = UploadRomPatched(pRom, &Info, &Cheats);
-    if (Info.GameGear) Info.GlobalChecksum = (uint16_t)(GGRomCrc ^ (GGRomCrc >> 16));
+    Result = Info.Lynx ? UploadLynx(pRom, &Info, pPath) : UploadRomPatched(pRom, &Info, &Cheats);
+    if (Info.GameGear || Info.Lynx) Info.GlobalChecksum = (uint16_t)(GGRomCrc ^ (GGRomCrc >> 16));
     if (Result != ESP_OK) goto Cleanup;
     if (fclose(pRom) != 0)
     {
@@ -2065,8 +2158,8 @@ static void PrintNativeDebug(const char *phase)
 /* Games whose mapper the native state engine captures and restores. */
 static bool NativeMapperSupported(const VirtualCartInfo_t *pInfo)
 {
-    /* Game Gear: the core's status reports whether its engine is present. */
-    if (pInfo->GameGear) return pInfo->RomSize != 0;
+    /* Game Gear, Lynx: the core's status reports whether its engine is present. */
+    if (pInfo->GameGear || pInfo->Lynx) return pInfo->RomSize != 0;
     switch (pInfo->Mapper.Kind)
     {
     case kCartMapper_Mbc1:
@@ -2088,11 +2181,11 @@ static void ActiveStateGame(StateFileGame_t *pGame)
     pGame->RamSize = ActiveInfo.RamSize;
     pGame->GlobalChecksum = ActiveInfo.GlobalChecksum;
     pGame->CartType = ActiveInfo.Mapper.Type;
-    if (ActiveInfo.GameGear)
+    if (ActiveInfo.GameGear || ActiveInfo.Lynx)
     {
         pGame->RamSize = 0;
         pGame->CartType = 0;
-        pGame->Engine = kStateEngine_GameGear;
+        pGame->Engine = ActiveInfo.Lynx ? kStateEngine_Lynx : kStateEngine_GameGear;
     }
 }
 
@@ -2222,8 +2315,8 @@ static esp_err_t ImportStateFromSd(unsigned Slot)
             break;
         }
         Crc = StateFile_Crc32(Crc, TransferBuffer, Count);
-        const uint32_t Base = Game.Engine == kStateEngine_GameGear
-            ? kRomBase + kGGStateRomAddress : kStateSlotBase;
+        const uint32_t Base = Game.Engine == kStateEngine_GameGear ? kRomBase + kGGStateRomAddress :
+            Game.Engine == kStateEngine_Lynx ? kRomBase + kLynxStateRomAddress : kStateSlotBase;
         Result = CartBulk_WritePSRAMBlock(Base + Offset, TransferBuffer);
     }
     if (Result == ESP_OK && fgetc(pFile) != EOF) Result = ESP_ERR_INVALID_SIZE;
@@ -2235,7 +2328,7 @@ static esp_err_t ImportStateFromSd(unsigned Slot)
     }
     if (Result != ESP_OK) return Result;
     /* Game Gear: staged and verified; the caller asks the FPGA to load it. */
-    if (Game.Engine == kStateEngine_GameGear) return ESP_OK;
+    if (Game.Engine == kStateEngine_GameGear || Game.Engine == kStateEngine_Lynx) return ESP_OK;
 
     CartLinkResponse_t Response = {0};
     ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStateImport, NULL, &Response),
@@ -2414,9 +2507,10 @@ static esp_err_t GGStateCapture(bool load, unsigned slot)
     if (result != ESP_OK) { printf("STATE_REJECT=gg_load status=%08lx\n", (unsigned long)status); goto cleanup; }
     StateUncertain = false;
     if (battery) ActiveSavePending = true;
-    if (RestoreGGRomMirror() != ESP_OK) printf("STATE_GG_MIRROR=FAIL\n");
+    /* Lynx states are staged above the largest cartridge: no mirror to restore. */
+    if (!ActiveInfo.Lynx && RestoreGGRomMirror() != ESP_OK) printf("STATE_GG_MIRROR=FAIL\n");
     printf("STATE_FILE_LOAD=PASS path=%s bytes=%u\n", ActiveStatePath[slot - 1],
-           (unsigned)kStateFileGameGearPayload);
+           (unsigned)(ActiveInfo.Lynx ? kStateFileLynxPayload : kStateFileGameGearPayload));
 cleanup:
     if (frozen && (!submitted || !StateUncertain))
     {
@@ -2450,7 +2544,7 @@ esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
         (void)SetRunning(false);
         return ESP_ERR_INVALID_STATE;
     }
-    if(Active && ActiveInfo.GameGear) {
+    if(Active && (ActiveInfo.GameGear || ActiveInfo.Lynx)) {
         LastStateSdFailed=false; // no FPGA copy: a save is on the SD card or fails
         return GGStateCapture(load,slot);
     }
@@ -2564,6 +2658,35 @@ static int NativeShortcutCommand(int argc,char **argv)
     return 0;
 }
 
+#ifdef ESP_PLATFORM
+/* Lynx core diagnostics: print the panel framebuffer (PSRAM 0x10000, 160x144
+ * BGR555, 320-byte rows) as 45 base64 blocks, read through state blocks
+ * 64-108 (lynx_state_engine.sv). */
+static int LynxShotCommand(int argc,char **argv)
+{
+    (void)argc;(void)argv;
+    if(!CoreSwitch_IsCore(kCoreSystem_Lynx)) { printf("LYNXSHOT FAIL not_lynx\n"); return 1; }
+    if(!SetRunning(true)) { printf("LYNXSHOT FAIL busy\n"); return 1; }
+    esp_err_t Result=CartBulk_Begin();
+    static char Text[1400];
+    for(unsigned Block=64;Result==ESP_OK && Block<109;++Block) {
+        if(++SaveSequence==0) ++SaveSequence;
+        CartLinkResponse_t Response={0};
+        Result=VirtualCommandRaw(kVirtualCommandStateBlock,SaveSequence,(uint8_t)Block,&Response);
+        if(Result==ESP_OK) Result=CartBulk_ReadVirtualBlock(SaveSequence,TransferBuffer);
+        size_t Length=0;
+        if(Result==ESP_OK && mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,TransferBuffer,sizeof(TransferBuffer))!=0)
+            Result=ESP_FAIL;
+        if(Result==ESP_OK) { Text[Length]=0; printf("LYNXSHOT %u %s\n",Block-64,Text); fflush(stdout); }
+    }
+    if(Result==ESP_OK) CartBulk_End();
+    else { CartBulk_End(); printf("LYNXSHOT FAIL %s\n",esp_err_to_name(Result)); }
+    (void)SetRunning(false);
+    if(Result==ESP_OK) printf("LYNXSHOT DONE\n");
+    return Result!=ESP_OK;
+}
+#endif
+
 static int NativeStatusCommand(int argc,char **argv)
 {
     (void)argc;(void)argv;uint32_t status=0;
@@ -2576,7 +2699,7 @@ static int LoadCommand(int argc, char **argv)
 {
     if (argc != 2)
     {
-        printf("usage: cartload <file.gb|file.gbc|file.gg>\n");
+        printf("usage: cartload <file.gb|file.gbc|file.gg|file.lnx>\n");
         return 1;
     }
     const esp_err_t Result = VirtualCart_Start(argv[1]);
@@ -2600,7 +2723,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
     const esp_console_cmd_t Load = {
         .command = "cartload",
         .help = "Load a supported GB/GBC backup from /sdcard/CHROMAGIC/BACKUPS",
-        .hint = "<file.gb|file.gbc|file.gg>",
+        .hint = "<file.gb|file.gbc|file.gg|file.lnx>",
         .func = LoadCommand,
         .argtable = NULL,
     };
@@ -2615,7 +2738,10 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
       {.command="statesave",.help="Save native state to slot 1-3 (default 1)",.hint="[slot]",.func=NativeSaveCommand},
       {.command="stateload",.help="Load native state from slot 1-3 (default 1) into a separate battery-save branch",.hint="[slot]",.func=NativeLoadCommand},
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},
-      {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand}
+      {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand},
+#ifdef ESP_PLATFORM
+      {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.func=LynxShotCommand},
+#endif
     };
     for(unsigned i=0;i<sizeof(NativeCommands)/sizeof(NativeCommands[0]);++i) {
       esp_err_t err=esp_console_cmd_register(&NativeCommands[i]);if(err!=ESP_OK) return err;

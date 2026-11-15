@@ -55,5 +55,6 @@ add_file -type sdc "src/board/evt1_x2/gg_board.sdc"
 add_file -type verilog "core_reload.sv"
 set_option -multiboot_address_width 24
 set_option -multiboot_mode single
-set_option -multiboot_spi_flash_address 0
+# Three cores (GB -> GG -> Lynx -> GB): Game Gear boots the Lynx slot next.
+set_option -multiboot_spi_flash_address 0x200000
 run all
