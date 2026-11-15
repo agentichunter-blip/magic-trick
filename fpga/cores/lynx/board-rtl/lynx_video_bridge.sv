@@ -6,8 +6,8 @@
 // letterboxed into the 160x144 panel frame (21 black rows above, 21 below), so
 // the panel shows Lynx row k as row 21+k and consumes the 102 rows faster than
 // the Lynx makes them. The bridge therefore:
-//  - stores every Lynx row as 4-bit pens in a 64-row ring, with a copy of the
-//    16-entry palette taken at the row's first pixel (4 block RAMs instead of
+//  - stores every Lynx row as 4-bit pens in a 48-row ring, with a copy of the
+//    16-entry palette taken at the row's first pixel (3 block RAMs instead of
 //    11 for full color);
 //  - emits its own panel frames, one row per ROW_XCLK (a little faster than the
 //    panel reads, so the panel's small line ring always has data);
@@ -37,17 +37,20 @@ module lynx_video_bridge #(
  output reg [1:0] lcd_mode,output reg lcd_on,output reg lcd_vsync);
 
  // ---------------- Lynx side: pen ring + palette snapshots ----------------
- // Pen ring: 64 rows x 160, address = slot*160 + x (< 10240), three 4Kx4 banks.
- function [13:0] pen_index(input [5:0] slot, input [7:0] x);
-  pen_index={slot,7'd0}+{2'd0,slot,5'd0}+{6'd0,x};
+ // Pen ring: 48 rows x 160 (Lynx row y in slot y mod 48), address
+ // slot*160 + x (< 7680), two 4Kx4 banks. At 50 Hz up to ~45 rows wait.
+ function [5:0] slot_of(input [6:0] y);
+  slot_of=y>=7'd96 ? 6'(y-7'd96) : y>=7'd48 ? 6'(y-7'd48) : y[5:0];
  endfunction
- reg [3:0] bank0[0:4095], bank1[0:4095], bank2[0:4095];
+ function [12:0] pen_index(input [5:0] slot, input [7:0] x);
+  pen_index={slot,7'd0}+{2'd0,slot,5'd0}+{5'd0,x};
+ endfunction
+ reg [3:0] bank0[0:4095], bank1[0:4095];
  reg [11:0] pal_ram[0:1023];
- wire [13:0] wr_index=pen_index(pen_y[5:0],pen_x);
+ wire [12:0] wr_index=pen_index(slot_of(pen_y),pen_x);
  always @(posedge xclk) if(pen_we) begin
-  if(wr_index[13:12]==2'd0) bank0[wr_index[11:0]]<=pen;
-  if(wr_index[13:12]==2'd1) bank1[wr_index[11:0]]<=pen;
-  if(wr_index[13:12]==2'd2) bank2[wr_index[11:0]]<=pen;
+  if(!wr_index[12]) bank0[wr_index[11:0]]<=pen;
+  else bank1[wr_index[11:0]]<=pen;
  end
  // Palette copy: 16 entries over 16 cycles from the row's first pixel.
  reg copying=0; reg [3:0] copy_i=0; reg [5:0] copy_slot=0;
@@ -57,7 +60,7 @@ module lynx_video_bridge #(
    copy_i<=copy_i+1'b1;
    if(copy_i==15) copying<=0;
   end
-  if(pen_we && pen_x==0) begin copying<=1; copy_i<=0; copy_slot<=pen_y[5:0]; end
+  if(pen_we && pen_x==0) begin copying<=1; copy_i<=0; copy_slot<=slot_of(pen_y); end
  end
 
  // ---------------- Lynx frame timing ----------------
@@ -98,18 +101,19 @@ module lynx_video_bridge #(
  reg event_valid=0; reg [19:0] event_data=0;
  wire lynx_row=row>=TOP && row<TOP+102;
  wire [6:0] lynx_k=row-TOP;
- reg [13:0] rd_index=0; reg [1:0] rd_bank=0;
- reg [3:0] q0,q1,q2; reg [11:0] pal_q; reg [9:0] pal_addr=0;
+ wire [5:0] lynx_slot=slot_of(lynx_k);
+ reg [12:0] rd_index=0;
+ reg [3:0] q0,q1; reg [11:0] pal_q; reg [9:0] pal_addr=0;
  always @(posedge xclk) begin
-  q0<=bank0[rd_index[11:0]]; q1<=bank1[rd_index[11:0]]; q2<=bank2[rd_index[11:0]];
+  q0<=bank0[rd_index[11:0]]; q1<=bank1[rd_index[11:0]];
   pal_q<=pal_ram[pal_addr];
  end
- wire [3:0] q_pen=rd_bank==2'd0 ? q0 : rd_bank==2'd1 ? q1 : q2;
+ wire [3:0] q_pen=rd_index[12] ? q1 : q0;
  // GBR444 -> BGR555 (framebuffer format: B 14..10, G 9..5, R 4..0)
  wire [14:0] rgb={pal_q[7:4],pal_q[7],pal_q[11:8],pal_q[11],pal_q[3:0],pal_q[3]};
  always @(posedge xclk or posedge xreset) begin
   if(xreset) begin busy<=0;live<=0;have_picture<=0;row<=0;row_t<=0;col<=0;pix_t<=0;
-   idle_t<=0;event_valid<=0;event_data<=0;rd_index<=0;rd_bank<=0;pal_addr<=0;end
+   idle_t<=0;event_valid<=0;event_data<=0;rd_index<=0;pal_addr<=0;end
   else begin
    event_valid<=0;
    if(!busy) begin
@@ -130,9 +134,9 @@ module lynx_video_bridge #(
     end else if(row_t>=8 && col<160) begin
      pix_t<=pix_t==PIXEL_XCLK-1 ? 4'd0 : pix_t+1'b1;
      case(pix_t)
-      0: begin rd_index<=pen_index(lynx_k[5:0],col); rd_bank<=pen_index(lynx_k[5:0],col)>>12; end
+      0: rd_index<=pen_index(lynx_slot,col);
       // 1: pen RAM read
-      2: pal_addr<={lynx_k[5:0],q_pen};
+      2: pal_addr<={lynx_slot,q_pen};
       // 3: palette read
       4: begin
        event_valid<=1;

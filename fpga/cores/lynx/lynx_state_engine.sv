@@ -133,24 +133,27 @@ module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer 
      else if(timer[20]) begin owns_bus<=0;fault<=1;state<=IDLE; end
     end
     BUS_READ: begin
-     rom_read<=1;rom_address<=STAGE+{7'd0,bus_byte}+{21'd0,byte_i};
+     // One cache read at a time (see lynx_board_core.sv: no address compare).
      if(rom_fault) begin rom_read<=0;fault<=1;state<=IDLE; end
-     else if(rom_read && rom_ready && rom_address==STAGE+{7'd0,bus_byte}+{21'd0,byte_i}) begin
+     else if(!rom_read) begin rom_read<=1;rom_address<=STAGE+{7'd0,bus_byte}+{21'd0,byte_i}; end
+     else if(rom_ready) begin
+      rom_read<=0;
       ss_dout[byte_i*8 +: 8]<=rom_data;
-      if(byte_i==7) begin rom_read<=0;ss_done<=1;state<=RUN; end
+      if(byte_i==7) begin ss_done<=1;state<=RUN; end
       else byte_i<=byte_i+1'b1;
      end
     end
     BLOCK_READ: begin
-     rom_read<=1;rom_address<=block_address;
      if(rom_fault) begin rom_read<=0;fault<=1;state<=IDLE; end
-     else if(rom_read && rom_ready && rom_address==block_address) begin
+     else if(!rom_read) begin rom_read<=1;rom_address<=block_address; end
+     else if(rom_ready) begin
+      rom_read<=0;
       // Blocks past the image (and past the framebuffer) read as zero.
       if(!offset[0]) low_byte<=block_valid ? rom_data : 8'h00;
       else begin buffer_write<=1;buffer_address<=offset[9:1];
        buffer_data<={block_valid ? rom_data : 8'h00,low_byte}; end
       if(offset==10'd1023) begin
-       rom_read<=0;block_ready_sequence<=request_sequence;block_ready<=1;state<=IDLE;
+       block_ready_sequence<=request_sequence;block_ready<=1;state<=IDLE;
       end else offset<=offset+1'b1;
      end
     end

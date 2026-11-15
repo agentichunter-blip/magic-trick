@@ -56,55 +56,60 @@ module lynx_board_core(
  wire [19:0] cart_addr; wire cart_req; reg cart_ack=0; reg [7:0] cart_byte=0;
  reg cart_busy=0;
  wire [31:0] info_size={info[7],info[6],info[5],info[4]};
+ // One cache read at a time: the address is set together with rom_read, and
+ // the cache cannot report ready for it before the next edge (it compares
+ // against its registered address), so no address compare is needed here.
+ reg pending=0;
+ wire [23:0] load_address_pos=(state==S_INFO ? 24'd0 : state==S_BIOS ? BIOS_BASE : FILE_BASE)+{4'd0,offset};
+ wire fetched=pending && rom_ready;
  always @(posedge clk) begin
   bios_wr<=0; ram_wr<=0; cart_ack<=0;
   if(!reset_n) begin
-   state<=S_INFO; offset<=0; rom_read<=0; cart_busy<=0; bad_image<=0;
-  end else case(state)
-   S_INFO: begin
-    rom_read<=1; rom_address<=offset;
-    if(rom_read && rom_ready && rom_address==offset) begin
-     info[offset[3:0]]<=rom_data;
-     if(offset==13) begin
-      rom_read<=0; offset<=0;
-      file_size<=info_size; lock60<=info[8][1];
-      bank0size<={info[10],info[9]}; has_header<=info[11][0]; bs93<=info[11][1];
-      load_address<={rom_data,info[12]};
-      state<=(info[0]==8'h4c && info[1]==8'h58 && info[2]==8'h43 && info[3]==8'h31 &&
-              info_size!=0 && info_size<=32'h100000)
-              ? (info[8][0] ? S_BIOS : info[11][1] ? S_BS93 : S_RUN) : S_BAD;
-     end else offset<=offset+1'b1;
-    end
-   end
-   S_BIOS: begin
-    rom_read<=1; rom_address<=BIOS_BASE+offset;
-    if(rom_read && rom_ready && rom_address==BIOS_BASE+offset) begin
-     bios_wr<=1; bios_addr<=offset[8:0]; bios_data<=rom_data;
-     if(offset==511) begin rom_read<=0; offset<=10; state<=bs93 ? S_BS93 : S_RUN; end
-     else offset<=offset+1'b1;
-    end
-   end
-   S_BS93: begin
-    // Program bytes follow the 10-byte BS93 header; at most 64 KiB.
-    if(offset>=file_size[19:0] || offset>=20'h1000a) begin rom_read<=0; state<=S_RUN; end
-    else begin
-     rom_read<=1; rom_address<=FILE_BASE+offset;
-     if(rom_read && rom_ready && rom_address==FILE_BASE+offset) begin
-      ram_wr<=1; ram_addr<=load_address+offset[15:0]-16'd10; ram_data<=rom_data;
-      offset<=offset+1'b1;
-     end
+   state<=S_INFO; offset<=0; rom_read<=0; pending<=0; cart_busy<=0; bad_image<=0;
+  end else begin
+   if(fetched) begin rom_read<=0; pending<=0; end
+   case(state)
+   S_INFO, S_BIOS, S_BS93: begin
+    if(state==S_BS93 && (offset>=file_size[19:0] || offset>=20'h1000a)) begin
+     if(!pending) state<=S_RUN;
+    end else if(!pending && !rom_read) begin
+     rom_address<=load_address_pos; rom_read<=1; pending<=1;
+    end else if(fetched) begin
+     offset<=offset+1'b1;
+     case(state)
+      S_INFO: begin
+       info[offset[3:0]]<=rom_data;
+       if(offset==13) begin
+        offset<=0;
+        file_size<=info_size; lock60<=info[8][1];
+        bank0size<={info[10],info[9]}; has_header<=info[11][0]; bs93<=info[11][1];
+        load_address<={rom_data,info[12]};
+        state<=(info[0]==8'h4c && info[1]==8'h58 && info[2]==8'h43 && info[3]==8'h31 &&
+                info_size!=0 && info_size<=32'h100000)
+                ? (info[8][0] ? S_BIOS : info[11][1] ? S_BS93 : S_RUN) : S_BAD;
+       end
+      end
+      S_BIOS: begin
+       bios_wr<=1; bios_addr<=offset[8:0]; bios_data<=rom_data;
+       if(offset==511) begin offset<=10; state<=bs93 ? S_BS93 : S_RUN; end
+      end
+      default: begin // S_BS93: program bytes follow the 10-byte header
+       ram_wr<=1; ram_addr<=load_address+offset[15:0]-16'd10; ram_data<=rom_data;
+      end
+     endcase
     end
    end
    S_RUN: begin
     // cart.vhd pulses rom_req; hold the cache read until the byte is ready.
     if(!cart_busy) begin
-     if(cart_req) begin cart_busy<=1; rom_read<=1; rom_address<=FILE_BASE+cart_addr; end
-    end else if(rom_read && rom_ready) begin
-     rom_read<=0; cart_busy<=0; cart_ack<=1; cart_byte<=rom_data;
+     if(cart_req) begin cart_busy<=1; rom_read<=1; pending<=1; rom_address<=FILE_BASE+cart_addr; end
+    end else if(fetched) begin
+     cart_busy<=0; cart_ack<=1; cart_byte<=rom_data;
     end
    end
    default: begin rom_read<=0; bad_image<=1; end
-  endcase
+   endcase
+  end
  end
  assign running=state==S_RUN && reset_n;
  // The core comes out of reset one cycle after loading.
