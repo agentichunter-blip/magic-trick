@@ -142,6 +142,11 @@ int main(int argc, char **argv) {
     unsigned bar_saved = state[1024 + 0xF2];
     printf("state size word=%08x frames@save=%u bar=%u\n", sizeword, frames_saved, bar_saved);
     if (sizeword != 0x4100) { printf("FAIL size word\n"); return 1; }
+    // Internal registers (entry 0 = CPU: PC 15..0, A, X, Y, S, P) must be real values.
+    uint64_t cpu = 0; for (int i = 7; i >= 0; i--) cpu = cpu << 8 | state[8 + i];
+    printf("saved CPU PC=%04x A=%02x S=%02x P=%02x\n", (unsigned)(cpu & 0xffff), (unsigned)(cpu >> 16 & 255),
+           (unsigned)(cpu >> 40 & 255), (unsigned)(cpu >> 48 & 255));
+    if (cpu == ~0ull || (cpu & 0xffff) < 0x400 || (cpu & 0xffff) > 0x0600) { printf("FAIL saved CPU registers\n"); return 1; }
     t->release_t = !t->release_t;
     if (!wait_status(2, 0, 1000000)) { printf("FAIL release\n"); return 1; }
     wait_frames(20);
