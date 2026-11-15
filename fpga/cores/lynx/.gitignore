@@ -1,0 +1,12 @@
+impl/
+build.log
+result.json
+run*.out
+tests/sim/build/
+tests/sim/out/
+tests/testprog/*.map
+tests/testprog/lynxtest.o
+e~*.o
+*.cf
+lynx_chromatic
+lynxtop
