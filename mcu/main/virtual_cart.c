@@ -589,6 +589,9 @@ static bool ReadLynxBios(const char *pRomPath, uint8_t Bios[kLynxBiosSize])
     return false;
 }
 
+/* 60 Hz frame lock for the next Lynx game (lynx_board_core.sv flag bit 1). */
+static bool LynxLock60 = true;
+
 static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const char *pPath)
 {
     /* Block 0: info block, then the boot ROM at 0x200. */
@@ -616,7 +619,7 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
     const uint32_t Size = pInfo->LynxRom.Size;
     Info[4] = (uint8_t)Size; Info[5] = (uint8_t)(Size >> 8);
     Info[6] = (uint8_t)(Size >> 16); Info[7] = (uint8_t)(Size >> 24);
-    Info[8] = (Bios ? kLynxFlagBios : 0) | kLynxFlagLock60;
+    Info[8] = (Bios ? kLynxFlagBios : 0) | (LynxLock60 ? kLynxFlagLock60 : 0);
     /* The core takes the header's results from here (lynx_board_core.sv). */
     Info[9] = (uint8_t)pInfo->LynxRom.Bank0; Info[10] = (uint8_t)(pInfo->LynxRom.Bank0 >> 8);
     Info[11] = (pInfo->LynxRom.Header ? 1 : 0) | (pInfo->LynxRom.Bs93 ? 2 : 0);
@@ -2675,6 +2678,13 @@ static int NativeShortcutCommand(int argc,char **argv)
     return 0;
 }
 
+static int LynxLockCommand(int argc,char **argv)
+{
+    if(argc==2) LynxLock60=atoi(argv[1])!=0;
+    printf("LYNXLOCK %u\n",LynxLock60 ? 1u : 0u);
+    return 0;
+}
+
 #ifdef ESP_PLATFORM
 /* Lynx core diagnostics: print the panel framebuffer (PSRAM 0x10000, 160x144
  * BGR555, 320-byte rows) as 45 base64 blocks, read through state blocks
@@ -2683,6 +2693,9 @@ static int LynxShotCommand(int argc,char **argv)
 {
     /* "lynxshot live" reads while the game runs (no freeze). */
     const bool Live=argc>1 && !strcmp(argv[1],"live");
+    /* "lynxshot state" prints the save-state image (blocks 0-64) instead. */
+    const bool State=argc>1 && !strcmp(argv[1],"state");
+    const unsigned First=State ? 0 : 64, Last=State ? 65 : 109;
     if(!CoreSwitch_IsCore(kCoreSystem_Lynx)) { printf("LYNXSHOT FAIL not_lynx\n"); return 1; }
     bool Got=false;
     for(unsigned Try=0;Try<60 && !(Got=SetRunning(true));++Try) vTaskDelay(pdMS_TO_TICKS(50));
@@ -2695,7 +2708,7 @@ static int LynxShotCommand(int argc,char **argv)
     if(Result==ESP_OK && !Live) Result=VirtualCommand(kVirtualCommandGGFreeze,NULL,&Frozen);
     if(Result==ESP_OK && !Live) Result=WaitGGStatus(kGGStatusFrozen,kGGStatusFrozen|1,false,1000,&Status);
     static char Text[1400];
-    for(unsigned Block=64;Result==ESP_OK && Block<109;++Block) {
+    for(unsigned Block=First;Result==ESP_OK && Block<Last;++Block) {
         if(++SaveSequence==0) ++SaveSequence;
         CartLinkResponse_t Response={0};
         Result=VirtualCommandRaw(kVirtualCommandStateBlock,SaveSequence,(uint8_t)Block,&Response);
@@ -2703,7 +2716,7 @@ static int LynxShotCommand(int argc,char **argv)
         size_t Length=0;
         if(Result==ESP_OK && mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,TransferBuffer,sizeof(TransferBuffer))!=0)
             Result=ESP_FAIL;
-        if(Result==ESP_OK) { Text[Length]=0; printf("LYNXSHOT %u %s\n",Block-64,Text); fflush(stdout); }
+        if(Result==ESP_OK) { Text[Length]=0; printf("LYNXSHOT %u %s\n",Block-First,Text); fflush(stdout); }
     }
     if(!Live) {
         CartLinkResponse_t Released={0};
@@ -2771,7 +2784,8 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},
       {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand},
 #ifdef ESP_PLATFORM
-      {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.hint="[live]",.func=LynxShotCommand},
+      {.command="lynxlock",.help="60 Hz frame lock for the next Lynx game (diagnostics)",.hint="[0|1]",.func=LynxLockCommand},
+      {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.hint="[live|state]",.func=LynxShotCommand},
 #endif
     };
     for(unsigned i=0;i<sizeof(NativeCommands)/sizeof(NativeCommands[0]);++i) {
