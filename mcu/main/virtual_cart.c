@@ -5,6 +5,9 @@
 #include "gg_rom.h"
 #include "lynx_rom.h"
 #include "lynx_hle.h"
+#ifdef ESP_PLATFORM
+#include "diag_log.h"
+#endif
 #include "state_save_branch.h"
 #include "state_file.h"
 #include "last_game.h"
@@ -250,7 +253,13 @@ static esp_err_t BeginNativeOperation(void)
         Wait = Running;
     }
     portEXIT_CRITICAL(&StateLock);
-    if (Reason) { printf("STATE_REJECT=%s\n", Reason); return ESP_ERR_INVALID_STATE; }
+    if (Reason) {
+        printf("STATE_REJECT=%s\n", Reason);
+#ifdef ESP_PLATFORM
+        if (CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("state reject %s", Reason);
+#endif
+        return ESP_ERR_INVALID_STATE;
+    }
     if (Wait) { printf("STATE_WAIT=autosave\n");if(StateWaitCallback)StateWaitCallback(); }
     for (;;) {
         esp_err_t Result = ESP_ERR_NOT_FINISHED;
@@ -1228,6 +1237,9 @@ static esp_err_t UploadSave(const char *pRomPath,
 
 static esp_err_t ReadNativeStatus(uint32_t *status);
 static esp_err_t RestoreGGRomMirror(void);
+#ifdef ESP_PLATFORM
+static void LynxDiagMaybeStart(void);
+#endif
 
 static esp_err_t QueryVirtualSaveDirty(bool *pDirty)
 {
@@ -1949,6 +1961,9 @@ Cleanup:
     if (Result == ESP_OK)
     {
         printf("VIRTUAL_CART=PASS title=\"%s\"\n", Info.Title);
+#ifdef ESP_PLATFORM
+        if (Info.Lynx) { DiagLog_Append("lynx load PASS %s", Info.Title); LynxDiagMaybeStart(); }
+#endif
         const esp_err_t RememberResult = LastGame_Remember(pPath);
         if (RememberResult != ESP_OK)
             printf("LAST_GAME remember_error=%s\n", esp_err_to_name(RememberResult));
@@ -1973,6 +1988,9 @@ Cleanup:
             ClearActiveSave();
         }
         printf("VIRTUAL_CART=FAIL error=%s\n", esp_err_to_name(Result));
+#ifdef ESP_PLATFORM
+        if (Info.Lynx || CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("lynx load FAIL %s %s", esp_err_to_name(Result), pPath);
+#endif
         RomBrowserUI_SetError(Result);
     }
     return Result;
@@ -2477,6 +2495,9 @@ static esp_err_t GGStateCapture(bool load, unsigned slot)
     if (status & (1 | kGGStatusFrozen) || (load && !(StateOnSdMask & bit)))
     {
         printf("STATE_REJECT=snapshot_status value=%08lx\n", (unsigned long)status);
+#ifdef ESP_PLATFORM
+        if (CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("state reject snapshot_status %08lx", (unsigned long)status);
+#endif
         result = ESP_ERR_INVALID_STATE;
         goto cleanup;
     }
@@ -2559,6 +2580,9 @@ esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
     if(slot<1 || slot>kStateSlots) return ESP_ERR_INVALID_ARG;
     const uint8_t bit=1u<<(slot-1);
     const esp_err_t acquire = BeginNativeOperation();
+#ifdef ESP_PLATFORM
+    if (acquire != ESP_OK && CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("state begin %s", esp_err_to_name(acquire));
+#endif
     if (acquire != ESP_OK) return acquire;
     if(Session && Session!=NativeSession) {
         (void)SetRunning(false);
@@ -2582,6 +2606,9 @@ esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
     const bool from_sd=load && !((status&2) && FpgaStateOwner==slot);
     if((status&13)!=8 || (from_sd && !(StateOnSdMask&bit))) {
         printf("STATE_REJECT=snapshot_status value=%08lx\n", (unsigned long)status);
+#ifdef ESP_PLATFORM
+        if (CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("state reject snapshot_status %08lx", (unsigned long)status);
+#endif
         result=ESP_ERR_INVALID_STATE;goto cleanup;
     }
     const bool battery=ActiveInfo.Mapper.HasBattery && ActiveInfo.RamSize;
@@ -2678,6 +2705,14 @@ static int NativeShortcutCommand(int argc,char **argv)
     return 0;
 }
 
+static int CorePendingCommand(int argc,char **argv)
+{
+    if(argc!=2) { printf("usage: corepending </sdcard/CHROMAGIC/BACKUPS/...>\n"); return 1; }
+    const esp_err_t Result=CoreSwitch_SetPending(argv[1]);
+    printf("COREPENDING %s\n",esp_err_to_name(Result));
+    return Result!=ESP_OK;
+}
+
 static int LynxLockCommand(int argc,char **argv)
 {
     if(argc==2) LynxLock60=atoi(argv[1])!=0;
@@ -2751,7 +2786,7 @@ static const char LynxDiagDir[]="/sdcard/CHROMAGIC/LYNXDIAG";
 static FILE *LynxDiagLog;
 static void LynxDiagPrint(const char *Text)
 {
-    printf("LYNXDIAG %s\n",Text);
+    DiagLog_Append("selftest %s",Text);
     if(LynxDiagLog) { fprintf(LynxDiagLog,"%s\n",Text); fflush(LynxDiagLog); }
 }
 static void LynxDiagDump(const char *Name, unsigned First, unsigned Last, bool Live)
@@ -2778,26 +2813,33 @@ static void LynxDiagTask(void *Arg)
     (void)Arg;
     vTaskDelay(pdMS_TO_TICKS(6000));
     sdmmc_card_t *Card=NULL;
+    bool Wanted=false;
     if(AcquireRunning()) {
         if(SDCard_Mount(&Card)==ESP_OK) {
-            mkdir(LynxDiagDir,0777);
+            struct stat Trigger;
+            Wanted=stat("/sdcard/CHROMAGIC/LYNXTEST.TXT",&Trigger)==0;
+            if(Wanted) mkdir(LynxDiagDir,0777);
             char Path[96]; snprintf(Path,sizeof(Path),"%s/log.txt",LynxDiagDir);
             FILE *Log=fopen(Path,"w");
-            if(Log) { fprintf(Log,"Lynx self-test %s\n",ActiveRomPath); fclose(Log); }
+            if(Wanted && Log) { fprintf(Log,"Lynx self-test %s\n",ActiveRomPath); }
+            if(Log) fclose(Log);
             (void)SDCard_Unmount(Card);
         }
         (void)SetRunning(false);
     }
+    if(!Wanted) { vTaskDelete(NULL); return; }
+    LynxDiagPrint("start");
     char Line[160];
     LynxDiagDump("shot1.bin",64,109,true);
     vTaskDelay(pdMS_TO_TICKS(2000));
     LynxDiagDump("shot2.bin",64,109,true);
     LynxDiagDump("state1.bin",0,65,false);
-    esp_err_t Result=VirtualCart_StateCaptureSlot(false,3,0);
+    esp_err_t Result=ESP_ERR_INVALID_STATE;
+    for(unsigned Try=0;Try<10 && (Result=VirtualCart_StateCaptureSlot(false,3,0))==ESP_ERR_INVALID_STATE;++Try) vTaskDelay(pdMS_TO_TICKS(200));
     snprintf(Line,sizeof(Line),"save slot 3: %s",esp_err_to_name(Result)); LynxDiagPrint(Line);
     vTaskDelay(pdMS_TO_TICKS(3000));
     LynxDiagDump("state2.bin",0,65,false);
-    Result=VirtualCart_StateCaptureSlot(true,3,0);
+    for(unsigned Try=0;Try<10 && (Result=VirtualCart_StateCaptureSlot(true,3,0))==ESP_ERR_INVALID_STATE;++Try) vTaskDelay(pdMS_TO_TICKS(200));
     snprintf(Line,sizeof(Line),"load slot 3: %s",esp_err_to_name(Result)); LynxDiagPrint(Line);
     vTaskDelay(pdMS_TO_TICKS(1000));
     LynxDiagDump("state3.bin",0,65,false);
@@ -2815,12 +2857,8 @@ static void LynxDiagTask(void *Arg)
     LynxDiagPrint("done");
     vTaskDelete(NULL);
 }
-static void LynxDiagMaybeStart(const char *pPath)
+static void LynxDiagMaybeStart(void)
 {
-    struct stat Trigger;
-    if(stat("/sdcard/CHROMAGIC/LYNXTEST.TXT",&Trigger)!=0) return;
-    (void)pPath;
-    printf("LYNXDIAG start\n");
     (void)xTaskCreate(LynxDiagTask,"lynx_diag",6*1024,NULL,3,NULL);
 }
 
@@ -2904,6 +2942,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},
       {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand},
 #ifdef ESP_PLATFORM
+      {.command="corepending",.help="Launch this game at the next boot if its core runs (diagnostics)",.hint="<path>",.func=CorePendingCommand},
       {.command="sdcat",.help="Print an SD card file as base64 (diagnostics)",.hint="</sdcard/...>",.func=SdCatCommand},
       {.command="lynxlock",.help="60 Hz frame lock for the next Lynx game (diagnostics)",.hint="[0|1]",.func=LynxLockCommand},
       {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.hint="[live|state]",.func=LynxShotCommand},

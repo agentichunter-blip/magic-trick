@@ -1,5 +1,11 @@
 #include "nvs.h"
 #include "core_switch.h"
+#ifdef ESP_PLATFORM
+#include "diag_log.h"
+#define LYNX_DIAG(...) do { if (CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append(__VA_ARGS__); } while (0)
+#else
+#define LYNX_DIAG(...) do { } while (0)
+#endif
 #include <string.h>
 #include <strings.h>
 #include "boot_resume.h"
@@ -236,7 +242,8 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
     char Path[LAST_GAME_PATH_SIZE];
     uint8_t Hops = 1;
     const esp_err_t PendingResult = CoreSwitch_TakePendingHops(Path, &Hops);
-    if (Interrupted()) return;
+    LYNX_DIAG("boot pending=%s hops=%u path=%s", esp_err_to_name(PendingResult), (unsigned)Hops, Path);
+    if (Interrupted()) { LYNX_DIAG("boot interrupted"); return; }
     PwrMgr_InhibitSleep();
     if (PendingResult == ESP_OK) {
         if (!CoreSwitch_IsCore(CoreSwitch_SystemForPath(Path))) {
@@ -251,8 +258,10 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
          * is already durably removed: a failed load cannot cause a reboot loop. */
         printf("CORE_SWITCH resume=%s\n", Path);
         const esp_err_t StartResult = VirtualCart_Start(Path);
+        LYNX_DIAG("boot start=%s", esp_err_to_name(StartResult));
         if (StartResult != ESP_OK) goto Fallback;
         while (VirtualCart_IsBusy()) vTaskDelay(pdMS_TO_TICKS(50));
+        LYNX_DIAG("boot active=%u", VirtualCart_IsActive() ? 1u : 0u);
         if (!VirtualCart_IsActive()) goto Fallback;
         goto Done;
     }

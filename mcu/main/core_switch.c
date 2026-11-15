@@ -132,3 +132,15 @@ esp_err_t CoreSwitch_Continue(const char *Path, uint8_t Hops)
     if (Hops >= kCoreSwitchMaxHops) return ESP_ERR_INVALID_STATE;
     return Reload(Path, (uint8_t)(Hops + 1));
 }
+
+esp_err_t CoreSwitch_SetPending(const char *Path)
+{
+    if (!LastGame_ValidPath(Path)) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t Handle;
+    esp_err_t Result = nvs_open(Namespace, NVS_READWRITE, &Handle);
+    if (Result != ESP_OK) return Result;
+    Result = nvs_set_str(Handle, Key, Path);
+    if (Result == ESP_OK) Result = nvs_commit(Handle);
+    nvs_close(Handle);
+    return Result;
+}

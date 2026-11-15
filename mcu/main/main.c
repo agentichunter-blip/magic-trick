@@ -46,6 +46,7 @@
 #include "rom_browser.h"
 #include "rom_browser_worker.h"
 #include "virtual_cart.h"
+#include "diag_log.h"
 #include "boot_resume.h"
 
 enum {
@@ -414,6 +415,7 @@ void app_main(void)
     ESP_ERROR_CHECK(VirtualCart_RegisterConsoleCommands());
     ESP_ERROR_CHECK(NativeStateControl_Init());
     ESP_ERROR_CHECK(PCBackup_RegisterConsoleCommand());
+    DiagLog_RegisterConsoleCommand();
     // All commands must be registered prior to starting the REPL
     ESP_ERROR_CHECK(esp_console_start_repl(pRepl));
     PCBackup_ConsoleReady();
