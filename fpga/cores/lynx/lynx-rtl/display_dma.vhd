@@ -88,6 +88,7 @@ architecture arch of display_dma is
    
    signal dataBuffer     : std_logic_vector(7 downto 0) := (others => '0');
    signal pixel_addrNext : integer range 0 to 16319 := 0;
+   signal line_match     : std_logic := '0';
    
    -- hz counter
    signal secondcounter  : integer range 0 to 63999999 := 0;
@@ -154,7 +155,18 @@ begin
       palette_out(i*12+11 downto i*12) <= color(i);
    end generate;
 
-   dma_new    <= '1' when (displayLine = '1' and first = '0' and (lineDMACounter > 0 or currentLine = (unsigned(Reg_TIM2BKUP) - 3))) else '0';
+   -- Chromatic: the line compare is registered. currentLine and TIM2BKUP
+   -- change on clock-enable edges (4+ clocks apart), so line_match is valid
+   -- long before the next enable; this keeps the subtract/compare out of the
+   -- RAM address select path (timing at 67 MHz).
+   process (clk)
+   begin
+      if rising_edge(clk) then
+         if (currentLine = (unsigned(Reg_TIM2BKUP) - 3)) then line_match <= '1'; else line_match <= '0'; end if;
+      end if;
+   end process;
+
+   dma_new    <= '1' when (displayLine = '1' and first = '0' and (lineDMACounter > 0 or line_match = '1')) else '0';
    dma_active <= '0' when state = IDLE and dma_new = '0' else '1'; 
    
    RAM_address <= to_integer(pixeladdr);
@@ -192,7 +204,7 @@ begin
             
                when IDLE =>
                   if (displayLine = '1') then
-                     if (currentLine = (unsigned(Reg_TIM2BKUP) - 3)) then
+                     if (line_match = '1') then
                         lineDMACounter <= to_unsigned(101, 7);
                         pixeladdr      <= unsigned(Reg_DISPADRH) & unsigned(Reg_DISPADRL(7 downto 2)) & "00";
                         if (Reg_DISPCTL(1) = '1') then -- flip mode
