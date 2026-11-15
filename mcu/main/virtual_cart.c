@@ -2681,10 +2681,19 @@ static int NativeShortcutCommand(int argc,char **argv)
  * 64-108 (lynx_state_engine.sv). */
 static int LynxShotCommand(int argc,char **argv)
 {
-    (void)argc;(void)argv;
+    /* "lynxshot live" reads while the game runs (no freeze). */
+    const bool Live=argc>1 && !strcmp(argv[1],"live");
     if(!CoreSwitch_IsCore(kCoreSystem_Lynx)) { printf("LYNXSHOT FAIL not_lynx\n"); return 1; }
-    if(!SetRunning(true)) { printf("LYNXSHOT FAIL busy\n"); return 1; }
+    bool Got=false;
+    for(unsigned Try=0;Try<60 && !(Got=SetRunning(true));++Try) vTaskDelay(pdMS_TO_TICKS(50));
+    if(!Got) { printf("LYNXSHOT FAIL busy\n"); return 1; }
     esp_err_t Result=CartBulk_Begin();
+    /* The core serves these blocks while frozen: freeze (it saves itself and
+     * pauses on the picture shown), read, release. */
+    CartLinkResponse_t Frozen={0};
+    uint32_t Status=0;
+    if(Result==ESP_OK && !Live) Result=VirtualCommand(kVirtualCommandGGFreeze,NULL,&Frozen);
+    if(Result==ESP_OK && !Live) Result=WaitGGStatus(kGGStatusFrozen,kGGStatusFrozen|1,false,1000,&Status);
     static char Text[1400];
     for(unsigned Block=64;Result==ESP_OK && Block<109;++Block) {
         if(++SaveSequence==0) ++SaveSequence;
@@ -2696,8 +2705,13 @@ static int LynxShotCommand(int argc,char **argv)
             Result=ESP_FAIL;
         if(Result==ESP_OK) { Text[Length]=0; printf("LYNXSHOT %u %s\n",Block-64,Text); fflush(stdout); }
     }
-    if(Result==ESP_OK) CartBulk_End();
-    else { CartBulk_End(); printf("LYNXSHOT FAIL %s\n",esp_err_to_name(Result)); }
+    if(!Live) {
+        CartLinkResponse_t Released={0};
+        (void)VirtualCommand(kVirtualCommandGGRelease,NULL,&Released);
+        (void)WaitGGStatus(0,kGGStatusFrozen,false,1000,&Status);
+    }
+    CartBulk_End();
+    if(Result!=ESP_OK) printf("LYNXSHOT FAIL %s\n",esp_err_to_name(Result));
     (void)SetRunning(false);
     if(Result==ESP_OK) printf("LYNXSHOT DONE\n");
     return Result!=ESP_OK;
@@ -2757,7 +2771,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},
       {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand},
 #ifdef ESP_PLATFORM
-      {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.func=LynxShotCommand},
+      {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.hint="[live]",.func=LynxShotCommand},
 #endif
     };
     for(unsigned i=0;i<sizeof(NativeCommands)/sizeof(NativeCommands[0]);++i) {

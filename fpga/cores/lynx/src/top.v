@@ -1016,10 +1016,12 @@ module top #(parameter ISSIMU=0)
                     end
                     VIRTUAL_STATE_BLOCK: begin
                         virtual_response_data <= virtual_state_word_g;
+                        // Atari Lynx: no cartridge RAM; while the game runs,
+                        // only the framebuffer blocks 64-108 (diagnostics).
                         if (!virtual_enable_g || virtual_state_busy_g ||
                             (!virtual_state_frozen_g &&
-                             (cart_request_aux_value[6:0] < 7'd9 ||
-                              cart_request_aux_value[6:0] > 7'd40)) ||
+                             (cart_request_aux_value[6:0] < 7'd64 ||
+                              cart_request_aux_value[6:0] > 7'd108)) ||
                             cart_request_aux_value[7] != 0) begin
                             virtual_response_status <= 4'h3;
                         end else begin

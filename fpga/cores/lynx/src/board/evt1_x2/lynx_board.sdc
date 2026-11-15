@@ -52,11 +52,11 @@ set_max_delay -from [get_regs {u_emu_system_top/video_cdc/fifo/rgray_*_s0}] -to 
 # start on an enable edge) changes on or one cycle after an enable edge, so it
 # has at least three xclk cycles; two are allowed here. CEA itself (the enable)
 # keeps its single-cycle requirement.
-set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/ADA[*]}] -setup -end 2
-set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/ADA[*]}] -hold -end 1
-set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/DIA[*]}] -setup -end 2
-set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/DIA[*]}] -hold -end 1
+set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/ADA\[*\]}] -setup -end 2
+set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/ADA\[*\]}] -hold -end 1
+set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/DIA\[*\]}] -setup -end 2
+set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/DIA\[*\]}] -hold -end 1
 set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/WREA}] -setup -end 2
 set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/WREA}] -hold -end 1
-set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/BLKSELA[*]}] -setup -end 2
-set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/BLKSELA[*]}] -hold -end 1
+set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/BLKSELA\[*\]}] -setup -end 2
+set_multicycle_path -to [get_pins {u_emu_system_top/core/lynx/ilynx/imemorymux/iram/mem_mem_*/BLKSELA\[*\]}] -hold -end 1
