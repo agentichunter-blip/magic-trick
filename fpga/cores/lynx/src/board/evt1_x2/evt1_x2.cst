@@ -290,3 +290,7 @@ IO_PORT "VERSION_DET" IO_TYPE=LVCMOS33 PULL_MODE=UP PULL_STRENGTH=WEAK;
 IO_PORT "VERSION_DET2" IO_TYPE=LVCMOS18 PULL_MODE=UP PULL_STRENGTH=WEAK;
 IO_PORT "DISPLAY_ID" IO_TYPE=LVCMOS33 PULL_MODE=UP PULL_STRENGTH=WEAK;
 IO_PORT "CHG_EN_FPGA" IO_TYPE=LVCMOS33;
+
+// Atari Lynx core: the core reset (fanout ~240) on general routing, which
+// leaves a long-wire (LW) clock resource free; with all 8 taken, routing failed.
+CLOCK_LOC "u_emu_system_top/core_reset_x" LOCAL_CLOCK;
