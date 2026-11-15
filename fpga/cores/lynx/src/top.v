@@ -1498,39 +1498,23 @@ module top #(parameter ISSIMU=0)
             else
                 usbrst <= 1'd0;
 
-    usbuvcuart_top u_usb_top(
-        .CLK_24MHz(CLK_24MHz),
-        .ERST(usbrst | POWER_ON_FPGA),   // ModRetro 18.11: USB held in reset while switched off
-        .pClk(PHY_CLKOUT),
-        .usblocked(usblocked),
-        .hClk(gClk),
-
-        .UART_TXD(UART_RXD), // output
-        .UART_RXD(UART_TXD), // input
-        .E_UART_DTR(UART_DTR), // used for ESP32_EN
-        .E_UART_RTS(UART_RTS), // used for ESP32_IO0 (bootloader select)
-
-        .PC_STREAM_DATA(cart_usb_tx_data),
-        .PC_STREAM_VALID(cart_usb_tx_valid),
-        .PC_STREAM_READY(cart_usb_tx_ready),
-
-        .left(left),
-        .right(right),
-
-        .hLineValid(hr1),
-        .hEnable(he1),
-        .hFrameValid(vr1),
-        .hData(d1),
-        .debugs(debugs),
-        .playerNum({4'd0, system_control[7:4]}),
-        .usb_dxp_io(usb_dxp_io),
-        .usb_dxn_io(usb_dxn_io),
-        .usb_rxdp_i(usb_rxdp_i),
-        .usb_rxdn_i(usb_rxdn_i),
-        .usb_pullup_en_o(usb_pullup_en_o),
-        .usb_term_dp_io(usb_term_dp_io),
-        .usb_term_dn_io(usb_term_dn_io)
-    );
+    // Atari Lynx core: no FPGA USB (device, PHY, UART bridge). The core with
+    // save states does not route on the GW5A-25 with it. While a Lynx game
+    // runs the Chromatic is not visible over USB; the GB/GBC and Game Gear
+    // cores (and every power-on, which starts GB/GBC) have it. With USB never
+    // locked, the ESP32 runs (EN and IO0 high) and its console lines idle.
+    assign UART_RXD = 1'b1;
+    assign UART_DTR = 1'b0;
+    assign UART_RTS = 1'b0;
+    assign PHY_CLKOUT = 1'b0;
+    assign usblocked = 1'b0;
+    assign cart_usb_tx_ready = 1'b1;
+    assign debugs = 8'd0;
+    assign usb_pullup_en_o = 1'b0;
+    assign usb_dxp_io = 1'bz;
+    assign usb_dxn_io = 1'bz;
+    assign usb_term_dp_io = 1'bz;
+    assign usb_term_dn_io = 1'bz;
 
     wire [13:0] hAdcValue_r1;
     wire hAdcReq_ext;
