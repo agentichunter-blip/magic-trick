@@ -2783,6 +2783,7 @@ static int LynxShotCommand(int argc,char **argv)
  * write to CHROMAGIC/LYNXDIAG/ two live framebuffer captures, a state image,
  * a save to slot 3 and a load back, more captures, and log.txt. */
 static const char LynxDiagDir[]="/sdcard/CHROMAGIC/LYNXDIAG";
+static char LynxDiagSwitch[320];
 static FILE *LynxDiagLog;
 static void LynxDiagPrint(const char *Text)
 {
@@ -2816,8 +2817,19 @@ static void LynxDiagTask(void *Arg)
     bool Wanted=false;
     if(AcquireRunning()) {
         if(SDCard_Mount(&Card)==ESP_OK) {
-            struct stat Trigger;
-            Wanted=stat("/sdcard/CHROMAGIC/LYNXTEST.TXT",&Trigger)==0;
+            FILE *Trigger=fopen("/sdcard/CHROMAGIC/LYNXTEST.TXT","r");
+            Wanted=Trigger!=NULL;
+            LynxDiagSwitch[0]=0;
+            if(Trigger) {
+                /* Optional line "switch <path>": open that game afterwards. */
+                char Line[320];
+                while(fgets(Line,sizeof(Line),Trigger))
+                    if(!strncmp(Line,"switch ",7)) {
+                        Line[strcspn(Line,"\r\n")]=0;
+                        snprintf(LynxDiagSwitch,sizeof(LynxDiagSwitch),"%s",Line+7);
+                    }
+                fclose(Trigger);
+            }
             if(Wanted) mkdir(LynxDiagDir,0777);
             char Path[96]; snprintf(Path,sizeof(Path),"%s/log.txt",LynxDiagDir);
             FILE *Log=fopen(Path,"w");
@@ -2855,6 +2867,11 @@ static void LynxDiagTask(void *Arg)
         (void)SetRunning(false);
     }
     LynxDiagPrint("done");
+    if(LynxDiagSwitch[0]) {
+        DiagLog_Append("selftest switch to %s",LynxDiagSwitch);
+        const esp_err_t Switch=VirtualCart_Start(LynxDiagSwitch);
+        DiagLog_Append("selftest switch start=%s",esp_err_to_name(Switch));
+    }
     vTaskDelete(NULL);
 }
 static void LynxDiagMaybeStart(void)
