@@ -4,7 +4,9 @@ set_option -synthesis_tool gowinsynthesis
 set_option -top_module top
 set_option -verilog_std sysv2017
 set_option -vhdl_std vhd2008
-set_option -rw_check_on_ram 1
+# No read/write collision bypass logic: no Lynx-core RAM reads an address
+# while the other port writes it, and every block of logic counts (routing).
+set_option -rw_check_on_ram 0
 set_option -use_sspi_as_gpio 1
 set_option -power_on_reset_monitor 1
 set_option -use_i2c_as_gpio 1
@@ -47,8 +49,8 @@ add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pk
 
 add_file -type verilog "../../esp32t/src/gowin_pll_preevt/gowin_pll.v"
 add_file -type verilog "src/top.v"
-# Routing congestion (logic ~95%): placement option 3, as the Game Gear core.
-set_option -place_option 3
+# Placement algorithm 1 (slower, better layout): routing is congested.
+set_option -place_option 1
 set_option -route_option 0
 add_file -type sdc "src/board/evt1_x2/lynx_board.sdc"
 add_file -type verilog "core_reload.sv"

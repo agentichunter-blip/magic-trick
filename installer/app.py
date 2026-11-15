@@ -26,13 +26,14 @@ STEPS = {
     'mcu': ('MCU APP', 'Writing the Magic Trick app to the MCU.', 1.5),
     'fpga_chromagic': ('FPGA PREP', 'Putting the ChroMagic core in place so the FPGA can be written safely.', 2.5),
     'fpga_gg': ('GAME GEAR CORE', 'Writing the Game Gear core to the FPGA.', 2.5),
+    'fpga_lynx': ('ATARI LYNX CORE', 'Writing the Atari Lynx core to the FPGA.', 2.5),
     'fpga_gb': ('GAME BOY CORE', 'Writing the Game Boy and Game Boy Color core to the FPGA.', 2.5),
     'table': ('SWITCH OVER', 'Switching the MCU over to the new firmware.', 0.3),
     'mcu_restore': ('RESTORE MCU', 'Putting your saved MCU flash back. This takes a few minutes.', 6),
     'confirm': ('RESTART', 'Restarting your Chromatic and checking that it starts up.', 1),
 }
 PLANS = {
-    'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_gb', 'table', 'confirm'],
+    'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'table', 'confirm'],
     'uninstall': ['check', 'backup', 'fpga_chromagic', 'table', 'confirm'],
     'restore': ['check', 'precopy', 'fpga_chromagic', 'mcu_restore', 'confirm'],
 }
@@ -160,7 +161,7 @@ class App:
     # ---------- home ----------
     def show_home(self):
         self.clear(); self.mode = 'home'
-        self.label(self.screen, 'Game Boy, Game Boy Color and Game Gear on one Chromatic. What would you like to do?',
+        self.label(self.screen, 'Game Boy, Game Boy Color, Game Gear and Atari Lynx on one Chromatic. What would you like to do?',
                    self.f_body_big, INK, wrap=840).pack(anchor='w', pady=(4, 8))
         note = tk.Frame(self.screen, bg=BG); note.pack(fill='x')
         self.label(note, '! BETA: installed at your own risk. Magic Trick isn\'t made or supported by ModRetro and may '
@@ -686,7 +687,7 @@ def run_esptool(args):
 def demo_work(speed=1.0, fail=False):
     """A pretend install for screenshots and UI checks: no device is touched."""
     pause = lambda s: time.sleep(s * speed)
-    core.emit('plan', steps=['check', 'backup', 'mcu', 'fpga_chromagic', 'fpga_gg', 'fpga_gb', 'confirm'])
+    core.emit('plan', steps=['check', 'backup', 'mcu', 'fpga_chromagic', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'confirm'])
     core.emit('step', key='check'); print('Device versions: {"mcu": "v1.0.0-beta", "fpga": "50.1"}'); pause(2)
     core.emit('step', key='backup')
     for pct in range(0, 101, 4):
@@ -696,7 +697,7 @@ def demo_work(speed=1.0, fail=False):
     core.emit('step', key='mcu')
     for pct in range(0, 101, 5):
         print(f'Writing at 0x{0x260000 + pct * 0x3000:08x}... ({pct} %)'); pause(0.2)
-    for key in ('fpga_chromagic', 'fpga_gg', 'fpga_gb'):
+    for key in ('fpga_chromagic', 'fpga_gg', 'fpga_lynx', 'fpga_gb'):
         core.emit('step', key=key)
         print('FPGA write at 0x000000, attempt 1 of 12…'); pause(3)
         if key == 'fpga_chromagic':

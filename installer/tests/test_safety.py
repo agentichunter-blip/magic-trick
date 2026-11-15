@@ -132,8 +132,8 @@ class Programmer(unittest.TestCase):
         with self.assertRaises(ValueError): fpga.flash('img.fs', 0x1000, lambda s: None)
 
 
-GB, GG = core.IMAGES['fpga_gb'][1], core.IMAGES['fpga_gg'][1]
-BOTH_CORES = {core.SLOT_GB: GB, core.SLOT_GG: GG}
+GB, GG, LYNX = core.IMAGES['fpga_gb'][1], core.IMAGES['fpga_gg'][1], core.IMAGES['fpga_lynx'][1]
+BOTH_CORES = {core.SLOT_GB: GB, core.SLOT_GG: GG, core.SLOT_LYNX: LYNX}   # all three cores
 
 
 class CoreRecord(unittest.TestCase):
@@ -224,6 +224,7 @@ class Flows(unittest.TestCase):
             self.assertIsNone(error); self.assertEqual(stage, 'complete')
             self.assertEqual(writes, [('write', 0x260000, core.IMAGES['mcu'][0]),
                                       ('fpga', core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
+                                      ('fpga', core.SLOT_LYNX, core.IMAGES['fpga_lynx'][0]),
                                       ('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0]),
                                       ('write', core.CORE_RECORD_OFFSET, 'core-record.bin'),
                                       ('write', 0x8000, core.IMAGES['table_three_systems'][0])])
@@ -239,6 +240,7 @@ class Flows(unittest.TestCase):
             self.assertEqual([w for w in writes if w[0] == 'fpga'],
                              [('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
                               ('fpga', core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
+                              ('fpga', core.SLOT_LYNX, core.IMAGES['fpga_lynx'][0]),
                               ('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
 
     # --- skipping cores the installer already wrote (core record) ---
@@ -255,23 +257,33 @@ class Flows(unittest.TestCase):
         self.assertEqual(events[-1], 'reset')   # the final check still restarts and confirms
 
     def test_only_the_game_boy_core_changed(self):
-        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: '0' * 64, core.SLOT_GG: GG})
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: '0' * 64, core.SLOT_GG: GG,
+                                                                 core.SLOT_LYNX: LYNX})
         self.assertIsNone(error)
-        # Slot 0 is written directly: no temporary core, slot 1 untouched.
+        # Slot 0 is written directly: no temporary core, slots 1 and 2 untouched.
         self.assertEqual(self.fpga_writes(writes), [(core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
         # The Game Boy entry is forgotten before the write and recorded after it.
-        self.assertEqual(self.records, [{core.SLOT_GG: GG}, BOTH_CORES])
+        self.assertEqual(self.records, [{core.SLOT_GG: GG, core.SLOT_LYNX: LYNX}, BOTH_CORES])
         self.assertLess(writes.index(('write', core.CORE_RECORD_OFFSET, 'core-record.bin')),
                         writes.index(('fpga', core.SLOT_GB, core.IMAGES['fpga_gb'][0])))
 
     def test_game_gear_change_rewrites_everything_through_chromagic(self):
-        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: GB, core.SLOT_GG: '1' * 64})
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: GB, core.SLOT_GG: '1' * 64,
+                                                                 core.SLOT_LYNX: LYNX})
         self.assertIsNone(error)
         self.assertEqual(self.fpga_writes(writes), [(core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
                                                     (core.SLOT_GG, core.IMAGES['fpga_gg'][0]),
                                                     (core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
         # Both slots are forgotten before writing: slot 0 briefly holds the temporary core.
-        self.assertEqual(self.records, [{}, BOTH_CORES])
+        self.assertEqual(self.records, [{core.SLOT_LYNX: LYNX}, BOTH_CORES])
+
+    def test_lynx_change_rewrites_lynx_through_chromagic(self):
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: GB, core.SLOT_GG: GG})
+        self.assertIsNone(error)
+        self.assertEqual(self.fpga_writes(writes), [(core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
+                                                    (core.SLOT_LYNX, core.IMAGES['fpga_lynx'][0]),
+                                                    (core.SLOT_GB, core.IMAGES['fpga_gb'][0])])
+        self.assertEqual(self.records, [{core.SLOT_GG: GG}, BOTH_CORES])
 
     def test_record_is_ignored_unless_layout_and_running_core_agree(self):
         for kwargs in [dict(self.UPDATE, running=dict(core.TARGET, fpga='18.38')),   # ChroMagic core running
@@ -285,13 +297,14 @@ class Flows(unittest.TestCase):
     def test_no_record_yet_writes_both_and_records_them(self):
         _, writes, error, _ = self.perform(**self.UPDATE)
         self.assertIsNone(error)
-        self.assertEqual(len(self.fpga_writes(writes)), 3)
+        self.assertEqual(len(self.fpga_writes(writes)), 4)
         self.assertEqual(self.records, [BOTH_CORES])   # nothing to forget first
 
     def test_interrupted_fpga_write_leaves_that_slot_unrecorded(self):
-        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: '0' * 64, core.SLOT_GG: GG}, fpga_fail=True)
+        _, writes, error, _ = self.perform(**self.UPDATE, record={core.SLOT_GB: '0' * 64, core.SLOT_GG: GG,
+                                                                 core.SLOT_LYNX: LYNX}, fpga_fail=True)
         self.assertIsNotNone(error)
-        self.assertEqual(self.records, [{core.SLOT_GG: GG}])
+        self.assertEqual(self.records, [{core.SLOT_GG: GG, core.SLOT_LYNX: LYNX}])
 
     def test_interrupted_install_with_new_fpga_bounces_too(self):
         _, writes, error, _ = self.perform(running=dict(ART31, fpga='50.1'))

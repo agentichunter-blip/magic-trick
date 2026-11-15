@@ -1,13 +1,14 @@
-# Magic Trick FPGA cores (three systems, MB1)
+# Magic Trick FPGA cores (four systems, MB1)
 
-Magic Trick ships two FPGA images that share the Chromatic's 4 MiB FPGA configuration flash. The MCU switches between them when you open a game for the other system.
+Magic Trick ships three FPGA images that share the Chromatic's 4 MiB FPGA configuration flash. The MCU switches between them when you open a game for another system.
 
 | Flash offset | Core | Directory | Boots next |
 |---|---|---|---|
 | `0x000000` | Game Boy / Game Boy Color, with native save states | [`gb-gbc/`](gb-gbc) | `0x100000` |
-| `0x100000` | Game Gear | [`game-gear/`](game-gear) | `0x000000` |
+| `0x100000` | Game Gear | [`game-gear/`](game-gear) | `0x200000` |
+| `0x200000` | Atari Lynx | [`lynx/`](lynx) | `0x000000` |
 
-A real power-on always boots slot 0. A core switch asks the running image to reconfigure the FPGA, and the next image is the one named by the running bitstream's static `-multiboot_spi_flash_address`. On this device the SAMB primitive's dynamic address does **not** steer the reload, so each core must keep its static next-boot address. With two cores, a reload always means "the other core". A blank or invalid target falls back to slot 0.
+A real power-on always boots slot 0. A core switch asks the running image to reconfigure the FPGA, and the next image is the one named by the running bitstream's static `-multiboot_spi_flash_address`. On this device the SAMB primitive's dynamic address does **not** steer the reload, so each core must keep its static next-boot address. The cores form a cycle (GB -> GG -> Lynx -> GB): reaching a core can take two reloads, and the MCU reloads again when it lands on the core in between (`mcu/main/core_switch.c`). A blank or invalid target falls back to slot 0.
 
 ## Layout of this directory
 
