@@ -206,8 +206,8 @@ module emu_system_top
     gg_audio_bridge audio_cdc(.xclk(xclk),.xreset(core_reset_x),
         .stereo({audio_left,audio_right}),.hclk(hclk),.hreset(reset_h_sync[1]),
         .sample({lynx_left_raw,lynx_right_raw}));
-    // Same low-pass/DC blocker as the Game Gear core.
-    gg_audio_lpf u_audio_lpf(
+    // The Game Gear core's low-pass/DC blocker, adders shared by L and R.
+    lynx_audio_lpf u_audio_lpf(
         .clk(hclk),.reset(reset_h_sync[1]),
         .in_l(lynx_left_raw),.in_r(lynx_right_raw),
         .out_l(left),.out_r(right));

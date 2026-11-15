@@ -1,0 +1,38 @@
+Modules list:
+-------------
+hle_boot.o:
+    DATA              Offs=000000  Size=000103  Align=00001  Fill=0000
+    J00               Offs=000000  Size=000003  Align=00001  Fill=0000
+    J19               Offs=000000  Size=000003  Align=00001  Fill=0000
+    SEL               Offs=000000  Size=000024  Align=00001  Fill=0000
+    J4A               Offs=000000  Size=000003  Align=00001  Fill=0000
+    RESET             Offs=000000  Size=00006F  Align=00001  Fill=0000
+    VECTORS           Offs=000000  Size=000006  Align=00001  Fill=0000
+
+
+Segment list:
+-------------
+Name                   Start     End    Size  Align
+----------------------------------------------------
+J00                   00FE00  00FE02  000003  00001
+J19                   00FE19  00FE1B  000003  00001
+SEL                   00FE1C  00FE3F  000024  00001
+J4A                   00FE4A  00FE4C  000003  00001
+DATA                  00FE4D  00FF4F  000103  00001
+RESET                 00FF80  00FFEE  00006F  00001
+VECTORS               00FFFA  00FFFF  000006  00001
+
+
+Exports list by name:
+---------------------
+
+
+
+Exports list by value:
+----------------------
+
+
+
+Imports list:
+-------------
+

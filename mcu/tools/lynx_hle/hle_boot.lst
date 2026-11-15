@@ -1,0 +1,131 @@
+ca65 V2.19 - Git d8a486a
+Main file   : hle_boot.s
+Current file: hle_boot.s
+
+000000r 1               ; Magic Trick Lynx boot stub (original code). Used in place of the Atari boot
+000000r 1               ; ROM when none is on the SD card. The MCU decrypts the cartridge's loader
+000000r 1               ; (RSA, public key, as the boot ROM would) and patches it into LOADER below,
+000000r 1               ; with the number of encrypted bytes to skip in SKIPLO/SKIPHI. At reset this
+000000r 1               ; stub clears RAM, sets up the display timers, selects cartridge block 0,
+000000r 1               ; advances the cartridge counter past the encrypted loader, copies the loader
+000000r 1               ; to $0200 and jumps to it. $FE00 (select cartridge block A) works as on the
+000000r 1               ; Lynx; the boot ROM's own loader entries ($FE19, $FE4A) cannot decrypt here
+000000r 1               ; and restart the stub instead. The core starts the CPU at $FF80 (the boot
+000000r 1               ; ROM's reset entry), not through the reset vector, so reset is there.
+000000r 1               .setcpu "65C02"
+000000r 1               RCART0   = $FCB2
+000000r 1               TIM0BKUP = $FD00
+000000r 1               TIM0CTLA = $FD01
+000000r 1               TIM2BKUP = $FD08
+000000r 1               TIM2CTLA = $FD09
+000000r 1               SYSCTL1  = $FD87
+000000r 1               IODIR    = $FD8A
+000000r 1               IODAT    = $FD8B
+000000r 1               DISPCTL  = $FD92
+000000r 1               PBKUP    = $FD93
+000000r 1               MAPCTL   = $FFF9
+000000r 1               
+000000r 1               .segment "J00"
+000000r 1  4C rr rr             jmp selblk              ; $FE00 select cartridge block A
+000003r 1               .segment "J19"
+000000r 1  4C rr rr             jmp reset               ; $FE19
+000003r 1               .segment "SEL"
+000000r 1               ; A = block: shifted MSB first into the cartridge address register through
+000000r 1               ; IODAT bit 1, one strobe rising edge per bit (SYSCTL1 bit 0; bit 1 = power).
+000000r 1  DA           selblk: phx
+000001r 1  5A                   phy
+000002r 1  A8                   tay
+000003r 1  A9 1A                lda #$1a
+000005r 1  8D 8A FD             sta IODIR
+000008r 1  A2 08                ldx #8
+00000Ar 1  98           @bit:   tya
+00000Br 1  0A                   asl a
+00000Cr 1  A8                   tay
+00000Dr 1  A9 00                lda #0
+00000Fr 1  2A                   rol a
+000010r 1  0A                   asl a
+000011r 1  8D 8B FD             sta IODAT
+000014r 1  A9 03                lda #$03
+000016r 1  8D 87 FD             sta SYSCTL1
+000019r 1  A9 02                lda #$02
+00001Br 1  8D 87 FD             sta SYSCTL1
+00001Er 1  CA                   dex
+00001Fr 1  D0 E9                bne @bit
+000021r 1  7A                   ply
+000022r 1  FA                   plx
+000023r 1  60                   rts
+000024r 1               
+000024r 1               .segment "J4A"
+000000r 1  4C rr rr             jmp reset               ; $FE4A
+000003r 1               .segment "DATA"
+000000r 1  00 00 00 00  LOADER: .res 256, 0
+000004r 1  00 00 00 00  
+000008r 1  00 00 00 00  
+000100r 1  00           SKIPLO: .byte 0
+000101r 1  00           SKIPHI: .byte 0
+000102r 1  40           irq:    rti
+000103r 1               .segment "RESET"
+000000r 1  78           reset:  sei
+000001r 1  D8                   cld
+000002r 1  A2 FF                ldx #$ff
+000004r 1  9A                   txs
+000005r 1  9C F9 FF             stz MAPCTL
+000008r 1                       ; clear zero page, stack and $0200-$FBFF
+000008r 1  A9 00                lda #0
+00000Ar 1  AA                   tax
+00000Br 1  95 00        @zp:    sta $00,x
+00000Dr 1  9D 00 01             sta $0100,x
+000010r 1  E8                   inx
+000011r 1  D0 F8                bne @zp
+000013r 1  A9 02                lda #$02
+000015r 1  85 01                sta $01
+000017r 1  A0 00                ldy #0
+000019r 1  A9 00        @pg:    lda #0
+00001Br 1  91 00                sta ($00),y
+00001Dr 1  C8                   iny
+00001Er 1  D0 F9                bne @pg
+000020r 1  E6 01                inc $01
+000022r 1  A5 01                lda $01
+000024r 1  C9 FC                cmp #$fc
+000026r 1  D0 F1                bne @pg
+000028r 1  64 01                stz $01
+00002Ar 1                       ; LCD timing as after the boot ROM (59.9 Hz)
+00002Ar 1  A9 9E                lda #$9e
+00002Cr 1  8D 00 FD             sta TIM0BKUP
+00002Fr 1  A9 18                lda #$18
+000031r 1  8D 01 FD             sta TIM0CTLA
+000034r 1  A9 68                lda #$68
+000036r 1  8D 08 FD             sta TIM2BKUP
+000039r 1  A9 1F                lda #$1f
+00003Br 1  8D 09 FD             sta TIM2CTLA
+00003Er 1  A9 29                lda #$29
+000040r 1  8D 93 FD             sta PBKUP
+000043r 1  A9 0D                lda #$0d
+000045r 1  8D 92 FD             sta DISPCTL
+000048r 1                       ; block 0, then skip the encrypted loader (1 + 51 * blocks bytes)
+000048r 1  A9 00                lda #0
+00004Ar 1  20 rr rr             jsr selblk
+00004Dr 1  AE rr rr             ldx SKIPLO
+000050r 1  AC rr rr             ldy SKIPHI
+000053r 1  C8                   iny
+000054r 1  AD B2 FC     @skip:  lda RCART0
+000057r 1  CA                   dex
+000058r 1  D0 FA                bne @skip
+00005Ar 1  88                   dey
+00005Br 1  D0 F7                bne @skip
+00005Dr 1                       ; copy the decrypted loader to $0200 (256 bytes, zero padded;
+00005Dr 1                       ; at most 5 blocks of 50 bytes)
+00005Dr 1  A2 00                ldx #0
+00005Fr 1  BD rr rr     @c1:    lda LOADER,x
+000062r 1  9D 00 02             sta $0200,x
+000065r 1  E8                   inx
+000066r 1  D0 F7                bne @c1
+000068r 1  A9 00                lda #0
+00006Ar 1  AA                   tax
+00006Br 1  A8                   tay
+00006Cr 1  4C 00 02             jmp $0200
+00006Fr 1               
+00006Fr 1               .segment "VECTORS"
+000000r 1  rr rr rr rr          .word irq, reset, irq
+000004r 1  rr rr        
+000004r 1               

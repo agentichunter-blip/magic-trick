@@ -14,6 +14,6 @@ verilator --cc --exe --build -j 8 -O3 --x-assign fast --x-initial fast -Wno-fata
   --top-module lynx_sim_top -Mdir build/obj \
   lynx_sim_top.sv $L/emu_system_top.v $L/lynx_board_core.sv $L/lynx_state_engine.sv $L/lynx_dpram.v \
   $L/board-rtl/lynx_video_bridge.sv $L/board-rtl/gg_async_fifo.sv $L/board-rtl/gg_audio_bridge.sv \
-  $L/gg_rom_bridge.sv $L/gg_audio_lpf.sv build/lynx_chromatic.v lynx_test.cpp > build/verilator.log 2>&1 \
+  $L/gg_rom_bridge.sv $L/lynx_audio_lpf.sv build/lynx_chromatic.v lynx_test.cpp > build/verilator.log 2>&1 \
   || { tail -30 build/verilator.log; exit 1; }
-./build/obj/Vlynx_sim_top "${1:-../testprog/lynxtest_bs93.o}" out "${2:-12}" "${3:-1}"
+./build/obj/Vlynx_sim_top "${1:-../testprog/lynxtest_bs93.o}" out "${2:-12}" "${3:-1}" ${4:-}

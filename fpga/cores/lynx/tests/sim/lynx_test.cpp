@@ -84,6 +84,8 @@ int main(int argc, char **argv) {
     outdir = argv[2];
     int frames = argc > 3 ? atoi(argv[3]) : 12;
     int lock = argc > 4 ? atoi(argv[4]) : 1;
+    std::vector<uint8_t> bios;
+    if (argc > 5) { FILE *b = fopen(argv[5], "rb"); int ch; while (b && (ch = fgetc(b)) != EOF) bios.push_back(ch); if (b) fclose(b); }
     FILE *f = fopen(argv[1], "rb");
     if (!f) { perror("file"); return 2; }
     std::vector<uint8_t> file; int c; while ((c = fgetc(f)) != EOF) file.push_back(c); fclose(f);
@@ -96,7 +98,8 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 4; i++) psram_write(base + i, magic[i]);
     uint32_t n = file.size();
     for (int i = 0; i < 4; i++) psram_write(base + 4 + i, (n >> (8 * i)) & 255);
-    psram_write(base + 8, lock ? 2 : 0);
+    psram_write(base + 8, (lock ? 2 : 0) | (bios.size() == 512 ? 1 : 0));
+    for (size_t i = 0; i < bios.size() && i < 512; i++) psram_write(base + 0x200 + i, bios[i]);
     for (uint32_t i = 0; i < n; i++) psram_write(base + 0x1000 + i, file[i]);
     t->xreset = 0; run(64); t->reset_n = 1;
 
@@ -126,6 +129,7 @@ int main(int argc, char **argv) {
         if (cycle >= lim) { printf("FAIL block %d\n", b); return 1; }
         for (int i = 0; i < 1024; i++) { t->qaddress = i; step(); step(); state[b * 1024 + i] = t->qdata; }
     }
+    { std::string sp = outdir + "/state.bin"; FILE *sf = fopen(sp.c_str(), "wb"); fwrite(state.data(), 1, state.size(), sf); fclose(sf); }
     uint32_t sizeword = state[4] | state[5] << 8 | state[6] << 16 | state[7] << 24;
     unsigned frames_saved = state[1024 + 0xF0] | state[1024 + 0xF1] << 8;
     unsigned bar_saved = state[1024 + 0xF2];

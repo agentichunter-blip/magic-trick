@@ -51,7 +51,7 @@ add_file -type verilog "board-rtl/gg_launch_status.sv"
 add_file -type verilog "gg_rom_bridge.sv"
 add_file -type verilog "emu_system_top.v"
 
-add_file -type verilog "gg_audio_lpf.sv"
+add_file -type verilog "lynx_audio_lpf.sv"
 add_file -type verilog "../../esp32t/src/rtl/EMU/cartridge_interface.v"
 add_file -type verilog "board-rtl/lynx_video_bridge.sv"
 add_file -type verilog "lynx_board_core.sv"

@@ -4,6 +4,7 @@
 #include "native_state_control.h"
 #include "gg_rom.h"
 #include "lynx_rom.h"
+#include "lynx_hle.h"
 #include "state_save_branch.h"
 #include "state_file.h"
 #include "last_game.h"
@@ -352,7 +353,7 @@ static esp_err_t ResolvePath(const char *pInput, char Output[kPathSize])
     const char *pDot = strrchr(Output, '.');
     if (pDot == NULL || (pSlash != NULL && pDot < pSlash) ||
         (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0 && strcasecmp(pDot, ".gg") != 0 &&
-         CoreSwitch_SystemForPath(Output) != kCoreSystem_Lynx))
+         strcasecmp(pDot, ".lnx") != 0 && strcasecmp(pDot, ".lyx") != 0 && strcasecmp(pDot, ".o") != 0))
     {
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -592,11 +593,23 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
 {
     /* Block 0: info block, then the boot ROM at 0x200. */
     memset(TransferBuffer, 0, sizeof(TransferBuffer));
-    const bool Bios = ReadLynxBios(pPath, TransferBuffer + kLynxBiosAddress);
+    bool Bios = ReadLynxBios(pPath, TransferBuffer + kLynxBiosAddress);
     if (!Bios && !pInfo->LynxRom.Bs93)
     {
-        printf("LYNX_BIOS=missing (put lynxboot.img in CHROMAGIC/BACKUPS/LYNX)\n");
-        return ESP_ERR_NOT_FOUND;
+        /* No boot ROM: decrypt the cartridge's loader here and boot it with
+         * Magic Trick's replacement stub (lynx_hle.c). */
+        uint8_t Page[256];
+        memset(Page, 0, sizeof(Page));
+        const long Start = pInfo->LynxRom.Header ? kLynxHeaderSize : 0;
+        const size_t Got = fseek(pRom, Start, SEEK_SET) == 0 ? fread(Page, 1, sizeof(Page), pRom) : 0;
+        const esp_err_t Hle = LynxHle_BuildBoot(Page, Got, TransferBuffer + kLynxBiosAddress);
+        if (Hle != ESP_OK)
+        {
+            printf("LYNX_BIOS=missing hle=%s (put lynxboot.img in CHROMAGIC/BACKUPS/LYNX)\n", esp_err_to_name(Hle));
+            return ESP_ERR_NOT_FOUND;
+        }
+        printf("LYNX_BIOS=hle blocks=%u\n", 256u - Page[0]);
+        Bios = true;
     }
     uint8_t *Info = TransferBuffer + kLynxInfoAddress;
     memcpy(Info, "LXC1", 4);

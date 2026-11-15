@@ -47,7 +47,8 @@ add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pk
 
 add_file -type verilog "../../esp32t/src/gowin_pll_preevt/gowin_pll.v"
 add_file -type verilog "src/top.v"
-set_option -place_option 0
+# Routing congestion (logic ~95%): placement option 3, as the Game Gear core.
+set_option -place_option 3
 set_option -route_option 0
 add_file -type sdc "src/board/evt1_x2/lynx_board.sdc"
 add_file -type verilog "core_reload.sv"
