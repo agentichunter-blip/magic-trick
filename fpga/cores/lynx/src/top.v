@@ -98,13 +98,8 @@ module top #(parameter ISSIMU=0)
     inout               SCL,
     inout               SDA,
 
-    inout               usb_dxp_io,
-    inout               usb_dxn_io,
-    input               usb_rxdp_i,
-    input               usb_rxdn_i,
+    // Atari Lynx core: of the USB pins only the D+ pull-up enable (off).
     output              usb_pullup_en_o,
-    inout               usb_term_dp_io,
-    inout               usb_term_dn_io,
 
     input               VBAT_ADC_P,
     input               VBAT_ADC_N,
@@ -1511,10 +1506,6 @@ module top #(parameter ISSIMU=0)
     assign cart_usb_tx_ready = 1'b1;
     assign debugs = 8'd0;
     assign usb_pullup_en_o = 1'b0;
-    assign usb_dxp_io = 1'bz;
-    assign usb_dxn_io = 1'bz;
-    assign usb_term_dp_io = 1'bz;
-    assign usb_term_dn_io = 1'bz;
 
     wire [13:0] hAdcValue_r1;
     wire hAdcReq_ext;

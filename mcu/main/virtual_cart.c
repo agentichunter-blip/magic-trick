@@ -2689,20 +2689,13 @@ static int LynxLockCommand(int argc,char **argv)
 /* Lynx core diagnostics: print the panel framebuffer (PSRAM 0x10000, 160x144
  * BGR555, 320-byte rows) as 45 base64 blocks, read through state blocks
  * 64-108 (lynx_state_engine.sv). */
-static int LynxShotCommand(int argc,char **argv)
+/* Read Lynx state blocks First..Last-1 (0-64 state image, 64-108 the panel
+ * framebuffer). Freeze first unless Live (the core then saves itself and
+ * pauses on the picture shown). Each block goes to Out (file) or, without
+ * one, to the console as base64. Caller holds SetRunning. */
+static esp_err_t LynxReadBlocks(unsigned First, unsigned Last, bool Live, FILE *Out)
 {
-    /* "lynxshot live" reads while the game runs (no freeze). */
-    const bool Live=argc>1 && !strcmp(argv[1],"live");
-    /* "lynxshot state" prints the save-state image (blocks 0-64) instead. */
-    const bool State=argc>1 && !strcmp(argv[1],"state");
-    const unsigned First=State ? 0 : 64, Last=State ? 65 : 109;
-    if(!CoreSwitch_IsCore(kCoreSystem_Lynx)) { printf("LYNXSHOT FAIL not_lynx\n"); return 1; }
-    bool Got=false;
-    for(unsigned Try=0;Try<60 && !(Got=SetRunning(true));++Try) vTaskDelay(pdMS_TO_TICKS(50));
-    if(!Got) { printf("LYNXSHOT FAIL busy\n"); return 1; }
     esp_err_t Result=CartBulk_Begin();
-    /* The core serves these blocks while frozen: freeze (it saves itself and
-     * pauses on the picture shown), read, release. */
     CartLinkResponse_t Frozen={0};
     uint32_t Status=0;
     if(Result==ESP_OK && !Live) Result=VirtualCommand(kVirtualCommandGGFreeze,NULL,&Frozen);
@@ -2713,8 +2706,10 @@ static int LynxShotCommand(int argc,char **argv)
         CartLinkResponse_t Response={0};
         Result=VirtualCommandRaw(kVirtualCommandStateBlock,SaveSequence,(uint8_t)Block,&Response);
         if(Result==ESP_OK) Result=CartBulk_ReadVirtualBlock(SaveSequence,TransferBuffer);
+        if(Result!=ESP_OK) break;
+        if(Out) { if(fwrite(TransferBuffer,1,sizeof(TransferBuffer),Out)!=sizeof(TransferBuffer)) Result=ESP_FAIL; continue; }
         size_t Length=0;
-        if(Result==ESP_OK && mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,TransferBuffer,sizeof(TransferBuffer))!=0)
+        if(mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,TransferBuffer,sizeof(TransferBuffer))!=0)
             Result=ESP_FAIL;
         if(Result==ESP_OK) { Text[Length]=0; printf("LYNXSHOT %u %s\n",Block-First,Text); fflush(stdout); }
     }
@@ -2724,9 +2719,134 @@ static int LynxShotCommand(int argc,char **argv)
         (void)WaitGGStatus(0,kGGStatusFrozen,false,1000,&Status);
     }
     CartBulk_End();
+    return Result;
+}
+
+static bool AcquireRunning(void)
+{
+    for(unsigned Try=0;Try<100;++Try) { if(SetRunning(true)) return true; vTaskDelay(pdMS_TO_TICKS(50)); }
+    return false;
+}
+
+static int LynxShotCommand(int argc,char **argv)
+{
+    /* "lynxshot live" reads while the game runs (no freeze). */
+    const bool Live=argc>1 && !strcmp(argv[1],"live");
+    /* "lynxshot state" prints the save-state image (blocks 0-64) instead. */
+    const bool State=argc>1 && !strcmp(argv[1],"state");
+    if(!CoreSwitch_IsCore(kCoreSystem_Lynx)) { printf("LYNXSHOT FAIL not_lynx\n"); return 1; }
+    if(!AcquireRunning()) { printf("LYNXSHOT FAIL busy\n"); return 1; }
+    const esp_err_t Result=LynxReadBlocks(State ? 0 : 64,State ? 65 : 109,Live,NULL);
     if(Result!=ESP_OK) printf("LYNXSHOT FAIL %s\n",esp_err_to_name(Result));
     (void)SetRunning(false);
     if(Result==ESP_OK) printf("LYNXSHOT DONE\n");
+    return Result!=ESP_OK;
+}
+
+/* Lynx self-test without a console (the Lynx core has no USB). With
+ * CHROMAGIC/LYNXTEST.TXT on the card, after a Lynx game starts: wait, then
+ * write to CHROMAGIC/LYNXDIAG/ two live framebuffer captures, a state image,
+ * a save to slot 3 and a load back, more captures, and log.txt. */
+static const char LynxDiagDir[]="/sdcard/CHROMAGIC/LYNXDIAG";
+static FILE *LynxDiagLog;
+static void LynxDiagPrint(const char *Text)
+{
+    printf("LYNXDIAG %s\n",Text);
+    if(LynxDiagLog) { fprintf(LynxDiagLog,"%s\n",Text); fflush(LynxDiagLog); }
+}
+static void LynxDiagDump(const char *Name, unsigned First, unsigned Last, bool Live)
+{
+    char Path[96], Line[160];
+    snprintf(Path,sizeof(Path),"%s/%s",LynxDiagDir,Name);
+    esp_err_t Result=ESP_ERR_INVALID_STATE;
+    if(AcquireRunning()) {
+        sdmmc_card_t *Card=NULL;
+        Result=SDCard_Mount(&Card);
+        if(Result==ESP_OK) {
+            FILE *Out=fopen(Path,"wb");
+            Result=Out ? LynxReadBlocks(First,Last,Live,Out) : ESP_FAIL;
+            if(Out && fclose(Out)!=0 && Result==ESP_OK) Result=ESP_FAIL;
+            (void)SDCard_Unmount(Card);
+        }
+        (void)SetRunning(false);
+    }
+    snprintf(Line,sizeof(Line),"dump %s blocks %u-%u live=%u: %s",Name,First,Last-1,Live,esp_err_to_name(Result));
+    LynxDiagPrint(Line);
+}
+static void LynxDiagTask(void *Arg)
+{
+    (void)Arg;
+    vTaskDelay(pdMS_TO_TICKS(6000));
+    sdmmc_card_t *Card=NULL;
+    if(AcquireRunning()) {
+        if(SDCard_Mount(&Card)==ESP_OK) {
+            mkdir(LynxDiagDir,0777);
+            char Path[96]; snprintf(Path,sizeof(Path),"%s/log.txt",LynxDiagDir);
+            FILE *Log=fopen(Path,"w");
+            if(Log) { fprintf(Log,"Lynx self-test %s\n",ActiveRomPath); fclose(Log); }
+            (void)SDCard_Unmount(Card);
+        }
+        (void)SetRunning(false);
+    }
+    char Line[160];
+    LynxDiagDump("shot1.bin",64,109,true);
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    LynxDiagDump("shot2.bin",64,109,true);
+    LynxDiagDump("state1.bin",0,65,false);
+    esp_err_t Result=VirtualCart_StateCaptureSlot(false,3,0);
+    snprintf(Line,sizeof(Line),"save slot 3: %s",esp_err_to_name(Result)); LynxDiagPrint(Line);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    LynxDiagDump("state2.bin",0,65,false);
+    Result=VirtualCart_StateCaptureSlot(true,3,0);
+    snprintf(Line,sizeof(Line),"load slot 3: %s",esp_err_to_name(Result)); LynxDiagPrint(Line);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    LynxDiagDump("state3.bin",0,65,false);
+    LynxDiagDump("shot3.bin",64,109,true);
+    /* Append the console lines to the log file. */
+    if(AcquireRunning()) {
+        if(SDCard_Mount(&Card)==ESP_OK) {
+            char Path[96]; snprintf(Path,sizeof(Path),"%s/log.txt",LynxDiagDir);
+            FILE *Log=fopen(Path,"a");
+            if(Log) { fprintf(Log,"done; see the LYNXDIAG console lines for each step\n"); fclose(Log); }
+            (void)SDCard_Unmount(Card);
+        }
+        (void)SetRunning(false);
+    }
+    LynxDiagPrint("done");
+    vTaskDelete(NULL);
+}
+static void LynxDiagMaybeStart(const char *pPath)
+{
+    struct stat Trigger;
+    if(stat("/sdcard/CHROMAGIC/LYNXTEST.TXT",&Trigger)!=0) return;
+    (void)pPath;
+    printf("LYNXDIAG start\n");
+    (void)xTaskCreate(LynxDiagTask,"lynx_diag",6*1024,NULL,3,NULL);
+}
+
+/* Diagnostics: print an SD card file as base64 lines (any core). */
+static int SdCatCommand(int argc,char **argv)
+{
+    if(argc!=2) { printf("usage: sdcat </sdcard/...>\n"); return 1; }
+    sdmmc_card_t *Card=NULL;
+    if(!AcquireRunning()) { printf("SDCAT FAIL busy\n"); return 1; }
+    esp_err_t Result=SDCard_Mount(&Card);
+    if(Result==ESP_OK) {
+        FILE *In=fopen(argv[1],"rb");
+        if(!In) Result=ESP_ERR_NOT_FOUND;
+        else {
+            static uint8_t Chunk[768]; static char Text[1100]; size_t Got; unsigned Index=0;
+            while((Got=fread(Chunk,1,sizeof(Chunk),In))>0) {
+                size_t Length=0;
+                if(mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,Chunk,Got)!=0) { Result=ESP_FAIL; break; }
+                Text[Length]=0; printf("SDCAT %u %s\n",Index++,Text); fflush(stdout);
+            }
+            fclose(In);
+        }
+        (void)SDCard_Unmount(Card);
+    }
+    (void)SetRunning(false);
+    printf(Result==ESP_OK ? "SDCAT DONE\n" : "SDCAT FAIL %s\n",esp_err_to_name(Result));
     return Result!=ESP_OK;
 }
 #endif
@@ -2784,6 +2904,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},
       {.command="stateshortcut",.help="Run the save (1) or load (2) state shortcut as if pressed (diagnostics)",.hint="1|2",.func=NativeShortcutCommand},
 #ifdef ESP_PLATFORM
+      {.command="sdcat",.help="Print an SD card file as base64 (diagnostics)",.hint="</sdcard/...>",.func=SdCatCommand},
       {.command="lynxlock",.help="60 Hz frame lock for the next Lynx game (diagnostics)",.hint="[0|1]",.func=LynxLockCommand},
       {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.hint="[live|state]",.func=LynxShotCommand},
 #endif
