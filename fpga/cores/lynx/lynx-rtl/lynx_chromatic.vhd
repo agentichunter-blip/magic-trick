@@ -17,10 +17,13 @@ entity lynx_chromatic is
       rom_byte       : in  std_logic_vector(7 downto 0);
       rom_req        : out std_logic;
       rom_ack        : in  std_logic;
-      romsize        : in  std_logic_vector(19 downto 0);
-      romwrite_data  : in  std_logic_vector(15 downto 0);
-      romwrite_addr  : in  std_logic_vector(19 downto 0);
-      romwrite_wren  : in  std_logic;
+      hdr_bank0size  : in  std_logic_vector(15 downto 0);
+      hdr_hasHeader  : in  std_logic;
+      hdr_pc         : in  std_logic_vector(15 downto 0);
+      hdr_pc_use     : in  std_logic;
+      hdr_ram_addr   : in  std_logic_vector(15 downto 0);
+      hdr_ram_data   : in  std_logic_vector(7 downto 0);
+      hdr_ram_wren   : in  std_logic;
       bios_wraddr    : in  std_logic_vector(8 downto 0);
       bios_wrdata    : in  std_logic_vector(7 downto 0);
       bios_wr        : in  std_logic;
@@ -76,10 +79,17 @@ begin
       rom_byte              => rom_byte,
       rom_req               => rom_req,
       rom_ack               => rom_ack,
-      romsize               => romsize,
-      romwrite_data         => romwrite_data,
-      romwrite_addr         => romwrite_addr,
-      romwrite_wren         => romwrite_wren,
+      romsize               => (others => '0'),
+      romwrite_data         => (others => '0'),
+      romwrite_addr         => (others => '0'),
+      romwrite_wren         => '0',
+      hdr_bank0size         => hdr_bank0size,
+      hdr_hasHeader         => hdr_hasHeader,
+      hdr_custom_PCAddr     => hdr_pc,
+      hdr_custom_PCuse      => hdr_pc_use,
+      hdr_ram_addr          => hdr_ram_addr,
+      hdr_ram_data          => hdr_ram_data,
+      hdr_ram_wren          => hdr_ram_wren,
       bios_wraddr           => bios_wraddr,
       bios_wrdata           => bios_wrdata,
       bios_wr               => bios_wr,

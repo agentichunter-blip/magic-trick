@@ -99,6 +99,13 @@ int main(int argc, char **argv) {
     uint32_t n = file.size();
     for (int i = 0; i < 4; i++) psram_write(base + 4 + i, (n >> (8 * i)) & 255);
     psram_write(base + 8, (lock ? 2 : 0) | (bios.size() == 512 ? 1 : 0));
+    // Header results, as the MCU (lynx_rom.h) supplies them.
+    bool lnx = n > 64 && !memcmp(file.data(), "LYNX", 4), bs93 = n > 10 && !memcmp(file.data() + 6, "BS93", 4);
+    unsigned bank0 = lnx ? (file[4] | file[5] << 8) : bs93 ? 0 : n / 256;
+    unsigned load = bs93 ? (file[2] << 8 | file[3]) : 0;
+    psram_write(base + 9, bank0 & 255); psram_write(base + 10, bank0 >> 8);
+    psram_write(base + 11, (lnx ? 1 : 0) | (bs93 ? 2 : 0));
+    psram_write(base + 12, load & 255); psram_write(base + 13, load >> 8);
     for (size_t i = 0; i < bios.size() && i < 512; i++) psram_write(base + 0x200 + i, bios[i]);
     for (uint32_t i = 0; i < n; i++) psram_write(base + 0x1000 + i, file[i]);
     t->xreset = 0; run(64); t->reset_n = 1;

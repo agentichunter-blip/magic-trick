@@ -612,14 +612,16 @@ module top #(parameter ISSIMU=0)
     wire BTN_SEL_filtered;
     wire BTN_START_filtered;
 
-    button_debouncer debouncer_A         (gClk, BTN_A         , BTN_A_filtered         );
-    button_debouncer debouncer_B         (gClk, BTN_B         , BTN_B_filtered         );
-    button_debouncer debouncer_DPAD_DOWN (gClk, BTN_DPAD_DOWN , BTN_DPAD_DOWN_filtered );
-    button_debouncer debouncer_DPAD_LEFT (gClk, BTN_DPAD_LEFT , BTN_DPAD_LEFT_filtered );
-    button_debouncer debouncer_DPAD_RIGHT(gClk, BTN_DPAD_RIGHT, BTN_DPAD_RIGHT_filtered);
-    button_debouncer debouncer_DPAD_UP   (gClk, BTN_DPAD_UP   , BTN_DPAD_UP_filtered   );
-    button_debouncer debouncer_SEL       (gClk, BTN_SEL       , BTN_SEL_filtered       );
-    button_debouncer debouncer_START     (gClk, BTN_START     , BTN_START_filtered     );
+    wire debounce_tick;
+    button_debounce_tick u_debounce_tick(.clk(gClk), .tick(debounce_tick));
+    button_debouncer debouncer_A         (gClk, debounce_tick, BTN_A         , BTN_A_filtered         );
+    button_debouncer debouncer_B         (gClk, debounce_tick, BTN_B         , BTN_B_filtered         );
+    button_debouncer debouncer_DPAD_DOWN (gClk, debounce_tick, BTN_DPAD_DOWN , BTN_DPAD_DOWN_filtered );
+    button_debouncer debouncer_DPAD_LEFT (gClk, debounce_tick, BTN_DPAD_LEFT , BTN_DPAD_LEFT_filtered );
+    button_debouncer debouncer_DPAD_RIGHT(gClk, debounce_tick, BTN_DPAD_RIGHT, BTN_DPAD_RIGHT_filtered);
+    button_debouncer debouncer_DPAD_UP   (gClk, debounce_tick, BTN_DPAD_UP   , BTN_DPAD_UP_filtered   );
+    button_debouncer debouncer_SEL       (gClk, debounce_tick, BTN_SEL       , BTN_SEL_filtered       );
+    button_debouncer debouncer_START     (gClk, debounce_tick, BTN_START     , BTN_START_filtered     );
 
     wire [63:0] paletteBGIn;
     wire [63:0] paletteOBJ0In;

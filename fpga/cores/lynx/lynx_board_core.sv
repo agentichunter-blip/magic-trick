@@ -5,14 +5,17 @@
 //   0x0000  info block: bytes 0-3 = 'L','X','C','1'
 //           4-7   file size in bytes (little endian, at most 1 MiB)
 //           8     flags: bit 0 boot ROM present, bit 1 60 Hz frame lock
-//   0x0200  boot ROM (512 bytes) when flag bit 0 is set
-//   0x1000  the game file as it is on the SD card: .lnx (with its 64-byte
-//           header), a headerless cartridge image, or a BS93 homebrew file
-// After reset the loader copies the boot ROM, then replays the start of the
-// file through the core's ROM-download port, exactly as MiSTer's loader does:
-// header.vhd picks up the cartridge bank size from a LYNX header, or copies a
-// BS93 program into RAM and starts it without a boot ROM. Then the core runs
-// and reads the cartridge from PSRAM on demand (cart.vhd waits for rom_ack).
+//           9-10  cartridge bank 0 page size (256..2048; 0 for BS93)
+//           11    bit 0: the file starts with a 64-byte .lnx header,
+//                 bit 1: BS93 homebrew (loaded into RAM, started directly)
+//           12-13 BS93 load and start address
+//   0x0200  boot ROM (512 bytes) when flag bit 0 is set: the Atari boot ROM,
+//           or Magic Trick's replacement stub (MCU lynx_hle.c)
+//   0x1000  the game file as it is on the SD card
+// The MCU parses the file header (lynx_rom.h); MiSTer's header.vhd is not
+// built. After reset the loader copies the boot ROM and, for BS93, the
+// program into RAM; then the core runs and reads the cartridge from PSRAM on
+// demand (cart.vhd waits for rom_ack).
 module lynx_board_core(
  input clk, reset_n, quiesce,
  input [8:0] buttons, // up, down, left, right, A, B, pause, option 1, option 2
@@ -39,36 +42,37 @@ module lynx_board_core(
  end
 
  // ---- loader ----
- localparam S_INFO=0,S_BIOS=1,S_FILE=2,S_RUN=3,S_BAD=4;
+ localparam S_INFO=0,S_BIOS=1,S_BS93=2,S_RUN=3,S_BAD=4;
  reg [2:0] state=S_INFO;
  reg [19:0] offset=0;       // byte index within the current section
- reg [7:0] info[0:8];
+ reg [7:0] info[0:13];
  reg [31:0] file_size=0;
- reg lock60=0, has_bios=0;
- reg [7:0] low_byte=0;
+ reg lock60=0;
+ reg [15:0] bank0size=0, load_address=0;
+ reg has_header=0, bs93=0;
  reg bios_wr=0; reg [8:0] bios_addr=0; reg [7:0] bios_data=0;
- reg rw_wren=0; reg [19:0] rw_addr=0; reg [15:0] rw_data=0;
- reg [1:0] gap=0;           // spaces ROM-download words (header.vhd needs 2)
- wire [19:0] replay_len=file_size>32'h10010 ? 20'h10010 : file_size[19:0];
+ reg ram_wr=0; reg [15:0] ram_addr=0; reg [7:0] ram_data=0;
  // Cartridge reads (after loading)
  wire [19:0] cart_addr; wire cart_req; reg cart_ack=0; reg [7:0] cart_byte=0;
  reg cart_busy=0;
+ wire [31:0] info_size={info[7],info[6],info[5],info[4]};
  always @(posedge clk) begin
-  bios_wr<=0; rw_wren<=0; cart_ack<=0;
+  bios_wr<=0; ram_wr<=0; cart_ack<=0;
   if(!reset_n) begin
-   state<=S_INFO; offset<=0; rom_read<=0; cart_busy<=0; bad_image<=0; gap<=0;
+   state<=S_INFO; offset<=0; rom_read<=0; cart_busy<=0; bad_image<=0;
   end else case(state)
    S_INFO: begin
     rom_read<=1; rom_address<=offset;
     if(rom_read && rom_ready && rom_address==offset) begin
      info[offset[3:0]]<=rom_data;
-     if(offset==8) begin
+     if(offset==13) begin
       rom_read<=0; offset<=0;
+      file_size<=info_size; lock60<=info[8][1];
+      bank0size<={info[10],info[9]}; has_header<=info[11][0]; bs93<=info[11][1];
+      load_address<={rom_data,info[12]};
       state<=(info[0]==8'h4c && info[1]==8'h58 && info[2]==8'h43 && info[3]==8'h31 &&
-              {info[7],info[6],info[5],info[4]}!=0 && {info[7],info[6],info[5],info[4]}<=32'h100000)
-              ? (rom_data[0] ? S_BIOS : S_FILE) : S_BAD;
-      file_size<={info[7],info[6],info[5],info[4]};
-      has_bios<=rom_data[0]; lock60<=rom_data[1];
+              info_size!=0 && info_size<=32'h100000)
+              ? (info[8][0] ? S_BIOS : info[11][1] ? S_BS93 : S_RUN) : S_BAD;
      end else offset<=offset+1'b1;
     end
    end
@@ -76,24 +80,17 @@ module lynx_board_core(
     rom_read<=1; rom_address<=BIOS_BASE+offset;
     if(rom_read && rom_ready && rom_address==BIOS_BASE+offset) begin
      bios_wr<=1; bios_addr<=offset[8:0]; bios_data<=rom_data;
-     if(offset==511) begin rom_read<=0; offset<=0; state<=S_FILE; end
+     if(offset==511) begin rom_read<=0; offset<=10; state<=bs93 ? S_BS93 : S_RUN; end
      else offset<=offset+1'b1;
     end
    end
-   S_FILE: begin
-    if(gap!=0) gap<=gap-1'b1;
-    else if(offset>=replay_len) begin rom_read<=0; state<=S_RUN; end
+   S_BS93: begin
+    // Program bytes follow the 10-byte BS93 header; at most 64 KiB.
+    if(offset>=file_size[19:0] || offset>=20'h1000a) begin rom_read<=0; state<=S_RUN; end
     else begin
      rom_read<=1; rom_address<=FILE_BASE+offset;
      if(rom_read && rom_ready && rom_address==FILE_BASE+offset) begin
-      rom_read<=0;
-      if(!offset[0]) low_byte<=rom_data;
-      // Words go out little endian at even addresses, like MiSTer's ioctl.
-      if(offset[0] || offset+1==replay_len) begin
-       rw_wren<=1; rw_addr<={offset[19:1],1'b0};
-       rw_data<=offset[0] ? {rom_data,low_byte} : {8'h00,rom_data};
-       gap<=3;
-      end
+      ram_wr<=1; ram_addr<=load_address+offset[15:0]-16'd10; ram_data<=rom_data;
       offset<=offset+1'b1;
      end
     end
@@ -110,17 +107,16 @@ module lynx_board_core(
   endcase
  end
  assign running=state==S_RUN && reset_n;
- // The core comes out of reset one cycle after the last download word.
+ // The core comes out of reset one cycle after loading.
  reg core_reset=1;
  always @(posedge clk) core_reset<=!(state==S_RUN && reset_n);
 
- // header.vhd reads romsize only for headerless images (bank size guess).
- wire [19:0] romsize=file_size>32'hfffff ? 20'hfffff : file_size[19:0];
  lynx_chromatic lynx(
   .clk(clk), .ce_tick(ce_tick), .lock60(lock60),
   .reset_in(core_reset), .pause_in(quiesce),
   .rom_addr(cart_addr), .rom_byte(cart_byte), .rom_req(cart_req), .rom_ack(cart_ack),
-  .romsize(romsize), .romwrite_data(rw_data), .romwrite_addr(rw_addr), .romwrite_wren(rw_wren),
+  .hdr_bank0size(bank0size), .hdr_hasHeader(has_header), .hdr_pc(load_address), .hdr_pc_use(bs93),
+  .hdr_ram_addr(ram_addr), .hdr_ram_data(ram_data), .hdr_ram_wren(ram_wr),
   .bios_wraddr(bios_addr), .bios_wrdata(bios_data), .bios_wr(bios_wr),
   .pen_we(pen_we), .pen(pen), .pen_x(pen_x), .pen_y(pen_y), .palette(palette),
   .audio_l(audio_l), .audio_r(audio_r),

@@ -32,6 +32,14 @@ entity LynxTop is
       romwrite_data              : in  std_logic_vector(15 downto 0);
       romwrite_addr              : in  std_logic_vector(19 downto 0);
       romwrite_wren              : in  std_logic;
+      -- Chromatic: game file header results and RAM preload (BS93)
+      hdr_bank0size              : in  std_logic_vector(15 downto 0);
+      hdr_hasHeader              : in  std_logic;
+      hdr_custom_PCAddr          : in  std_logic_vector(15 downto 0);
+      hdr_custom_PCuse           : in  std_logic;
+      hdr_ram_addr               : in  std_logic_vector(15 downto 0);
+      hdr_ram_data               : in  std_logic_vector(7 downto 0);
+      hdr_ram_wren               : in  std_logic;
 
       -- bios
       bios_wraddr                : in  std_logic_vector(8 downto 0);
@@ -727,27 +735,16 @@ begin
       FPScountBCD    => FPScountBCD  
    );
    
-   -- header
-   iheader : entity work.header
-   port map
-   (
-      clk            => clk,          
-                                     
-      romsize        => romsize,      
-      romwrite_data  => romwrite_data,
-      romwrite_addr  => romwrite_addr,
-      romwrite_wren  => romwrite_wren,
-                                     
-      bank0size      => bank0size,    
-      hasHeader      => hasHeader,
-      
-      custom_PCAddr  => custom_PCAddr,
-      custom_PCuse   => custom_PCuse,
-      
-      bs93_addr      => bs93_addr,
-      bs93_data      => bs93_data,
-      bs93_wren      => bs93_wren
-   );      
+   -- Chromatic: the MCU parses the game file header (lynx_rom.h) and the
+   -- board loader (lynx_board_core.sv) supplies the results; header.vhd is
+   -- not built.
+   bank0size     <= hdr_bank0size;
+   hasHeader     <= hdr_hasHeader;
+   custom_PCAddr <= hdr_custom_PCAddr;
+   custom_PCuse  <= hdr_custom_PCuse;
+   bs93_addr     <= to_integer(unsigned(hdr_ram_addr));
+   bs93_data     <= hdr_ram_data;
+   bs93_wren     <= hdr_ram_wren;      
    
    -- savestates
    process (ss_wired_or)

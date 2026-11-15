@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 L=../..
-G=../../../../../../toolchains/oss-cad-suite/bin/ghdl
+G=${GHDL:-$(cd ../../../../../.. && pwd)/toolchains/oss-cad-suite/bin/ghdl}
 mkdir -p build out
 if [ ! -f build/lynx_chromatic.v ] || [ -n "$(find $L/lynx-rtl -newer build/lynx_chromatic.v -name '*.vhd')" ]; then
   (cd build && rm -f work-obj08.cf && F="--std=08 -frelaxed -fsynopsys" &&

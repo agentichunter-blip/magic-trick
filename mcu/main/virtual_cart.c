@@ -617,6 +617,10 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
     Info[4] = (uint8_t)Size; Info[5] = (uint8_t)(Size >> 8);
     Info[6] = (uint8_t)(Size >> 16); Info[7] = (uint8_t)(Size >> 24);
     Info[8] = (Bios ? kLynxFlagBios : 0) | kLynxFlagLock60;
+    /* The core takes the header's results from here (lynx_board_core.sv). */
+    Info[9] = (uint8_t)pInfo->LynxRom.Bank0; Info[10] = (uint8_t)(pInfo->LynxRom.Bank0 >> 8);
+    Info[11] = (pInfo->LynxRom.Header ? 1 : 0) | (pInfo->LynxRom.Bs93 ? 2 : 0);
+    Info[12] = (uint8_t)pInfo->LynxRom.Load; Info[13] = (uint8_t)(pInfo->LynxRom.Load >> 8);
     ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase, TransferBuffer), TAG, "Lynx info");
     GGRomCrc = 0;
     if (fseek(pRom, 0, SEEK_SET)) return ESP_FAIL;

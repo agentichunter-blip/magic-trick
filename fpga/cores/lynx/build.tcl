@@ -41,7 +41,7 @@ add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_
 add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v"
 add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v"
 add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/uart/uart.v"
-add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v"
+add_file -type verilog "src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v"
 add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v"
 add_file -type verilog "../../esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v"
 

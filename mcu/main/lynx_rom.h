@@ -18,7 +18,8 @@ typedef struct {
     uint32_t Size;     /* whole file */
     bool Bs93;         /* runs without the boot ROM */
     bool Header;       /* .lnx header present */
-    uint16_t Bank0;    /* page size from the header */
+    uint16_t Bank0;    /* cartridge bank 0 page size (0 for BS93) */
+    uint16_t Load;     /* BS93 load and start address */
     uint8_t Rotation;  /* header byte 58: 0 none, 1 left, 2 right */
     char Title[33];
 } LynxRomInfo_t;
@@ -36,6 +37,7 @@ static inline esp_err_t LynxRom_Inspect(FILE *rom, LynxRomInfo_t *info)
     info->Size = (uint32_t)length;
     if (!memcmp(header + 6, "BS93", 4)) {
         info->Bs93 = true;
+        info->Load = (uint16_t)(header[2] << 8 | header[3]);
         strcpy(info->Title, "LYNX HOMEBREW");
     } else if (!memcmp(header, "LYNX", 4)) {
         if (length <= kLynxHeaderSize) return ESP_ERR_INVALID_SIZE;
@@ -47,9 +49,11 @@ static inline esp_err_t LynxRom_Inspect(FILE *rom, LynxRomInfo_t *info)
         memcpy(info->Title, header + 10, 32);
         info->Title[32] = 0;
     } else {
-        /* Headerless cartridge: the core derives the page size from the size. */
+        /* Headerless cartridge: the page size follows from the size. */
         if (length != 128 * 1024 && length != 256 * 1024 && length != 512 * 1024)
             return ESP_ERR_INVALID_RESPONSE;
+        /* 256 pages per bank: 128 KiB -> 512-byte pages, 256 KiB -> 1 KiB, 512 KiB -> 2 KiB. */
+        info->Bank0 = (uint16_t)(length / 256);
         strcpy(info->Title, "LYNX");
     }
     for (char *p = info->Title; *p; ++p)
