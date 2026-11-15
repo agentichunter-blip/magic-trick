@@ -100,7 +100,21 @@ architecture arch of savestates is
    
    signal header_amount       : unsigned(31 downto 0) := to_unsigned(1, 32);
 
-begin 
+   -- Chromatic: these resets reach ~1,000-1,500 registers each. The drivers
+   -- are replicated (syn_maxfan) so no single net spans the whole chip;
+   -- the GW5A has too few long wires left for them (routing failed).
+   signal reset_out_r  : std_logic := '0';
+   signal RegBus_rst_r : std_logic := '0';
+   signal BUS_rst_r    : std_logic := '0';
+   attribute syn_maxfan : integer;
+   attribute syn_maxfan of reset_out_r  : signal is 48;
+   attribute syn_maxfan of RegBus_rst_r : signal is 48;
+   attribute syn_maxfan of BUS_rst_r    : signal is 48;
+begin
+   reset_out  <= reset_out_r;
+   RegBus_rst <= RegBus_rst_r;
+   BUS_rst    <= BUS_rst_r;
+ 
 
    savestate_busy <= '0' when state = IDLE else '1';
    
@@ -114,9 +128,9 @@ begin
          Save_RAMWrEn <= (others => '0');
          bus_out_ena   <= '0';
          BUS_wren      <= '0';
-         BUS_rst       <= '0';
-         reset_out     <= '0';
-         RegBus_rst    <= '0';
+         BUS_rst_r       <= '0';
+         reset_out_r     <= '0';
+         RegBus_rst_r    <= '0';
          load_done     <= '0';
 
          bus_out_be    <= x"FF";
@@ -127,9 +141,9 @@ begin
                savetype_counter <= 0;
                savestate_slow   <= '0';
                if (reset_in = '1') then
-                  reset_out      <= '1';
-                  RegBus_rst     <= '1';
-                  BUS_rst        <= '1';
+                  reset_out_r      <= '1';
+                  RegBus_rst_r     <= '1';
+                  BUS_rst_r        <= '1';
                elsif (save = '1') then
                   savestate_slow       <= '1';
                   state                <= SAVE_WAITIDLE;
@@ -257,8 +271,8 @@ begin
                      BUS_adr              <= (others => '0');
                      count                <= 1;
                      loading_savestate    <= '1';
-                     reset_out            <= '1';
-                     RegBus_rst           <= '1';
+                     reset_out_r            <= '1';
+                     RegBus_rst_r           <= '1';
                   else
                      state                <= IDLE;
                      sleep_savestate      <= '0';
@@ -295,7 +309,7 @@ begin
                   bus_out_ena    <= '1';
                else
                   state             <= IDLE;
-                  reset_out         <= '1';
+                  reset_out_r         <= '1';
                   loading_savestate <= '0';
                   sleep_savestate   <= '0';
                   load_done         <= '1';

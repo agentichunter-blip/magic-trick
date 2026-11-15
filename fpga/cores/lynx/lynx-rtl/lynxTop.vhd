@@ -117,6 +117,10 @@ architecture arch of LynxTop is
    -- clock
    signal ce_counter             : unsigned (1 downto 0) := (others => '0');
    signal ce                     : std_logic := '0';
+   -- Chromatic: the clock enable reaches most of the core; replicate its
+   -- driver so it routes locally (routing congestion on the GW5A-25).
+   attribute syn_maxfan : integer;
+   attribute syn_maxfan of ce : signal is 48;
    signal ce_fast                : std_logic := '0';
    signal fastcounter_1_33x      : integer range 0 to 2 := 0;
    signal fastcounter_1_6x       : integer range 0 to 4 := 0;
