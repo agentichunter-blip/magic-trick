@@ -219,6 +219,7 @@ architecture arch of LynxTop is
    -- savestates
    signal reset                  : std_logic;
    signal sleep_savestate        : std_logic;
+   signal ramb_active            : std_logic;
    signal sleep_rewind           : std_logic;
    signal system_idle            : std_logic;
    signal savestate_slow         : std_logic;
@@ -480,6 +481,7 @@ begin
       clk                  => clk,          
       ce                   => ce,           
       reset                => reset,        
+      ramb_active          => ramb_active,
                      
       bus_request          => bus_request,  
       bus_rnw              => bus_rnw,      
@@ -838,6 +840,7 @@ begin
    );
    
    savestate_busy_out <= savestate_busy;
+   ramb_active        <= reset or sleep_savestate;
 
    -- export
 -- synthesis translate_off

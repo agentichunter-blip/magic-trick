@@ -12,6 +12,9 @@ entity memorymux is
       clk                  : in  std_logic;
       ce                   : in  std_logic;
       reset                : in  std_logic;
+      -- Chromatic: RAM port B (preload, save states) may be used: the core
+      -- is in reset or asleep for a save state (lynx_dpram.v, single port).
+      ramb_active          : in  std_logic := '0';
       
       bus_request          : in  std_logic;
       bus_rnw              : in  std_logic;
@@ -114,7 +117,7 @@ architecture arch of memorymux is
 
    -- Chromatic: block RAM in Verilog (lynx_dpram.v), see that file.
    component lynx_dpram is
-      generic ( addr_width : integer; data_width : integer );
+      generic ( addr_width : integer; data_width : integer; single : integer );
       port (
          clock_a   : in  std_logic;
          clken_a   : in  std_logic;
@@ -123,6 +126,7 @@ architecture arch of memorymux is
          wren_a    : in  std_logic;
          q_a       : out std_logic_vector(data_width-1 downto 0);
          clock_b   : in  std_logic;
+         b_enable  : in  std_logic;
          address_b : in  std_logic_vector(addr_width-1 downto 0);
          data_b    : in  std_logic_vector(data_width-1 downto 0);
          wren_b    : in  std_logic;
@@ -153,7 +157,8 @@ begin
    generic map
    (
        addr_width => 16,
-       data_width => 8
+       data_width => 8,
+       single     => 1
    )
    port map
    (
@@ -165,6 +170,7 @@ begin
       q_a         => RAM_dataRead,
 
       clock_b      => clk,
+      b_enable    => ramb_active,
       address_b   => RAMB_address,
       data_b      => RAMB_data,
       wren_b      => RAMB_we,
@@ -179,7 +185,8 @@ begin
    generic map
    (
        addr_width => 9,
-       data_width => 8
+       data_width => 8,
+       single     => 0
    )
    port map
    (
@@ -191,6 +198,7 @@ begin
       q_a         => open,
 
       clock_b      => clk,
+      b_enable    => '1',
       address_b   => RAMShadowB_address,
       data_b      => SSMEM_WriteData,
       wren_b      => SSMEM_WrEn(0),
