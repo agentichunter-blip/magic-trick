@@ -1,0 +1,472 @@
+//Copyright (C)2014-2026 Gowin Semiconductor Corporation.
+//All rights reserved.
+
+
+1. PnR Messages
+
+  <Report Title>: PnR Report
+  <Design File>: /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg
+  <Physical Constraints File>: /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst
+  <Timing Constraints File>: /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/gg_board.sdc
+  <Tool Version>: V1.9.12.04-1
+  <Part Number>: GW5A-EV25UG256CC1/I0
+  <Device>: GW5A-25
+  <Device Version>: A
+  <Created Time>:Sun Nov 15 13:30:30 2026
+
+
+2. PnR Details
+
+  Running placement:
+    Placement Phase 0: CPU time = 0h 0m 12s, Elapsed time = 0h 0m 12s
+    Placement Phase 1: CPU time = 0h 0m 2s, Elapsed time = 0h 0m 2s
+    Placement Phase 2: CPU time = 0h 0m 49s, Elapsed time = 0h 0m 49s
+    Placement Phase 3: CPU time = 0h 2m 9s, Elapsed time = 0h 2m 10s
+    Total Placement: CPU time = 0h 3m 11s, Elapsed time = 0h 3m 13s
+ Running routing:
+    Routing Phase 0: CPU time = 0h 0m 0.004s, Elapsed time = 0h 0m 0.005s
+    Routing Phase 1: CPU time = 0h 0m 32s, Elapsed time = 0h 0m 32s
+    Routing Phase 2: CPU time = 0h 0m 0.097s, Elapsed time = 0h 0m 0.1s
+    Routing Phase 3: CPU time = 0h 0m 0s, Elapsed time = 0h 0m 0s
+    Total Routing: CPU time = 0h 0m 32s, Elapsed time = 0h 0m 32s
+ Generate output files:
+    CPU time = 0h 0m 0.978s, Elapsed time = 0h 0m 1s
+
+ Total Time and Memory Usage: CPU time = 0h 3m 43s, Elapsed time = 0h 3m 46s, Peak memory usage = 868MB
+
+
+3. Resource Usage Summary
+
+  --------------------------------------------------------------------------------
+  Resources                   | Usage                               | Utilization
+  --------------------------------------------------------------------------------
+  Logic                       | 19913/23040                         |  87%
+    --LUT,ALU,ROM16           | 19913(17236 LUT, 2568 ALU, 109 ROM16)| -
+    --SSRAM(RAM16)            | 0                                   | -
+  Register                    | 10941/23595                         |  47%
+    --Logic Register as Latch | 0/23040                             |  0%
+    --Logic Register as FF    | 10908/23040                         |  48%
+    --I/O Register as Latch   | 0/555                               |  0%
+    --I/O Register as FF      | 33/555                              |  6%
+  CLS                         | 10881/11520                         |  95%
+  I/O Port                    | 126/191                             |  66%
+  I/O Buf                     | 113                                 | -
+    --Input Buf               | 21                                  | -
+    --Output Buf              | 66                                  | -
+    --Inout Buf               | 26                                  | -
+  IOLOGIC                     | 26/186                              | 14%
+    --ODDR                    | 1
+    --IDES4                   | 9
+    --IDES8                   | 2
+    --IDES16                  | 1
+    --OSER4                   | 11
+    --OSER16                  | 1
+    --IODELAY                 | 11
+  BSRAM                       | 54/56                               | 97%
+    --SP                      | 4
+    --SDPB                    | 13
+    --SDPX9B                  | 11
+    --DPB                     | 26
+  DSP                         | 5/28                                | 18%
+    --MULT12X12               | 4
+    --MULTADDALU12X12         | 3
+  ADC                         | 1/1                                 | 100%
+  ================================================================================
+
+
+
+4. I/O Bank Usage Summary
+
+  --------------------------------------
+  I/O Bank  | Usage       | Utilization 
+  --------------------------------------
+  bank 0   | 21/25       | 84%         
+  bank 1   | 20/27       | 75%         
+  bank 2   | 25/26       | 97%         
+  bank 3   | 13/19       | 69%         
+  bank 4   | 12/20       | 60%         
+  bank 5   | 18/26       | 70%         
+  bank 6   | 18/26       | 70%         
+  bank 7   | 1/18        | 6%          
+  bank 10  | 0/4         | 0%          
+  ======================================
+
+
+5. Clock Resource Usage Summary
+
+  ------------------------------------------
+  Clock Resource| Usage         | Utilization 
+  ------------------------------------------
+  PRIMARY       | 8/8           | 100%
+  LW            | 7/8           | 88%
+  GCLK_PIN      | 32/40         | 80%
+  CLKDIV        | 1/16          | 7%
+  DHCE          | 1/16          | 7%
+  PLLA          | 2/6           | 34%
+  ==========================================
+
+
+6. Global Clock Signals
+
+  -------------------------------------------
+  Signal         | Global Clock   | Location
+  -------------------------------------------
+  QSPI_CLK_d     | PRIMARY        |  TR BR BL
+  fClk           | PRIMARY        |  BR
+  pClk           | PRIMARY        |  TR BR
+  hClk           | PRIMARY        |  TR TL BR
+  AUD_MCLK_d     | PRIMARY        |  TR TL BR BL
+  xClk           | PRIMARY        |  TR TL BR BL
+  PHY_CLKOUT     | PRIMARY        |  TL BL
+  u_usb_top/u_USB_SoftPHY_Top/usb2_0_softphy/u_usb_20_phy_utmi/u_usb2_0_softphy/u_usb_phy_hs/sclk| PRIMARY        |  TL BL
+  memrst         | LW             |  -
+  n18_5          | LW             |  -
+  BIST_finished  | LW             |  -
+  u_usb_top/n574_5| LW             |  -
+  u_usb_top/u_USB_SoftPHY_Top/usb2_0_softphy/u_usb_20_phy_utmi/u_usb2_0_softphy/u_usb_phy_hs/reset_calib_Z| LW             |  -
+  u_usb_top/u_USB_SoftPHY_Top/usb2_0_softphy/u_usb_20_phy_utmi/u_usb2_0_softphy/u_usb_phy_hs/reset_w[1]| LW             |  -
+  u_usb_top/u_USB_SoftPHY_Top/usb2_0_softphy/u_usb_20_phy_utmi/u_usb2_0_softphy/u_usb_phy_hs/reset_r[1]| LW             |  -
+  fClk           | HCLK           | BANK2_BANK3_HCLK0
+  u_usb_top/fclk_960M| HCLK           | BANK6_BANK7_HCLK0
+  ===========================================
+
+
+7. Pinout by Port Name
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Port Name                 | Diff Pair | Loc./Bank     | Constraint | Dir.  | Site     | CFG             | IO Type    | Drive | Pull Mode | PCI Clamp | Hysteresis | Open Drain | Vref       | Single Resistor | Diff Resistor | BankVccio  | Pull Strength | Ctle          | ADC_INPUT    
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+BTN_A                     | -         | B8/5          | Y          | in    | IOB2[A]  | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+BTN_B                     | -         | A8/5          | Y          | in    | IOB2[B]  | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+BTN_DPAD_DOWN             | -         | D11/6         | Y          | in    | IOL5[B]  | GCLKC_13/LPLL0_C_FB1 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+BTN_DPAD_LEFT             | -         | D14/6         | Y          | in    | IOL3[A]  | GCLKT_14/LPLL0_T_IN2 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+BTN_DPAD_RIGHT            | -         | B16/7         | Y          | in    | IOT1[B]  | GCLKC_15        | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+BTN_DPAD_UP               | -         | L12/0         | Y          | in    | IOT48[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+BTN_MENU                  | -         | A5/5          | Y          | in    | IOB12[B] | GCLKC_10B/D07/DOUT/LPLL1_C_IN1 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+BTN_SEL                   | -         | C14/6         | Y          | in    | IOL3[B]  | GCLKC_14/LPLL0_C_FB0 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+BTN_START                 | -         | D9/6          | Y          | in    | IOL27[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+CART_DET                  | -         | N3/2          | Y          | in    | IOR29[A] | -               | LVCMOS33   | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+CART_AUDIN                | -         | N14/0         | Y          | in    | IOT52[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+CLK_FPGA                  | -         | M2/3          | Y          | in    | IOB89[A] | GCLKT_7/BPLL_T_IN0 | LVCMOS18   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8        | WEAK          | NONE          | bus1         
+CLK_27MHz                 | -         | T2/2          | Y          | in    | IOR33[A] | GCLKT_5/RPLL1_T_IN1 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+CLK_24MHz                 | -         | D12/6         | Y          | in    | IOL5[A]  | GCLKT_13/LPLL0_T_IN1 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+POWER_ON_FPGA             | -         | N8/2          | Y          | in    | IOR7[A]  | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+I2S_WS                    | -         | G2/4          | Y          | in    | IOB54[A] | GCLKT_11B/D10/MI2 | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+I2S_DIN                   | -         | F1/4          | Y          | in    | IOB50[B] | D12             | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+I2S_DOUT                  | -         | F2/4          | Y          | in    | IOB50[A] | D11             | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+ESP32_MCU_D12             | -         | F3/4          | Y          | in    | IOB45[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | -            
+QSPI_CS                   | -         | C2/4          | Y          | in    | IOB31[A] | GCLKT_10A/D14   | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+QSPI_CLK                  | -         | B1/4          | Y          | in    | IOB29[A] | GCLKT_11A       | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+ESP32_MCU_D3              | -         | B4/5          | Y          | in    | IOB18[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+IR_RX                     | -         | D3/5          | Y          | in    | IOB24[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+LCD_TE                    | -         | T7/2          | Y          | in    | IOR12[B] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+LINK_IN                   | -         | T8/2          | Y          | in    | IOR5[B]  | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | -            
+LINK_SD                   | -         | R7/2          | Y          | in    | IOR12[A] | -               | LVCMOS33   | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+usb_rxdp_i                | -         | B12/6         | Y          | in    | IOL18[A] | -               | LVDS25     | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | OFF           | bus0         
+usb_rxdn_i                | -         | B10/6         | Y          | in    | IOL25[A] | -               | LVDS25     | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | OFF           | -            
+VBAT_ADC_P                | VBAT_ADC_N | P14/1         | Y          | in    | IOT63[A] | GCLKT_3/RPLL0_T_IN0 | ADC_IN     | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3        | NONE          | NONE          | bus2         
+VBAT_ADC_N                | VBAT_ADC_P | L11/1         | Y          | in    | IOT63[B] | GCLKC_3         | ADC_IN     | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3        | NONE          | NONE          | bus2         
+VERSION_DET               | -         | M8/2          | Y          | in    | IOR9[B]  | -               | LVCMOS33   | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+VERSION_DET2              | -         | K6/3          | Y          | in    | IOB91[A] | GCLKT_6A        | LVCMOS18   | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8        | WEAK          | NONE          | bus1         
+DISPLAY_ID                | -         | J11/0         | Y          | in    | IOT43[A] | -               | LVCMOS33   | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | -            
+GW_BACKGROUND_RECONFIG_N  | -         | H5/4          | Y          | out   | IOB52[A] | RECONFIG_N      | LVCMOS33   | 4     | UP        | OFF       | OFF        | ON         | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+ADC_SEL                   | -         | N13/0         | Y          | out   | IOT54[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+AUD_BCLK                  | -         | B7/5          | Y          | out   | IOB4[A]  | D04/SDA         | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+AUD_DIN                   | -         | C6/5          | Y          | out   | IOB12[A] | GCLKT_10B/D15/SSPI_WPN/SSI2 | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+AUD_MCLK                  | -         | C8/5          | Y          | out   | IOB6[A]  | -               | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+AUD_RESET                 | -         | B9/6          | Y          | out   | IOL29[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+AUD_WCLK                  | -         | D6/5          | Y          | out   | IOB16[A] | -               | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+CART_A[0]                 | -         | K15/0         | Y          | out   | IOT56[A] | GCLKT_0/TPLL_T_IN1 | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[1]                 | -         | L16/0         | Y          | out   | IOT37[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[2]                 | -         | L15/0         | Y          | out   | IOT37[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[3]                 | -         | M16/0         | Y          | out   | IOT58[B] | GCLKC_1/TPLL_C_FB0 | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[4]                 | -         | M15/0         | Y          | out   | IOT58[A] | GCLKT_1/TPLL_T_IN2 | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[5]                 | -         | N16/0         | Y          | out   | IOT45[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[6]                 | -         | N15/0         | Y          | out   | IOT45[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[7]                 | -         | P16/0         | Y          | out   | IOT50[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[8]                 | -         | P15/0         | Y          | out   | IOT52[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[9]                 | -         | R16/0         | Y          | out   | IOT50[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_A[10]                | -         | T15/1         | Y          | out   | IOT61[B] | GCLKC_2         | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_A[11]                | -         | R14/1         | Y          | out   | IOT66[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_A[12]                | -         | T14/1         | Y          | out   | IOT61[A] | GCLKT_2/TPLL_T_IN0 | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_A[13]                | -         | R13/1         | Y          | out   | IOT72[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_A[14]                | -         | T13/1         | Y          | out   | IOT72[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_A[15]                | -         | R12/1         | Y          | out   | IOT76[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_CLK                  | -         | J15/0         | Y          | out   | IOT33[A] | -               | LVCMOS33   | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_CS                   | -         | K12/0         | Y          | out   | IOT43[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | -            
+CART_RD                   | -         | J13/0         | Y          | out   | IOT39[A] | -               | LVCMOS33   | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_WR                   | -         | K16/0         | Y          | out   | IOT56[B] | GCLKC_0/TPLL_C_FB1 | LVCMOS33   | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_DATA_DIR_E           | -         | L7/2          | Y          | out   | IOR33[B] | GCLKC_5/RPLL1_C_FB0 | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+CART_CTRL_OE              | -         | C11/6         | Y          | out   | IOL21[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+CART_PWR_EN               | -         | M12/0         | Y          | out   | IOT54[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+ESP32_EN                  | -         | J3/4          | Y          | out   | IOB62[B] | CSI_B           | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+SDIO_LS                   | -         | N5/2          | Y          | out   | IOR22[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+POWER_DOWN_IO             | -         | P11/1         | Y          | out   | IOT89[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+ESP32_IO0                 | -         | E1/4          | Y          | out   | IOB35[B] | GCLKC_8         | LVCMOS33   | 8     | UP        | OFF       | OFF        | ON         | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+I2S_BCLK                  | -         | G1/4          | Y          | out   | IOB54[B] | GCLKC_11B/MI3/BPLL_C_FB1 | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+ESP32_MCU_D11             | -         | D1/4          | Y          | out   | IOB33[B] | GCLKC_9A        | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+ESP32_MCU_D4              | -         | A4/5          | Y          | out   | IOB18[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+FPGA_LED_EN               | -         | B5/5          | Y          | out   | IOB22[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+FPGA_LED_R                | -         | A6/5          | Y          | out   | IOB14[B] | CLKHOLD_N/SSI3  | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+FPGA_LED_G                | -         | A7/5          | Y          | out   | IOB4[B]  | D09/SCL/LPLL1_C_FB0 | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+FPGA_LED_B                | -         | B6/5          | Y          | out   | IOB14[A] | SSPI_CLK        | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+IR_LED                    | -         | D4/4          | Y          | out   | IOB29[B] | GCLKC_11A       | LVCMOS33   | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | STRONG        | NONE          | bus1         
+LCD_PWM                   | -         | P3/2          | Y          | out   | IOR29[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_DB[0]                 | -         | M9/1          | Y          | out   | IOT85[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+LCD_DB[1]                 | -         | R5/2          | Y          | out   | IOR18[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_DB[2]                 | -         | M11/1         | Y          | out   | IOT70[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+LCD_DB[3]                 | -         | T5/2          | Y          | out   | IOR18[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_DB[4]                 | -         | N12/1         | Y          | out   | IOT70[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+LCD_DB[5]                 | -         | T6/2          | Y          | out   | IOR14[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_DOTCLK                | -         | P9/1          | Y          | out   | IOT89[A] | RPLL0_T_FB1     | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+LCD_ENABLE                | -         | R4/2          | Y          | out   | IOR31[A] | GCLKT_4/RPLL1_T_IN0 | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | -            
+LCD_HSYNC                 | -         | P8/2          | Y          | out   | IOR7[B]  | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_RESET                 | -         | M6/2          | Y          | out   | IOR20[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_SPI_CSX               | -         | R3/2          | Y          | out   | IOR24[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_SPI_SCLK              | -         | M7/2          | Y          | out   | IOR26[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LCD_SPI_SDA               | -         | T4/2          | Y          | out   | IOR31[B] | GCLKC_4/RPLL1_C_FB1 | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | -            
+LCD_VSYNC                 | -         | T3/2          | Y          | out   | IOR24[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LINK_OUT                  | -         | P6/2          | Y          | out   | IOR20[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LINK_CLK_DIR_LV           | -         | N6/2          | Y          | out   | IOR22[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+LINK_SD_DIR_LV            | -         | L8/2          | Y          | out   | IOR9[A]  | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+PS_CE_N                   | -         | R1/3          | Y          | out   | IOB85[B] | -               | SSTL18_I   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 1.8        | WEAK          | NONE          | bus1         
+PS_CLK                    | -         | P2/3          | Y          | out   | IOB79[A] | -               | SSTL18_I   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 1.8        | WEAK          | NONE          | bus1         
+usb_pullup_en_o           | -         | B13/6         | Y          | out   | IOL16[A] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+CHG_EN_FPGA               | -         | K11/0         | Y          | out   | IOT48[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+CART_D[0]                 | -         | T12/1         | Y          | io    | IOT76[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[1]                 | -         | R11/1         | Y          | io    | IOT83[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[2]                 | -         | T11/1         | Y          | io    | IOT83[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[3]                 | -         | R10/1         | Y          | io    | IOT80[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[4]                 | -         | T10/1         | Y          | io    | IOT80[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[5]                 | -         | R9/1          | Y          | io    | IOT91[A] | RPLL0_T_IN1     | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[6]                 | -         | T9/1          | Y          | io    | IOT91[B] | RPLL0_C_FB0     | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus2         
+CART_D[7]                 | -         | R8/2          | Y          | io    | IOR5[A]  | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | -            
+CART_RST                  | -         | J16/0         | Y          | io    | IOT33[B] | -               | LVCMOS33   | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus0         
+QSPI_MOSI                 | -         | A2/5          | Y          | io    | IOB22[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+QSPI_MISO                 | -         | C3/5          | Y          | io    | IOB24[B] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+QSPI_WP                   | -         | A3/5          | Y          | io    | IOB26[B] | GCLKC_9B        | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+QSPI_HD                   | -         | B3/5          | Y          | io    | IOB26[A] | GCLKT_9B        | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus1         
+LINK_CLK                  | -         | R6/2          | Y          | io    | IOR14[A] | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | WEAK          | NONE          | bus1         
+PS_DQ[0]                  | -         | L2/3          | Y          | io    | IOB75[A] | GCLKT_6B        | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[1]                  | -         | N2/3          | Y          | io    | IOB77[A] | -               | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[2]                  | -         | J1/3          | Y          | io    | IOB69[B] | -               | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[3]                  | -         | L1/3          | Y          | io    | IOB75[B] | GCLKC_6B        | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[4]                  | -         | K2/3          | Y          | io    | IOB71[A] | -               | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[5]                  | -         | M1/3          | Y          | io    | IOB89[B] | GCLKC_7         | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[6]                  | -         | N1/3          | Y          | io    | IOB77[B] | -               | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQ[7]                  | -         | P1/3          | Y          | io    | IOB79[B] | -               | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+PS_DQS                    | -         | K1/3          | Y          | io    | IOB71[B] | -               | SSTL18_I   | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8        | WEAK          | OFF           | bus1         
+SCL                       | -         | A15/6         | Y          | io    | IOL7[A]  | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+SDA                       | -         | B14/6         | Y          | io    | IOL9[A]  | -               | LVCMOS33   | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+usb_dxp_io                | usb_dxn_io | B11/6         | Y          | io    | IOL23[A] | -               | LVCMOS33D  | 2     | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | OFF           | bus0         
+usb_dxn_io                | usb_dxp_io | A11/6         | Y          | io    | IOL23[B] | -               | LVCMOS33D  | 2     | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | OFF           | bus0         
+usb_term_dp_io            | -         | A13/6         | Y          | io    | IOL16[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+usb_term_dn_io            | -         | A9/6          | Y          | io    | IOL29[B] | -               | LVCMOS33   | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3        | MEDIUM        | NONE          | bus0         
+=================================================================================================================================================================================================================================
+
+
+
+
+8. All Package Pins
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Loc./Bank| Signal                    | Dir.  | Site     | CFG             | IO Type  | Drive | Pull Mode | PCI Clamp | Hysteresis | Open Drain | Vref       | Single Resistor | Diff Resistor | Bank Vccio | Pull Strength | Ctle          | ADC_INPUT    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+F14/7    | -                         | in    | IOT1[A]  | GCLKT_15/LPLL0_T_IN0 | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+B16/7    | BTN_DPAD_RIGHT            | in    | IOT1[B]  | GCLKC_15        | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+E15/7    | -                         | in    | IOT3[A]  | GCLKT_16        | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+E16/7    | -                         | in    | IOT3[B]  | GCLKC_16        | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+C15/7    | -                         | in    | IOT9[A]  | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+C16/7    | -                         | in    | IOT9[B]  | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+D15/7    | -                         | in    | IOT13[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+D16/7    | -                         | in    | IOT13[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+F15/7    | -                         | in    | IOT19[A] | EMCCLK          | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+F16/7    | -                         | in    | IOT19[B] | CSO_B           | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+G11/7    | -                         | in    | IOT21[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+F13/7    | -                         | in    | IOT21[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+G15/7    | -                         | in    | IOT23[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+G16/7    | -                         | in    | IOT23[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+H13/7    | -                         | in    | IOT25[A] | MODE0           | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+H12/7    | -                         | in    | IOT25[B] | MODE1           | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+G12/7    | -                         | in    | IOT27[A] | MODE2           | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+H14/7    | -                         | in    | IOT27[B] | DONE            | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+J12/0    | -                         | in    | IOT31[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+J14/0    | -                         | in    | IOT31[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+J15/0    | CART_CLK                  | out   | IOT33[A] | -               | LVCMOS33 | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+J16/0    | CART_RST                  | out   | IOT33[B] | -               | LVCMOS33 | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+L15/0    | CART_A[2]                 | out   | IOT37[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+L16/0    | CART_A[1]                 | out   | IOT37[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+J13/0    | CART_RD                   | out   | IOT39[A] | -               | LVCMOS33 | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+L13/0    | -                         | in    | IOT39[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+L14/0    | -                         | in    | IOT41[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+J11/0    | DISPLAY_ID                | in    | IOT43[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | -            
+K12/0    | CART_CS                   | out   | IOT43[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | -            
+N15/0    | CART_A[6]                 | out   | IOT45[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+N16/0    | CART_A[5]                 | out   | IOT45[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+L12/0    | BTN_DPAD_UP               | in    | IOT48[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+K11/0    | CHG_EN_FPGA               | out   | IOT48[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+R16/0    | CART_A[9]                 | out   | IOT50[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+P16/0    | CART_A[7]                 | out   | IOT50[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+N14/0    | CART_AUDIN                | in    | IOT52[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+P15/0    | CART_A[8]                 | out   | IOT52[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+N13/0    | ADC_SEL                   | out   | IOT54[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+M12/0    | CART_PWR_EN               | out   | IOT54[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+K15/0    | CART_A[0]                 | out   | IOT56[A] | GCLKT_0/TPLL_T_IN1 | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+K16/0    | CART_WR                   | out   | IOT56[B] | GCLKC_0/TPLL_C_FB1 | LVCMOS33 | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+M15/0    | CART_A[4]                 | out   | IOT58[A] | GCLKT_1/TPLL_T_IN2 | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+M16/0    | CART_A[3]                 | out   | IOT58[B] | GCLKC_1/TPLL_C_FB0 | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus0         
+T14/1    | CART_A[12]                | out   | IOT61[A] | GCLKT_2/TPLL_T_IN0 | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+T15/1    | CART_A[10]                | out   | IOT61[B] | GCLKC_2         | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+P14/1    | VBAT_ADC_P                | in    | IOT63[A] | GCLKT_3/RPLL0_T_IN0 | ADC_IN   | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | NONE          | NONE          | bus2         
+L11/1    | VBAT_ADC_N                | in    | IOT63[B] | GCLKC_3         | ADC_IN   | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | NONE          | NONE          | bus2         
+R14/1    | CART_A[11]                | out   | IOT66[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+M11/1    | LCD_DB[2]                 | out   | IOT70[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+N12/1    | LCD_DB[4]                 | out   | IOT70[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+R13/1    | CART_A[13]                | out   | IOT72[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+T13/1    | CART_A[14]                | out   | IOT72[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+K10/1    | -                         | in    | IOT74[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+L10/1    | -                         | in    | IOT74[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+R12/1    | CART_A[15]                | out   | IOT76[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+T12/1    | CART_D[0]                 | io    | IOT76[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+M10/1    | -                         | in    | IOT78[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+N11/1    | -                         | in    | IOT78[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+R10/1    | CART_D[3]                 | io    | IOT80[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+T10/1    | CART_D[4]                 | io    | IOT80[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+R11/1    | CART_D[1]                 | io    | IOT83[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+T11/1    | CART_D[2]                 | io    | IOT83[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+M9/1     | LCD_DB[0]                 | out   | IOT85[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+N9/1     | -                         | in    | IOT85[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+K9/1     | -                         | in    | IOT87[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+L9/1     | -                         | in    | IOT87[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+P9/1     | LCD_DOTCLK                | out   | IOT89[A] | RPLL0_T_FB1     | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+P11/1    | POWER_DOWN_IO             | out   | IOT89[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+R9/1     | CART_D[5]                 | io    | IOT91[A] | RPLL0_T_IN1     | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+T9/1     | CART_D[6]                 | io    | IOT91[B] | RPLL0_C_FB0     | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus2         
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+B8/5     | BTN_A                     | in    | IOB2[A]  | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A8/5     | BTN_B                     | in    | IOB2[B]  | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+B7/5     | AUD_BCLK                  | out   | IOB4[A]  | D04/SDA         | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A7/5     | FPGA_LED_G                | out   | IOB4[B]  | D09/SCL/LPLL1_C_FB0 | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+C8/5     | AUD_MCLK                  | out   | IOB6[A]  | -               | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+D8/5     | -                         | in    | IOB6[B]  | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+F8/5     | -                         | in    | IOB8[A]  | D03/SO/SSI1     | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+E8/5     | -                         | in    | IOB8[B]  | D02             | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+E6/5     | -                         | in    | IOB10[A] | D06/SSPI_CS_N   | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+E7/5     | -                         | in    | IOB10[B] | D05/SI/SSI0     | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+C6/5     | AUD_DIN                   | out   | IOB12[A] | GCLKT_10B/D15/SSPI_WPN/SSI2 | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A5/5     | BTN_MENU                  | in    | IOB12[B] | GCLKC_10B/D07/DOUT/LPLL1_C_IN1 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+B6/5     | FPGA_LED_B                | out   | IOB14[A] | SSPI_CLK        | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A6/5     | FPGA_LED_R                | out   | IOB14[B] | CLKHOLD_N/SSI3  | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+D6/5     | AUD_WCLK                  | out   | IOB16[A] | -               | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+D5/5     | -                         | in    | IOB16[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+B4/5     | ESP32_MCU_D3              | in    | IOB18[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A4/5     | ESP32_MCU_D4              | out   | IOB18[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+F7/5     | -                         | in    | IOB20[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+F6/5     | -                         | in    | IOB20[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+B5/5     | FPGA_LED_EN               | out   | IOB22[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A2/5     | QSPI_MOSI                 | io    | IOB22[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+D3/5     | IR_RX                     | in    | IOB24[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+C3/5     | QSPI_MISO                 | io    | IOB24[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+B3/5     | QSPI_HD                   | io    | IOB26[A] | GCLKT_9B        | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+A3/5     | QSPI_WP                   | io    | IOB26[B] | GCLKC_9B        | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+B1/4     | QSPI_CLK                  | in    | IOB29[A] | GCLKT_11A       | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+D4/4     | IR_LED                    | out   | IOB29[B] | GCLKC_11A       | LVCMOS33 | 16    | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+C2/4     | QSPI_CS                   | in    | IOB31[A] | GCLKT_10A/D14   | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+C1/4     | -                         | in    | IOB31[B] | GCLKC_10A/D01/MOSI/MI0/BPLL_C_FB0 | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+D2/4     | -                         | in    | IOB33[A] | GCLKT_9A/D13/MCS_N/BPLL_T_IN1 | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+D1/4     | ESP32_MCU_D11             | out   | IOB33[B] | GCLKC_9A        | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+E5/4     | -                         | in    | IOB35[A] | GCLKT_8         | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+E1/4     | ESP32_IO0                 | out   | IOB35[B] | GCLKC_8         | LVCMOS33 | 8     | UP        | OFF       | OFF        | ON         | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+G5/4     | -                         | in    | IOB37[A] | D08             | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+F5/4     | -                         | in    | IOB37[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+F3/4     | ESP32_MCU_D12             | in    | IOB45[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | -            
+F2/4     | I2S_DOUT                  | in    | IOB50[A] | D11             | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+F1/4     | I2S_DIN                   | in    | IOB50[B] | D12             | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+H5/4     | GW_BACKGROUND_RECONFIG_N  | out   | IOB52[A] | RECONFIG_N      | LVCMOS33 | 4     | UP        | OFF       | OFF        | ON         | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+G2/4     | I2S_WS                    | in    | IOB54[A] | GCLKT_11B/D10/MI2 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+G1/4     | I2S_BCLK                  | out   | IOB54[B] | GCLKC_11B/MI3/BPLL_C_FB1 | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+H2/4     | -                         | in    | IOB58[A] | D00/DIN/MISO/MI1 | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+H1/4     | -                         | in    | IOB62[A] | CCLK            | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+J3/4     | ESP32_EN                  | out   | IOB62[B] | CSI_B           | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | STRONG        | NONE          | bus1         
+F4/4     | -                         | in    | IOB64[A] | READY           | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+J6/3     | -                         | in    | IOB65[A] | -               | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | MEDIUM        | NONE          | bus1         
+L3/3     | -                         | in    | IOB65[B] | -               | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | MEDIUM        | NONE          | bus1         
+J2/3     | -                         | in    | IOB69[A] | -               | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | MEDIUM        | NONE          | bus1         
+J1/3     | PS_DQ[2]                  | io    | IOB69[B] | -               | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+K2/3     | PS_DQ[4]                  | io    | IOB71[A] | -               | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+K1/3     | PS_DQS                    | io    | IOB71[B] | -               | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+K5/3     | -                         | in    | IOB73[A] | -               | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | MEDIUM        | NONE          | bus1         
+L4/3     | -                         | in    | IOB73[B] | -               | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | MEDIUM        | NONE          | bus1         
+L2/3     | PS_DQ[0]                  | io    | IOB75[A] | GCLKT_6B        | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+L1/3     | PS_DQ[3]                  | io    | IOB75[B] | GCLKC_6B        | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+N2/3     | PS_DQ[1]                  | io    | IOB77[A] | -               | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+N1/3     | PS_DQ[6]                  | io    | IOB77[B] | -               | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+P2/3     | PS_CLK                    | out   | IOB79[A] | -               | SSTL18_I | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 1.8   | WEAK          | NONE          | bus1         
+P1/3     | PS_DQ[7]                  | io    | IOB79[B] | -               | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+R1/3     | PS_CE_N                   | out   | IOB85[B] | -               | SSTL18_I | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 1.8   | WEAK          | NONE          | bus1         
+M2/3     | CLK_FPGA                  | in    | IOB89[A] | GCLKT_7/BPLL_T_IN0 | LVCMOS18 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | WEAK          | NONE          | bus1         
+M1/3     | PS_DQ[5]                  | io    | IOB89[B] | GCLKC_7         | SSTL18_I | 8     | NONE      | OFF       | NONE       | OFF        | INTERNAL   | OFF             | OFF           | 1.8   | WEAK          | OFF           | bus1         
+K6/3     | VERSION_DET2              | in    | IOB91[A] | GCLKT_6A        | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | WEAK          | NONE          | bus1         
+L6/3     | -                         | in    | IOB91[B] | GCLKC_6A        | LVCMOS18 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 1.8   | MEDIUM        | NONE          | bus1         
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+D14/6    | BTN_DPAD_LEFT             | in    | IOL3[A]  | GCLKT_14/LPLL0_T_IN2 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+C14/6    | BTN_SEL                   | in    | IOL3[B]  | GCLKC_14/LPLL0_C_FB0 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+D12/6    | CLK_24MHz                 | in    | IOL5[A]  | GCLKT_13/LPLL0_T_IN1 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+D11/6    | BTN_DPAD_DOWN             | in    | IOL5[B]  | GCLKC_13/LPLL0_C_FB1 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+A15/6    | SCL                       | io    | IOL7[A]  | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+F11/6    | -                         | in    | IOL7[B]  | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+B14/6    | SDA                       | io    | IOL9[A]  | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+A14/6    | -                         | in    | IOL9[B]  | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+E11/6    | -                         | in    | IOL12[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+E10/6    | -                         | in    | IOL12[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+F9/6     | -                         | in    | IOL14[A] | LPLL1_T_IN0     | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+F10/6    | -                         | in    | IOL14[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+B13/6    | usb_pullup_en_o           | out   | IOL16[A] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+A13/6    | usb_term_dp_io            | io    | IOL16[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+B12/6    | usb_rxdp_i(p)             | in    | IOL18[A] | -               | LVDS25   | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | OFF           | bus0         
+A12/6    | usb_rxdp_i(n)             | in    | IOL18[B] | -               | LVDS25   | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | OFF           | bus0         
+C11/6    | CART_CTRL_OE              | out   | IOL21[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+E9/6     | -                         | in    | IOL21[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+B11/6    | usb_dxp_io                | io    | IOL23[A] | -               | LVCMOS33D | 2     | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | OFF           | bus0         
+A11/6    | usb_dxn_io                | io    | IOL23[B] | -               | LVCMOS33D | 2     | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | OFF           | bus0         
+B10/6    | usb_rxdn_i(p)             | in    | IOL25[A] | -               | LVDS25   | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | OFF           | -            
+A10/6    | usb_rxdn_i(n)             | in    | IOL25[B] | -               | LVDS25   | OFF   | NONE      | OFF       | NONE       | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | OFF           | -            
+D9/6     | BTN_START                 | in    | IOL27[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+C9/6     | -                         | in    | IOL27[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+B9/6     | AUD_RESET                 | out   | IOL29[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+A9/6     | usb_term_dn_io            | io    | IOL29[B] | -               | LVCMOS33 | 4     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus0         
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+H3/10    | -                         | in    | IOR1[A]  | TCK             | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+H4/10    | -                         | in    | IOR1[B]  | TDI             | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+J5/10    | -                         | in    | IOR3[A]  | TMS             | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+J4/10    | -                         | out   | IOR3[B]  | TDO             | LVCMOS33 | 8     | UP        | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+R8/2     | CART_D[7]                 | io    | IOR5[A]  | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | -            
+T8/2     | LINK_IN                   | in    | IOR5[B]  | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | -            
+N8/2     | POWER_ON_FPGA             | in    | IOR7[A]  | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+P8/2     | LCD_HSYNC                 | out   | IOR7[B]  | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+L8/2     | LINK_SD_DIR_LV            | out   | IOR9[A]  | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+M8/2     | VERSION_DET               | in    | IOR9[B]  | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+R7/2     | LINK_SD                   | in    | IOR12[A] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+T7/2     | LCD_TE                    | in    | IOR12[B] | -               | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+R6/2     | LINK_CLK                  | out   | IOR14[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+T6/2     | LCD_DB[5]                 | out   | IOR14[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+R5/2     | LCD_DB[1]                 | out   | IOR18[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+T5/2     | LCD_DB[3]                 | out   | IOR18[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+P6/2     | LINK_OUT                  | out   | IOR20[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+M6/2     | LCD_RESET                 | out   | IOR20[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+N5/2     | SDIO_LS                   | out   | IOR22[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+N6/2     | LINK_CLK_DIR_LV           | out   | IOR22[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+R3/2     | LCD_SPI_CSX               | out   | IOR24[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+T3/2     | LCD_VSYNC                 | out   | IOR24[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+M7/2     | LCD_SPI_SCLK              | out   | IOR26[A] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+K8/2     | -                         | in    | IOR26[B] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+N3/2     | CART_DET                  | in    | IOR29[A] | -               | LVCMOS33 | OFF   | UP        | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+P3/2     | LCD_PWM                   | out   | IOR29[B] | -               | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+R4/2     | LCD_ENABLE                | out   | IOR31[A] | GCLKT_4/RPLL1_T_IN0 | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | -            
+T4/2     | LCD_SPI_SDA               | out   | IOR31[B] | GCLKC_4/RPLL1_C_FB1 | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | -            
+T2/2     | CLK_27MHz                 | in    | IOR33[A] | GCLKT_5/RPLL1_T_IN1 | LVCMOS33 | OFF   | NONE      | OFF       | ON         | OFF        | OFF        | OFF             | OFF           | 3.3   | MEDIUM        | NONE          | bus1         
+L7/2     | CART_DATA_DIR_E           | out   | IOR33[B] | GCLKC_5/RPLL1_C_FB0 | LVCMOS33 | 8     | NONE      | OFF       | OFF        | OFF        | OFF        | OFF             | OFF           | 3.3   | WEAK          | NONE          | bus1         
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+======================================================================================================================================================================================================
+
+

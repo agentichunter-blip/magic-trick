@@ -1,0 +1,31 @@
+Reading netlist file: "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg"
+Parsing netlist file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg" completed
+Processing netlist completed
+Reading constraint file: "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst"
+Physical Constraint parsed completed
+Running placement......
+[10%] Placement Phase 0 completed
+[20%] Placement Phase 1 completed
+[30%] Placement Phase 2 completed
+WARN  (TA1123) : the clock "clk24p"'s frequency does not match u_usb_top/u_Gowin_PLL_USB/PLLA_inst/CLKOUT2's 
+[50%] Placement Phase 3 completed
+Running routing......
+[60%] Routing Phase 0 completed
+[70%] Routing Phase 1 completed
+[80%] Routing Phase 2 completed
+[90%] Routing Phase 3 completed
+Running timing analysis......
+[95%] Timing analysis completed
+Placement and routing completed
+Bitstream generation in progress......
+Bitstream generation completed
+Running power analysis......
+[100%] Power analysis completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.power.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.pin.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.txt" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr" completed
+Sun Nov 15 13:30:30 2026
+

@@ -1,0 +1,20 @@
+-d /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg
+-p GW5A-25A-UBGA256C-1
+-pn GW5A-EV25UG256CC1/I0
+-cst /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst
+-cfg /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/device.cfg
+-sdc /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/gg_board.sdc
+-bit
+-tr
+-ph
+-timing
+-cst_error
+-convert_sdp32_36_to_sdp16_18
+-place_option 3
+-route_option 0
+-retiming_resource none
+-clock_route_order 0
+-correct_hold 1
+-route_maxfan 23
+-global_freq 100.000
+-enable_dsrm 0
