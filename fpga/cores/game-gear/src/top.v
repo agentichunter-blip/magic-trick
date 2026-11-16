@@ -1551,6 +1551,34 @@ module top #(parameter ISSIMU=0)
         (virtual_enable_g || CART_DET_sr[6:3] == 4'b1111)
         ? BTN_MENU_ored : 1'b1;
 
+    // Core switches: the hand-over between FPGA images can leave one
+    // misaligned frame on the panel (it keeps its own frame memory). Keep the
+    // backlight off while a reload is pending and until this image has sent
+    // three complete panel frames (or 2^23 gClk, about one second, in case
+    // no frames are being sent).
+    wire LCD_PWM_monitor;
+    reg [1:0] panelFrames = 2'd0;
+    reg [22:0] panelWait = 23'd0;
+    reg panelVsync_r = 1'b1;
+    always @(posedge gClk)
+    begin
+        panelVsync_r <= LCD_VSYNC;
+        if (!LCD_INIT_DONE)
+        begin
+            panelFrames <= 2'd0;
+            panelWait <= 23'd0;
+        end
+        else
+        begin
+            if (panelVsync_r && !LCD_VSYNC && panelFrames != 2'd3)
+                panelFrames <= panelFrames + 1'b1;
+            if (panelWait != {23{1'b1}})
+                panelWait <= panelWait + 1'b1;
+        end
+    end
+    wire panelSettled = (panelFrames == 2'd3) || (panelWait == {23{1'b1}});
+    assign LCD_PWM = LCD_PWM_monitor & panelSettled & ~core_reload_hold_g;
+
     system_monitor u_system_monitor(
         .appear_off(appear_off),
         .VERSION_DET(VERSION_DET),
@@ -1574,7 +1602,7 @@ module top #(parameter ISSIMU=0)
         .LCD_INIT_DONE(LCD_INIT_DONE &
                        (~boot_rom_enabled | cart_maintenance_request_g |
                         cart_video_selected_g_sync)),
-        .LCD_PWM(LCD_PWM),
+        .LCD_PWM(LCD_PWM_monitor),
         .hAdcReq_ext(hAdcReq_ext),
         //.hAdcValue_r1(voltageSim),
         .hAdcValue_r1(hAdcValue_r1),
