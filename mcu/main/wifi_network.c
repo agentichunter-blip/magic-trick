@@ -30,8 +30,13 @@ static void SetMessage(const char *Message)
 {
     portENTER_CRITICAL(&Lock); snprintf(State.Message,sizeof(State.Message),"%s",Message); portEXIT_CRITICAL(&Lock);
 }
+static volatile uint32_t DisconnectCount;
+static volatile uint8_t DisconnectReason;
+uint32_t WifiNetwork_Disconnects(uint8_t *Reason) { if(Reason) *Reason=DisconnectReason; return DisconnectCount; }
 static void OnEvent(void *Arg, esp_event_base_t Base, int32_t ID, void *Data)
 {
+    if (Base == WIFI_EVENT && ID == WIFI_EVENT_STA_DISCONNECTED && Data)
+    { DisconnectReason = ((wifi_event_sta_disconnected_t *)Data)->reason; ++DisconnectCount; }
     (void)Arg;
     portENTER_CRITICAL(&Lock);
     if (Base == WIFI_EVENT && ID == WIFI_EVENT_SCAN_DONE)
@@ -198,6 +203,9 @@ esp_err_t WifiNetwork_Start(bool Unused)
     if(R != ESP_OK) goto Fail;
     IPRegistered=true;
     R=esp_wifi_start(); if(R != ESP_OK) goto Fail; Started=true;
+    /* Default modem sleep wakes only at router beacons (100-300 ms), which caps
+     * file uploads at a few KB/s. Wi-Fi runs only while its screen is open. */
+    (void)esp_wifi_set_ps(WIFI_PS_NONE);
     WifiCredentials Saved={0}; (void)WifiCredentials_Read(&Saved);
     R=ApplyCredentials(&Saved); memset(&Saved,0,sizeof(Saved));
     if(R != ESP_OK) goto Fail;

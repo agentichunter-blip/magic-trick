@@ -3,6 +3,7 @@
 #include "wifi_file_store.h"
 #include "wifi_network.h"
 #include "esp_rom_crc.h"
+#include "esp_heap_caps.h"
 #include <ctype.h>
 #include "pc_backup.h"
 #include "cart_backup.h"
@@ -171,6 +172,8 @@ static esp_err_t GetStatus(httpd_req_t *Req)
     cJSON_AddNumberToObject(Reply,"max_upload_bytes",128*1024*1024);
     cJSON_AddBoolToObject(Reply,"overwrite_supported",false);
     cJSON_AddNumberToObject(Reply,"idle_timeout_seconds",600);
+    cJSON_AddNumberToObject(Reply,"free_heap",heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(Reply,"largest_free_block",heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     return Json(Req,Reply);
 }
 static esp_err_t StartScan(httpd_req_t *Req)
@@ -313,20 +316,24 @@ static esp_err_t Upload(httpd_req_t *Req)
     struct stat Info;
     if (stat(Name, &Info) == 0) return Error(Req, "409 Conflict", "A file or folder with this name already exists. Existing files are kept.");
     WifiFileUpload *Transfer = calloc(1, sizeof(*Transfer));
-    char *Buffer = malloc(4096);
+    /* With Wi-Fi running internal RAM is tight; a smaller buffer only costs speed. */
+    size_t BufferSize = 2048;
+    char *Buffer = malloc(BufferSize);
+    if (!Buffer) Buffer = malloc(BufferSize = 1024);
     if (!Transfer || !Buffer) { free(Transfer); free(Buffer); return Error(Req, "503 Service Unavailable", "Not enough memory."); }
     bool Ok = WifiFile_Begin(Transfer, Name, Req->content_len, esp_random());
     unsigned Stalls = 0;
     while (Ok && Transfer->Written < Transfer->Expected && !Stopping())
     {
         size_t Left = Transfer->Expected - Transfer->Written;
-        int Count = httpd_req_recv(Req, Buffer, Left < 4096 ? Left : 4096);
+        int Count = httpd_req_recv(Req, Buffer, Left < BufferSize ? Left : BufferSize);
         /* Each receive waits recv_wait_timeout (5 s). Weak Wi-Fi or a slow SD
          * write can pause a batch that long, so allow a few quiet periods. */
         if (Count == HTTPD_SOCK_ERR_TIMEOUT && ++Stalls < kUploadStallLimit) continue;
-        if (Count <= 0) { Ok = false; break; }
+        if (Count <= 0) { printf("WIFI_FILES upload recv=%d at %u/%u\n", Count, (unsigned)Transfer->Written, (unsigned)Transfer->Expected); Ok = false; break; }
         Stalls = 0;
         Ok = WifiFile_Write(Transfer, Buffer, Count); Touch();
+        if (!Ok) printf("WIFI_FILES upload sd_write failed at %u errno=%d\n", (unsigned)Transfer->Written, errno);
     }
     Ok = Ok && !Stopping();
     if (Ok) Ok = WifiFile_Finish(Transfer);
@@ -354,10 +361,11 @@ static esp_err_t Checksum(httpd_req_t *Req)
     if(!Path(Req,Name)) return Error(Req,"400 Bad Request","Invalid file path.");
     struct stat Info;
     if(stat(Name,&Info) || !S_ISREG(Info.st_mode)) return Error(Req,"404 Not Found","File unavailable.");
-    FILE *File=fopen(Name,"rb"); char *Buffer=malloc(4096);
+    size_t BufferSize=4096; FILE *File=fopen(Name,"rb"); char *Buffer=malloc(BufferSize);
+    if(!Buffer) Buffer=malloc(BufferSize=1024);
     if(!File || !Buffer) { if(File)fclose(File); free(Buffer); return Error(Req,"503 Service Unavailable","File or memory unavailable."); }
     uint32_t CRC=0; size_t Total=0, Count;
-    while(!Stopping() && (Count=fread(Buffer,1,4096,File)))
+    while(!Stopping() && (Count=fread(Buffer,1,BufferSize,File)))
     { CRC=esp_rom_crc32_le(CRC,(const uint8_t *)Buffer,Count); Total+=Count; Touch(); }
     bool Ok=!Stopping() && !ferror(File) && Total==Info.st_size;
     if(fclose(File)) Ok=false;
@@ -428,9 +436,16 @@ static void TransferTask(void *Arg)
     Status.Ready = true; LastActivity = esp_timer_get_time();
     portEXIT_CRITICAL(&Lock);
     printf("WIFI_FILES ready heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
+    uint32_t Ticks = 0, SeenDisconnects = WifiNetwork_Disconnects(NULL);
     while (!Stopping())
     {
         vTaskDelay(pdMS_TO_TICKS(200));
+        uint8_t Reason = 0; uint32_t Disconnects = WifiNetwork_Disconnects(&Reason);
+        if (Disconnects != SeenDisconnects) { SeenDisconnects = Disconnects; printf("WIFI_FILES disconnect reason=%u count=%lu\n", Reason, (unsigned long)Disconnects); }
+        if (++Ticks % 10 == 0)
+            printf("WIFI_FILES heap8=%u min=%u largest=%u dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                   (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
         Result = WifiNetwork_Poll();
         if(Result != ESP_OK) { Failure="NETWORK MODE FAILED"; break; }
         Result = CartBackup_SetPCMode(true);

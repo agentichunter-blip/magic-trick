@@ -10,3 +10,5 @@ esp_err_t WifiNetwork_Forget(void);
 
 esp_err_t WifiNetwork_RequestScan(void);
 void WifiNetwork_GetScan(WifiScanStatus *Status);
+/* Diagnostics: station disconnects so far and the last 802.11 reason code. */
+uint32_t WifiNetwork_Disconnects(uint8_t *Reason);

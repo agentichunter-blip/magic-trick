@@ -27,3 +27,7 @@ esp_err_t esp_wifi_scan_start(const void *,bool);
 esp_err_t esp_wifi_scan_stop(void);
 esp_err_t esp_wifi_scan_get_ap_records(uint16_t *,wifi_ap_record_t *);
 esp_err_t esp_wifi_clear_ap_list(void);
+/* Diagnostics and power save (wifi_network.c). */
+typedef struct { uint8_t ssid[33]; uint8_t ssid_len; uint8_t bssid[6]; uint8_t reason; int8_t rssi; } wifi_event_sta_disconnected_t;
+typedef enum { WIFI_PS_NONE, WIFI_PS_MIN_MODEM, WIFI_PS_MAX_MODEM } wifi_ps_type_t;
+static inline esp_err_t esp_wifi_set_ps(wifi_ps_type_t type) { (void)type; return ESP_OK; }
