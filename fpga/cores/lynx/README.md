@@ -33,7 +33,7 @@ D-pad, A, B as on the Lynx; Start = Pause; Select = Option 1; Menu + B = Option 
 
 ## Save states
 
-Same commands as the Game Gear core (10 freeze, 14 block, 11 load, 16 release). FREEZE makes the core save itself into PSRAM at ROM-window 0x200000 (MiSTer's 66,560-byte image: header, registers, 64 KiB RAM) and then pauses; the MCU reads it in 65 blocks of 1 KiB. LOAD reads a staged image back. Blocks 64-108 read the panel framebuffer instead (diagnostics, `lynxshot` console command).
+Same commands as the Game Gear core (10 freeze, 14 block, 11 load, 16 release). FREEZE makes the core save itself into PSRAM at ROM-window 0x200000 (MiSTer's 66,560-byte image: header, registers, 64 KiB RAM) and then pauses; the MCU reads it in 65 blocks of 1 KiB. LOAD reads a staged image back. Blocks 80-124 read the panel framebuffer instead (diagnostics, `lynxshot` console command).
 
 ## Flash slot and switching
 

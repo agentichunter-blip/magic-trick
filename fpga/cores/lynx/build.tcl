@@ -33,8 +33,9 @@ add_file -type cst      "src/board/evt1_x2/evt1_x2.cst"
 
 add_file -type verilog "../../esp32t/src/gowin_pll_preevt/gowin_pll.v"
 add_file -type verilog "src/top.v"
-# Placement algorithm 1 (slower, better layout): routing is congested.
-set_option -place_option 1
+# Placement algorithm 4: routing is congested (1 stopped routing after the
+# state-engine block fix on 2026-11-16; 2 and 3 were worse).
+set_option -place_option 4
 set_option -route_option 0
 add_file -type sdc "src/board/evt1_x2/lynx_board.sdc"
 add_file -type verilog "core_reload.sv"

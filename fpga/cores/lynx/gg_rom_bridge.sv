@@ -30,7 +30,7 @@ module gg_rom_bridge #(parameter integer TIMEOUT_CYCLES=262144, parameter intege
 
  // ROM region 0x020000..0x41ffff (max 4 MiB). Lynx copy: address bit 23 set
  // reads PSRAM directly (address[22:0]), used to read the panel framebuffer
- // back for diagnostics (lynx_state_engine.sv, blocks 64-108).
+ // back for diagnostics (lynx_state_engine.sv, blocks 80-124).
  wire in_range=address[23:22]==0 || address[23];
 
  // Registered read path (block RAM). Data is valid for the address sampled

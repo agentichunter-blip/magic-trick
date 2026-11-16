@@ -86,6 +86,62 @@ static void wait_frames(int n) {
     while (frame_no < target && cycle < limit) step();
 }
 
+
+static uint64_t frame_hash() {
+    uint64_t h = 1469598103934665603ull;
+    for (int y = 0; y < 144; y++) for (int x = 0; x < 160; x++) { h ^= img[y][x]; h *= 1099511628211ull; }
+    return h;
+}
+
+static std::vector<uint8_t> save_state_blocks() {
+    std::vector<uint8_t> st(65 * 1024);
+    t->freeze_t = !t->freeze_t;
+    if (!wait_status(2, 2, 20000000)) { printf("FAIL freeze status=%x\n", t->state_status); exit(1); }
+    static int seq = 100;
+    for (int b = 0; b < 65; b++) {
+        seq++; t->block_n = b; t->block_seq = seq; t->block_t = !t->block_t;
+        uint64_t lim = cycle + 2000000;
+        while (!(t->block_ready && t->block_ready_seq == seq) && cycle < lim) step();
+        if (cycle >= lim) { printf("FAIL block %d\n", b); exit(1); }
+        for (int i = 0; i < 1024; i++) { t->qaddress = i; step(); step(); st[b * 1024 + i] = t->qdata; }
+    }
+    return st;
+}
+
+// Real game: save, play K panel frames, load, play K frames: the two runs should match.
+static int game_state_test() {
+    int K = getenv("LYNX_K") ? atoi(getenv("LYNX_K")) : 60;
+    std::vector<uint8_t> st = save_state_blocks();
+    { std::string sp = outdir + "/state.bin"; FILE *sf = fopen(sp.c_str(), "wb"); fwrite(st.data(), 1, st.size(), sf); fclose(sf); }
+    uint64_t cpu = 0; for (int i = 7; i >= 0; i--) cpu = cpu << 8 | st[8 + i];
+    printf("saved PC=%04x\n", (unsigned)(cpu & 0xffff));
+    if (getenv("LYNX_TRACE1")) trace_file = fopen(getenv("LYNX_TRACE1"), "wb");
+    t->release_t = !t->release_t;
+    if (!wait_status(2, 0, 1000000)) { printf("FAIL release\n"); return 1; }
+    std::vector<uint64_t> a, b;
+    for (int i = 0; i < K; i++) { wait_frames(1); a.push_back(frame_hash()); if (i == K - 1) dump("game_after_save.ppm"); }
+    if (trace_file) { fclose(trace_file); trace_file = NULL; }
+    t->freeze_t = !t->freeze_t;
+    if (!wait_status(2, 2, 20000000)) { printf("FAIL freeze2\n"); return 1; }
+    for (int i = 0; i < 65 * 1024; i++) psram_write(0x220000 + i, st[i]);
+    t->load_t = !t->load_t;
+    if (!wait_status(0x0c, 0x08, 30000000)) { printf("FAIL load status=%x\n", t->state_status); return 1; }
+    if (getenv("LYNX_TRACE2")) trace_file = fopen(getenv("LYNX_TRACE2"), "wb");
+    t->release_t = !t->release_t;
+    if (!wait_status(2, 0, 1000000)) { printf("FAIL release2\n"); return 1; }
+    for (int i = 0; i < K; i++) { wait_frames(1); b.push_back(frame_hash()); if (i == K - 1) dump("game_after_load.ppm"); }
+    if (trace_file) { fclose(trace_file); trace_file = NULL; }
+    std::vector<uint8_t> st2 = save_state_blocks();
+    { std::string sp = outdir + "/state_after_load.bin"; FILE *sf = fopen(sp.c_str(), "wb"); fwrite(st2.data(), 1, st2.size(), sf); fclose(sf); }
+    cpu = 0; for (int i = 7; i >= 0; i--) cpu = cpu << 8 | st2[8 + i];
+    int distinct_a = 0, distinct_b = 0, common = 0;
+    for (int i = 1; i < K; i++) { distinct_a += a[i] != a[i - 1]; distinct_b += b[i] != b[i - 1]; }
+    for (auto x : b) for (auto y : a) if (x == y) { common++; break; }
+    printf("after save: %d frame changes; after load: %d changes; %d/%d load frames seen after save; PC now %04x\n",
+           distinct_a, distinct_b, common, K, (unsigned)(cpu & 0xffff));
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) { fprintf(stderr, "usage\n"); return 2; }
     Verilated::commandArgs(argc, argv);
@@ -134,6 +190,7 @@ int main(int argc, char **argv) {
                xclk_hz / (frame_starts[i] - frame_starts[i - 1]));
     printf("repeat_pixels=%d of %d, audio_changes=%ld\n", repeat_pixels, frame_pixels, audio_changes);
 
+    if (getenv("LYNX_GAME")) return game_state_test();
     // ---- save state round trip ----
     std::vector<uint8_t> state(65 * 1024);
     t->freeze_t = !t->freeze_t;

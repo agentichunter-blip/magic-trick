@@ -14,8 +14,10 @@
 // LOAD (frozen): the MCU has staged a payload at the same address; the core
 //   checks its size word, resets and loads itself, and stays paused.
 // RELEASE: the game continues.
-// Diagnostics: BLOCK 64-108 reads the panel framebuffer instead (PSRAM
-// 0x10000, 160x144 BGR555 words, 320-byte rows: 45 KiB), any time.
+// Diagnostics: BLOCK 80-124 reads the panel framebuffer instead (PSRAM
+// 0x10000, 160x144 BGR555 words, 320-byte rows: 45 KiB), any time. They
+// must stay clear of the state's blocks 0-64: block 64 is RAM $FC00-$FFFF
+// (the interrupt vectors), and a state saved with the picture there froze.
 module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer BLOCKS=65)(
  input clk, reset,
  input freeze_toggle, release_toggle, load_toggle, block_toggle,
@@ -66,9 +68,11 @@ module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer 
  reg [9:0] offset=0; reg [6:0] block=0; reg [15:0] request_sequence=0;
  reg [7:0] low_byte=0;
  assign x_write_data=bus_data[word_i*16 +: 16];
- wire screen_block=block>=7'd64;
- wire block_valid=screen_block ? block<7'd109 : block<BLOCKS;
- wire [23:0] block_address=screen_block ? 24'h800000+24'h010000+{8'd0,block-7'd64,10'd0}+{14'd0,offset}
+ localparam [6:0] SCREEN=7'd80;
+ wire screen_block=block>=SCREEN;
+ wire block_valid=screen_block ? block<SCREEN+7'd45 : block<BLOCKS;
+ // 0x810000 + (block-SCREEN)*1 KiB, written so the constant folds into the adder.
+ wire [23:0] block_address=screen_block ? 24'h810000-{7'd0,SCREEN,10'd0}+{7'd0,block,10'd0}+{14'd0,offset}
                                         : STAGE+{7'd0,block,10'd0}+{14'd0,offset};
  // The state lies at 32-bit word addresses base + 0..16639 (base has zero
  // low bits), so the low 15 bits are the offset.
@@ -94,7 +98,7 @@ module lynx_state_engine #(parameter [23:0] STAGE=24'h200000, parameter integer 
       t_seen[3]<=t_sync[3];
       block<=block_number;request_sequence<=block_sequence;block_ready<=0;
       // The framebuffer changes under the cache: never serve stale lines.
-      if(block_number>=7'd64) cache_invalidate<=1;
+      if(block_number>=SCREEN) cache_invalidate<=1;
       offset<=0;state<=BLOCK_READ;
      end else if(t_edge[2]) begin
       t_seen[2]<=t_sync[2];

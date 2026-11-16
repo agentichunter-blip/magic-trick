@@ -83,6 +83,8 @@ enum {
     kLynxBiosAddress = 0x000200,
     kLynxFileAddress = 0x001000,
     kLynxStateRomAddress = 0x200000,
+    /* State blocks are 0-64; the panel framebuffer (diagnostics) is 80-124. */
+    kLynxScreenBlock = 80,
     kLynxFlagBios = 0x01,
     kLynxFlagLock60 = 0x02,
     kGGStatusFrozen = 0x02,
@@ -2738,8 +2740,8 @@ static int LynxLockCommand(int argc,char **argv)
 #ifdef ESP_PLATFORM
 /* Lynx core diagnostics: print the panel framebuffer (PSRAM 0x10000, 160x144
  * BGR555, 320-byte rows) as 45 base64 blocks, read through state blocks
- * 64-108 (lynx_state_engine.sv). */
-/* Read Lynx state blocks First..Last-1 (0-64 state image, 64-108 the panel
+ * 80-124 (lynx_state_engine.sv). */
+/* Read Lynx state blocks First..Last-1 (0-64 state image, 80-124 the panel
  * framebuffer). Freeze first unless Live (the core then saves itself and
  * pauses on the picture shown). Each block goes to Out (file) or, without
  * one, to the console as base64. Caller holds SetRunning. */
@@ -2790,7 +2792,7 @@ static int LynxShotCommand(int argc,char **argv)
     const bool State=argc>1 && !strcmp(argv[1],"state");
     if(!CoreSwitch_IsCore(kCoreSystem_Lynx)) { printf("LYNXSHOT FAIL not_lynx\n"); return 1; }
     if(!AcquireRunning()) { printf("LYNXSHOT FAIL busy\n"); return 1; }
-    const esp_err_t Result=LynxReadBlocks(State ? 0 : 64,State ? 65 : 109,Live,NULL);
+    const esp_err_t Result=LynxReadBlocks(State ? 0 : kLynxScreenBlock,State ? 65 : kLynxScreenBlock+45,Live,NULL);
     if(Result!=ESP_OK) printf("LYNXSHOT FAIL %s\n",esp_err_to_name(Result));
     (void)SetRunning(false);
     if(Result==ESP_OK) printf("LYNXSHOT DONE\n");
@@ -2861,9 +2863,9 @@ static void LynxDiagTask(void *Arg)
     if(!Wanted) { vTaskDelete(NULL); return; }
     LynxDiagPrint("start");
     char Line[160];
-    LynxDiagDump("shot1.bin",64,109,true);
+    LynxDiagDump("shot1.bin",kLynxScreenBlock,kLynxScreenBlock+45,true);
     vTaskDelay(pdMS_TO_TICKS(2000));
-    LynxDiagDump("shot2.bin",64,109,true);
+    LynxDiagDump("shot2.bin",kLynxScreenBlock,kLynxScreenBlock+45,true);
     LynxDiagDump("state1.bin",0,65,false);
     esp_err_t Result=ESP_ERR_INVALID_STATE;
     for(unsigned Try=0;Try<10 && (Result=VirtualCart_StateCaptureSlot(false,3,0))==ESP_ERR_INVALID_STATE;++Try) vTaskDelay(pdMS_TO_TICKS(200));
@@ -2874,7 +2876,7 @@ static void LynxDiagTask(void *Arg)
     snprintf(Line,sizeof(Line),"load slot 3: %s",esp_err_to_name(Result)); LynxDiagPrint(Line);
     vTaskDelay(pdMS_TO_TICKS(1000));
     LynxDiagDump("state3.bin",0,65,false);
-    LynxDiagDump("shot3.bin",64,109,true);
+    LynxDiagDump("shot3.bin",kLynxScreenBlock,kLynxScreenBlock+45,true);
     /* Append the console lines to the log file. */
     if(AcquireRunning()) {
         if(SDCard_Mount(&Card)==ESP_OK) {
