@@ -606,11 +606,15 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
     /* Block 0: info block, then the boot ROM at 0x200. */
     memset(TransferBuffer, 0, sizeof(TransferBuffer));
     bool Bios = ReadLynxBios(pPath, TransferBuffer + kLynxBiosAddress);
+    uint8_t Stage2[kLynxHleStage2Max];
+    size_t Stage2Length = 0;
+    uint32_t Stage2Offset = 0;
     if (!Bios && !pInfo->LynxRom.Bs93)
     {
         /* No boot ROM: decrypt the cartridge's loader here and boot it with
          * Magic Trick's replacement stub (lynx_hle.c). */
-        uint8_t Page[256];
+        /* 512 bytes: the loader and, for two-stage loaders, the second chunk. */
+        uint8_t Page[512];
         memset(Page, 0, sizeof(Page));
         const long Start = pInfo->LynxRom.Header ? kLynxHeaderSize : 0;
         const size_t Got = fseek(pRom, Start, SEEK_SET) == 0 ? fread(Page, 1, sizeof(Page), pRom) : 0;
@@ -621,6 +625,12 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
             return ESP_ERR_NOT_FOUND;
         }
         printf("LYNX_BIOS=hle blocks=%u\n", 256u - Page[0]);
+        size_t Offset = 0;
+        if (LynxHle_BuildStage2(Page, Got, &Offset, Stage2, &Stage2Length) == ESP_OK)
+        {
+            Stage2Offset = (uint32_t)(Start + Offset);
+            printf("LYNX_BIOS=hle stage2 offset=%lu bytes=%u\n", (unsigned long)Stage2Offset, (unsigned)Stage2Length);
+        }
         Bios = true;
     }
     uint8_t *Info = TransferBuffer + kLynxInfoAddress;
@@ -642,6 +652,11 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
         memset(TransferBuffer, 0xff, sizeof(TransferBuffer));
         if (fread(TransferBuffer, 1, Count, pRom) != Count) return ESP_FAIL;
         GGRomCrc = StateFile_Crc32(GGRomCrc, TransferBuffer, Count);
+        /* Boot stub without the boot ROM: the second-stage chunk goes in
+         * decrypted (after the CRC, which identifies the original file). */
+        for (size_t i = 0; i < Stage2Length; ++i)
+            if (Stage2Offset + i >= Offset && Stage2Offset + i < Offset + Count)
+                TransferBuffer[Stage2Offset + i - Offset] = Stage2[i];
         ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + kLynxFileAddress + Offset, TransferBuffer),
                             TAG, "Lynx ROM upload");
         RomBrowserUI_SetProgress(Offset + Count, Size);
@@ -2735,7 +2750,10 @@ static esp_err_t LynxReadBlocks(unsigned First, unsigned Last, bool Live, FILE *
     uint32_t Status=0;
     if(Result==ESP_OK && !Live) Result=VirtualCommand(kVirtualCommandGGFreeze,NULL,&Frozen);
     if(Result==ESP_OK && !Live) Result=WaitGGStatus(kGGStatusFrozen,kGGStatusFrozen|1,false,1000,&Status);
-    static char Text[1400];
+    /* Console text only while a diagnostic runs: Wi-Fi uploads need this RAM. */
+    enum { kTextSize = 1400 };
+    char *Text=NULL;
+    if(Result==ESP_OK && !Out && !(Text=malloc(kTextSize))) Result=ESP_ERR_NO_MEM;
     for(unsigned Block=First;Result==ESP_OK && Block<Last;++Block) {
         if(++SaveSequence==0) ++SaveSequence;
         CartLinkResponse_t Response={0};
@@ -2744,10 +2762,11 @@ static esp_err_t LynxReadBlocks(unsigned First, unsigned Last, bool Live, FILE *
         if(Result!=ESP_OK) break;
         if(Out) { if(fwrite(TransferBuffer,1,sizeof(TransferBuffer),Out)!=sizeof(TransferBuffer)) Result=ESP_FAIL; continue; }
         size_t Length=0;
-        if(mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,TransferBuffer,sizeof(TransferBuffer))!=0)
+        if(mbedtls_base64_encode((unsigned char *)Text,kTextSize,&Length,TransferBuffer,sizeof(TransferBuffer))!=0)
             Result=ESP_FAIL;
         if(Result==ESP_OK) { Text[Length]=0; printf("LYNXSHOT %u %s\n",Block-First,Text); fflush(stdout); }
     }
+    free(Text);
     if(!Live) {
         CartLinkResponse_t Released={0};
         (void)VirtualCommand(kVirtualCommandGGRelease,NULL,&Released);
@@ -2890,12 +2909,15 @@ static int SdCatCommand(int argc,char **argv)
         FILE *In=fopen(argv[1],"rb");
         if(!In) Result=ESP_ERR_NOT_FOUND;
         else {
-            static uint8_t Chunk[768]; static char Text[1100]; size_t Got; unsigned Index=0;
-            while((Got=fread(Chunk,1,sizeof(Chunk),In))>0) {
+            enum { kChunk = 768, kText = 1100 };
+            uint8_t *Chunk=malloc(kChunk); char *Text=malloc(kText); size_t Got; unsigned Index=0;
+            if(!Chunk || !Text) Result=ESP_ERR_NO_MEM;
+            while(Result==ESP_OK && (Got=fread(Chunk,1,kChunk,In))>0) {
                 size_t Length=0;
-                if(mbedtls_base64_encode((unsigned char *)Text,sizeof(Text),&Length,Chunk,Got)!=0) { Result=ESP_FAIL; break; }
+                if(mbedtls_base64_encode((unsigned char *)Text,kText,&Length,Chunk,Got)!=0) { Result=ESP_FAIL; break; }
                 Text[Length]=0; printf("SDCAT %u %s\n",Index++,Text); fflush(stdout);
             }
+            free(Chunk); free(Text);
             fclose(In);
         }
         (void)SDCard_Unmount(Card);

@@ -14,8 +14,15 @@ module lynx_sim_top(
  output lcd_pixel, output [14:0] lcd_data, output lcd_repeat, output [1:0] lcd_mode,
  output lcd_on, output lcd_vsync,
  output [15:0] left, output [15:0] right,
- output quiesced, output core_reset_ack, output initialized
+ output quiesced, output core_reset_ack, output initialized,
+ // debug: CPU bus (trace)
+ output [15:0] dbg_addr, output dbg_req, output dbg_rnw, output [7:0] dbg_wdata, output [7:0] dbg_rdata
 );
+ assign dbg_addr=dut.core.lynx.ilynx.cpu_bus_addr;
+ assign dbg_req=dut.core.lynx.ilynx.cpu_bus_request;
+ assign dbg_rnw=dut.core.lynx.ilynx.cpu_bus_rnw;
+ assign dbg_wdata=dut.core.lynx.ilynx.cpu_bus_datawrite;
+ assign dbg_rdata=dut.core.lynx.ilynx.cpu_bus_dataread;
  reg [7:0] psram[0:(1<<23)-1];
  assign host_q=psram[host_addr];
  wire xrequest,xread; wire [22:0] xaddress; wire [15:0] xwritedata; wire [10:0] xlength;

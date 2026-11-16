@@ -1,5 +1,6 @@
 #include "lynx_hle.h"
 #include "lynx_hle_boot.h"
+#include <stdbool.h>
 #include <string.h>
 
 enum { kBlock = 51, kMaxBlocks = 5 };
@@ -74,6 +75,37 @@ esp_err_t LynxHle_Decrypt(const uint8_t *Cart, size_t Size, uint8_t Loader[256],
     return ESP_OK;
 }
 
+esp_err_t LynxHle_BuildStage2(const uint8_t *Cart, size_t Size, size_t *pOffset,
+                              uint8_t Patch[kLynxHleStage2Max], size_t *pLength)
+{
+    if (!Cart || !pOffset || !Patch || !pLength) return ESP_ERR_INVALID_ARG;
+    uint8_t Loader[256], Second[256];
+    size_t Length = 0, SecondLength = 0;
+    esp_err_t Result = LynxHle_Decrypt(Cart, Size, Loader, &Length);
+    if (Result != ESP_OK) return Result;
+    bool Calls = false;
+    for (size_t i = 0; i + 2 < Length; ++i)
+        if ((Loader[i] == 0x4c || Loader[i] == 0x20) && Loader[i + 1] == 0x4a && Loader[i + 2] == 0xfe) Calls = true;
+    if (!Calls) return ESP_ERR_NOT_FOUND;
+    /* The second chunk starts where the first ends (the loader reads nothing
+     * before calling $FE4A); its count byte is again 256 - blocks. */
+    const size_t Offset = 1u + kBlock * (256u - Cart[0]);
+    if (Offset >= Size) return ESP_ERR_INVALID_SIZE;
+    Result = LynxHle_Decrypt(Cart + Offset, Size - Offset, Second, &SecondLength);
+    if (Result != ESP_OK) return Result;
+    const unsigned Blocks = 256u - Cart[Offset];
+    size_t Out = 0;
+    Patch[Out++] = Cart[Offset];
+    for (unsigned b = 0; b < Blocks; ++b) {
+        memcpy(Patch + Out, Second + 50u * b, 50);
+        Out += 50;
+        Patch[Out++] = 0;
+    }
+    *pOffset = Offset;
+    *pLength = Out;
+    return ESP_OK;
+}
+
 esp_err_t LynxHle_BuildBoot(const uint8_t *Cart, size_t Size, uint8_t Boot[512])
 {
     if (!Boot) return ESP_ERR_INVALID_ARG;
@@ -89,5 +121,8 @@ esp_err_t LynxHle_BuildBoot(const uint8_t *Cart, size_t Size, uint8_t Boot[512])
     const unsigned Lo = Skip & 0xff;
     Boot[kLynxHleSkipLo] = (uint8_t)Lo;
     Boot[kLynxHleSkipHi] = (uint8_t)((Skip >> 8) - (Lo == 0 ? 1u : 0u));
+    /* The boot ROM leaves its copy pointer ($05/$06) at the loader's end;
+     * two-stage loaders increment $06 to place the second stage. */
+    Boot[kLynxHleLoadLen] = (uint8_t)Length;
     return ESP_OK;
 }

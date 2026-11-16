@@ -32,6 +32,7 @@ static void dump(const char *name) {
     fclose(f);
 }
 
+static FILE *trace_file; static int prev_req;
 static void step() {
     // xclk period 1 unit; hclk = xclk/4
     t->xclk = 1;
@@ -52,6 +53,14 @@ static void step() {
             col++;
         }
         if ((int)(int16_t)t->left != last_left) { audio_changes++; last_left = (int16_t)t->left; }
+    }
+    if (trace_file) {
+        // One record per CPU bus request (rising edge): addr, rnw, write data.
+        if (t->dbg_req && !prev_req) {
+            uint8_t r[4] = {(uint8_t)t->dbg_addr, (uint8_t)(t->dbg_addr >> 8), (uint8_t)t->dbg_rnw, t->dbg_wdata};
+            fwrite(r, 1, 4, trace_file);
+        }
+        prev_req = t->dbg_req;
     }
     t->xclk = 0;
     if ((cycle & 3) == 2) t->hclk = 0;
@@ -108,6 +117,7 @@ int main(int argc, char **argv) {
     psram_write(base + 12, load & 255); psram_write(base + 13, load >> 8);
     for (size_t i = 0; i < bios.size() && i < 512; i++) psram_write(base + 0x200 + i, bios[i]);
     for (uint32_t i = 0; i < n; i++) psram_write(base + 0x1000 + i, file[i]);
+    if (getenv("LYNX_TRACE")) trace_file = fopen(getenv("LYNX_TRACE"), "wb");
     t->xreset = 0; run(64); t->reset_n = 1;
 
     // boot
