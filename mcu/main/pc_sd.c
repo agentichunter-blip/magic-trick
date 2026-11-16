@@ -1,5 +1,6 @@
 #include "pc_sd.h"
 #include "pc_backup.h"
+#include "pc_connect_proto.h"
 #include "cart_backup.h"
 #include "cart_bulk.h"
 #include "cart_link.h"
@@ -16,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -29,6 +31,9 @@ static bool BulkOpen;
 static int FailureErrno;
 static unsigned FailedOp;
 static uint32_t UploadSize, UploadExpectedCrc, UploadReceived, UploadCrc;
+/* Output style of the shared cart-to-SD backup: legacy PCSD lines, or the
+ * web ChroMagician's CONNECT records. */
+static bool ConnectOutput;
 
 static uint32_t LE32(const uint8_t *p)
 {
@@ -284,8 +289,12 @@ static esp_err_t BackupData(void *pContext, CartBackupArtifact_t Artifact,
     BackupCompleted += Size;
     if (UploadReceived % 16384 == 0 || UploadReceived == UploadSize)
     {
-        printf("PCSD PROGRESS completed=%lu total=%lu\n",
-               (unsigned long)BackupCompleted, (unsigned long)BackupTotal);
+        if (ConnectOutput)
+            printf("CONNECT PROGRESS stage=Reading_cartridge percent=%lu\n",
+                   BackupTotal ? (unsigned long)((uint64_t)BackupCompleted * 100 / BackupTotal) : 0ul);
+        else
+            printf("PCSD PROGRESS completed=%lu total=%lu\n",
+                   (unsigned long)BackupCompleted, (unsigned long)BackupTotal);
         fflush(stdout);
     }
     return ESP_OK;
@@ -294,8 +303,12 @@ static esp_err_t BackupData(void *pContext, CartBackupArtifact_t Artifact,
 static esp_err_t BackupEnd(void *pContext, CartBackupArtifact_t Artifact)
 {
     UploadExpectedCrc = UploadCrc;
-    printf("PCSD VERIFY completed=%lu total=%lu\n",
-           (unsigned long)BackupCompleted, (unsigned long)BackupTotal);
+    if (ConnectOutput)
+        printf("CONNECT PROGRESS stage=Verifying percent=%lu\n",
+               BackupTotal ? (unsigned long)((uint64_t)BackupCompleted * 100 / BackupTotal) : 0ul);
+    else
+        printf("PCSD VERIFY completed=%lu total=%lu\n",
+               (unsigned long)BackupCompleted, (unsigned long)BackupTotal);
     fflush(stdout);
     esp_err_t Result = VerifyUpload();
     if (Result == ESP_OK)
@@ -363,7 +376,7 @@ static esp_err_t BackupCart(bool Save)
             if (!(Published & (1u << Artifact))) continue;
             BackupPath(Artifact);
             if ((Staged & (1u << Artifact)) && BackupOldPath()) (void)unlink(BackupScratch);
-            printf("PCSD SAVED %s\n", Path + strlen(SDCARD_MOUNT_POINT));
+            if (!ConnectOutput) printf("PCSD SAVED %s\n", Path + strlen(SDCARD_MOUNT_POINT));
         }
         fflush(stdout);
     }
@@ -489,4 +502,245 @@ esp_err_t PCSD_Run(void)
     else printf("PCSD FAIL error=%s op=%u errno=%d\n", esp_err_to_name(Result), FailedOp, FailureErrno);
     fflush(stdout);
     return Result;
+}
+
+/* ---- Web ChroMagician ("connect") SD operations ------------------------
+ * One command each, with the card mounted only for that command (the menu's
+ * library and saves share the mount gate). Run inside PCBackup_RunGated. */
+
+enum { kConnectSendBlock = sizeof(Payload) };
+
+static const char *DetailForErrno(int Error)
+{
+    if (Error == ENOENT || Error == ENOTDIR) return CONNECT_DETAIL_NOT_FOUND;
+    if (Error == EEXIST || Error == ENOTEMPTY) return CONNECT_DETAIL_EXISTS;
+    return NULL;
+}
+
+static esp_err_t WithCard(esp_err_t (*Fn)(const char **), const char **ppDetail)
+{
+    sdmmc_card_t *Card = NULL;
+    *ppDetail = NULL;
+    esp_err_t Result = SDCard_Mount(&Card);
+    if (Result != ESP_OK)
+    {
+        if (Result != ESP_ERR_INVALID_STATE) *ppDetail = CONNECT_DETAIL_NO_SD;
+        return Result;
+    }
+    Upload = NULL; Temporary[0] = 0;
+    LastPing = esp_timer_get_time();
+    errno = 0;
+    Result = Fn(ppDetail);
+    if (Result != ESP_OK && *ppDetail == NULL) *ppDetail = DetailForErrno(errno);
+    AbortUpload();
+    const esp_err_t Unmount = SDCard_Unmount(Card);
+    return Result == ESP_OK ? Unmount : Result;
+}
+
+bool PCSD_CardPresent(bool *pPresent)
+{
+    sdmmc_card_t *Card = NULL;
+    const esp_err_t Result = SDCard_Mount(&Card);
+    if (Result == ESP_ERR_INVALID_STATE) return false;   /* busy: unknown */
+    *pPresent = Result == ESP_OK;
+    if (Result == ESP_OK) (void)SDCard_Unmount(Card);
+    return true;
+}
+
+static bool ConnectPath(char *Out, const char *pClientPath, bool AllowRoot)
+{
+    if (!ConnectProto_ValidPath(pClientPath, AllowRoot)) return false;
+    return MakePath(Out, (const uint8_t *)pClientPath, strlen(pClientPath));
+}
+
+static esp_err_t ListNow(const char **ppDetail)
+{
+    struct stat Info;
+    if (stat(Path, &Info) != 0) return ESP_ERR_NOT_FOUND;
+    if (!S_ISDIR(Info.st_mode)) { errno = ENOTDIR; return ESP_ERR_NOT_FOUND; }
+    DIR *Dir = opendir(Path);
+    if (Dir == NULL) return ESP_FAIL;
+    esp_err_t Result = ESP_OK;
+    struct dirent *Entry;
+    while ((Entry = readdir(Dir)) != NULL)
+    {
+        if (strcmp(Entry->d_name, ".") == 0 || strcmp(Entry->d_name, "..") == 0) continue;
+        if (snprintf(Other, sizeof(Other), "%s%s%s", Path,
+                     Path[strlen(Path) - 1] == '/' ? "" : "/",
+                     Entry->d_name) >= (int)sizeof(Other)) continue;
+        struct stat EntryInfo;
+        if (stat(Other, &EntryInfo) != 0) continue;
+        if (ConnectProto_FormatEntry(Temporary, sizeof(Temporary), Entry->d_name,
+                                     S_ISDIR(EntryInfo.st_mode),
+                                     (uint32_t)EntryInfo.st_size) == 0) continue;
+        fputs(Temporary, stdout);
+        if ((Result = Keepalive()) != ESP_OK) break;
+    }
+    Temporary[0] = 0;
+    closedir(Dir);
+    fflush(stdout);
+    return Result;
+}
+
+esp_err_t PCSD_ConnectList(const char *pPath, const char **ppDetail)
+{
+    if (!ConnectPath(Path, pPath, true)) { *ppDetail = NULL; return ESP_ERR_INVALID_ARG; }
+    return WithCard(ListNow, ppDetail);
+}
+
+static esp_err_t GetNow(const char **ppDetail)
+{
+    struct stat Info;
+    if (stat(Path, &Info) != 0) return ESP_ERR_NOT_FOUND;
+    if (!S_ISREG(Info.st_mode) || Info.st_size < 0) return ESP_ERR_INVALID_ARG;
+    FILE *File = fopen(Path, "rb");
+    if (File == NULL) return ESP_FAIL;
+    const uint32_t Size = (uint32_t)Info.st_size;
+    printf("CONNECT BEGIN kind=file size=%lu\n", (unsigned long)Size);
+    uint32_t Offset = 0, Crc = 0, Sequence = 0;
+    esp_err_t Result = ESP_OK;
+    while (Result == ESP_OK && Offset < Size)
+    {
+        const size_t Count = Size - Offset < sizeof(Payload) ? Size - Offset : sizeof(Payload);
+        if (fread(Payload, 1, Count, File) != Count) { Result = ESP_FAIL; break; }
+        const uint32_t BlockCrc = esp_rom_crc32_le(0, Payload, Count);
+        Crc = esp_rom_crc32_le(Crc, Payload, Count);
+        printf("CONNECT DATA kind=file seq=%lu size=%u crc=%08lx\n",
+               (unsigned long)Sequence++, (unsigned)Count, (unsigned long)BlockCrc);
+        Result = PCBackup_WriteRaw(Payload, Count);
+        Offset += Count;
+        if (Result == ESP_OK) Result = Keepalive();
+    }
+    if (fclose(File) != 0 && Result == ESP_OK) Result = ESP_FAIL;
+    if (Result == ESP_OK)
+        printf("CONNECT END kind=file size=%lu crc=%08lx\n", (unsigned long)Size,
+               (unsigned long)Crc);
+    fflush(stdout);
+    return Result;
+}
+
+esp_err_t PCSD_ConnectGet(const char *pPath, const char **ppDetail)
+{
+    if (!ConnectPath(Path, pPath, false)) { *ppDetail = NULL; return ESP_ERR_INVALID_ARG; }
+    return WithCard(GetNow, ppDetail);
+}
+
+static esp_err_t PutNow(const char **ppDetail)
+{
+    esp_err_t Result = BeginUpload(UploadSize, UploadExpectedCrc, false);
+    if (Result == ESP_ERR_INVALID_STATE) { *ppDetail = CONNECT_DETAIL_EXISTS; return Result; }
+    if (Result != ESP_OK) return Result;
+    PCBackup_FlushInput();
+    while (Result == ESP_OK && UploadReceived < UploadSize)
+    {
+        const uint32_t Count = UploadSize - UploadReceived < kConnectSendBlock
+            ? UploadSize - UploadReceived : kConnectSendBlock;
+        Result = PCBackup_ReceiveSends("file", UploadReceived, Payload, Count);
+        if (Result == ESP_ERR_TIMEOUT) { *ppDetail = CONNECT_DETAIL_UPLOAD_TIMEOUT; break; }
+        if (Result != ESP_OK) break;
+        if (fwrite(Payload, 1, Count, Upload) != Count) { Result = ESP_FAIL; break; }
+        UploadCrc = esp_rom_crc32_le(UploadCrc, Payload, Count);
+        UploadReceived += Count;
+        Result = Keepalive();
+    }
+    if (Result != ESP_OK) return Result;
+    printf("CONNECT PROGRESS phase=verify\n");
+    fflush(stdout);
+    Result = CommitUpload();
+    if (Result == ESP_FAIL && errno == 0) *ppDetail = CONNECT_DETAIL_EXISTS;
+    return Result;
+}
+
+esp_err_t PCSD_ConnectPut(const char *pPath, uint32_t Size, uint32_t Crc,
+                          const char **ppDetail)
+{
+    if (!ConnectPath(Path, pPath, false)) { *ppDetail = NULL; return ESP_ERR_INVALID_ARG; }
+    UploadSize = Size;
+    UploadExpectedCrc = Crc;
+    return WithCard(PutNow, ppDetail);
+}
+
+static esp_err_t MkdirNow(const char **ppDetail)
+{
+    (void)ppDetail;
+    return mkdir(Path, 0777) == 0 ? ESP_OK : ESP_FAIL;
+}
+
+static esp_err_t RemoveNow(const char **ppDetail)
+{
+    (void)ppDetail;
+    struct stat Info;
+    if (stat(Path, &Info) != 0) return ESP_ERR_NOT_FOUND;
+    return (S_ISDIR(Info.st_mode) ? rmdir(Path) : unlink(Path)) == 0 ? ESP_OK : ESP_FAIL;
+}
+
+static esp_err_t MoveNow(const char **ppDetail)
+{
+    struct stat Info;
+    if (stat(Path, &Info) != 0) return ESP_ERR_NOT_FOUND;
+    /* A rename that only changes letter case is the same FAT entry. */
+    if (stat(Other, &Info) == 0 && strcasecmp(Path, Other) != 0)
+    { *ppDetail = CONNECT_DETAIL_EXISTS; return ESP_ERR_INVALID_STATE; }
+    return rename(Path, Other) == 0 ? ESP_OK : ESP_FAIL;
+}
+
+esp_err_t PCSD_ConnectMkdir(const char *pPath, const char **ppDetail)
+{
+    if (!ConnectPath(Path, pPath, false)) { *ppDetail = NULL; return ESP_ERR_INVALID_ARG; }
+    return WithCard(MkdirNow, ppDetail);
+}
+
+esp_err_t PCSD_ConnectRemove(const char *pPath, const char **ppDetail)
+{
+    if (!ConnectPath(Path, pPath, false)) { *ppDetail = NULL; return ESP_ERR_INVALID_ARG; }
+    return WithCard(RemoveNow, ppDetail);
+}
+
+esp_err_t PCSD_ConnectMove(const char *pFrom, const char *pTo, const char **ppDetail)
+{
+    if (!ConnectPath(Path, pFrom, false) || !ConnectPath(Other, pTo, false))
+    { *ppDetail = NULL; return ESP_ERR_INVALID_ARG; }
+    return WithCard(MoveNow, ppDetail);
+}
+
+static bool BackupSaveOnly;
+static char BackupStem[kCartBackupFileStemSize];
+static bool BackupColor;
+
+static esp_err_t BackupNow(const char **ppDetail)
+{
+    snprintf(Path, sizeof(Path), "%s/CHROMAGIC", SDCARD_MOUNT_POINT);
+    if (mkdir(Path, 0775) != 0 && errno != EEXIST) return ESP_FAIL;
+    snprintf(Path, sizeof(Path), "%s/CHROMAGIC/BACKUPS", SDCARD_MOUNT_POINT);
+    if (mkdir(Path, 0775) != 0 && errno != EEXIST) return ESP_FAIL;
+    errno = 0;
+    const char *Extension = BackupSaveOnly ? "sav" : BackupColor ? "gbc" : "gb";
+    if (snprintf(Path, sizeof(Path), "%s/CHROMAGIC/BACKUPS/%s.%s", SDCARD_MOUNT_POINT,
+                 BackupStem, Extension) >= (int)sizeof(Path))
+        return ESP_ERR_INVALID_SIZE;
+    ConnectOutput = true;
+    esp_err_t Result = BackupCart(BackupSaveOnly);
+    ConnectOutput = false;
+    if (Result == ESP_ERR_NOT_FOUND) { *ppDetail = CONNECT_DETAIL_NO_SAVE; return Result; }
+    if (Result != ESP_OK) return Result;
+    /* The file the page names: the game, or the save (or the clock alone). */
+    if (BackupSaveOnly && !(BackupReady & (1u << kCartBackupArtifact_Save)))
+        BackupPath(kCartBackupArtifact_Rtc);
+    else
+        strcpy(Path, Other);
+    const char *Name = strrchr(Path, '/') + 1;
+    char Hex[2 * 64 + 1];
+    if (ConnectProto_HexEncode(Name, strnlen(Name, 64), Hex, sizeof(Hex)))
+        printf("CONNECT SAVED name=%s\n", Hex);
+    fflush(stdout);
+    return ESP_OK;
+}
+
+esp_err_t PCSD_ConnectBackup(bool SaveOnly, const char *pStem, bool Color,
+                             const char **ppDetail)
+{
+    BackupSaveOnly = SaveOnly;
+    BackupColor = Color;
+    snprintf(BackupStem, sizeof(BackupStem), "%s", pStem);
+    return WithCard(BackupNow, ppDetail);
 }

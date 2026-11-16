@@ -1558,6 +1558,53 @@ esp_err_t CartBackup_StreamToSD(uint32_t Selection,
     return StreamBackup(Selection, pSink, pContext, false);
 }
 
+void CartBackup_MakeFileStem(const char *pTitle,
+                             char Stem[kCartBackupFileStemSize])
+{
+    _Static_assert((int)kCartBackupFileStemSize == (int)kFileStemSize,
+                   "public and private stem sizes must agree");
+    MakeFileStem(pTitle, Stem);
+}
+
+esp_err_t CartBackup_ReadHeaderInfo(CartBackupHeaderInfo_t *pInfo)
+{
+    if (pInfo == NULL) return ESP_ERR_INVALID_ARG;
+    memset(pInfo, 0, sizeof(*pInfo));
+    if (!CartBackup_IsPCModeActive() || !BeginRun(false))
+        return ESP_ERR_INVALID_STATE;
+
+    esp_err_t Result = CartBulk_Begin();
+    const bool BulkOpen = Result == ESP_OK;
+    CartLinkResponse_t Response = {0};
+    if (Result == ESP_OK)
+        Result = TransactionOk(kCartLinkOp_Ping, 0, 0, &Response);
+    if (Result == ESP_OK && !PingReportsMaintenanceActive(&Response))
+        Result = ESP_ERR_INVALID_STATE;
+    CartInfo_t Info = {0};
+    bool Decoded = false;
+    if (Result == ESP_OK)
+    {
+        Result = ReadCartInfo(&Info);
+        Decoded = Result == ESP_OK;
+        /* An unknown mapper still has a readable header worth reporting. */
+        if (Result == ESP_OK || (Result == ESP_ERR_NOT_SUPPORTED &&
+                                 Info.HeaderTypeKnown))
+        {
+            memcpy(pInfo->Header, Info.Raw, sizeof(pInfo->Header));
+            FillMetadata(&Info, &pInfo->Metadata);
+            pInfo->Metadata.Type = Info.Raw[0x47];
+        }
+    }
+    if (BulkOpen)
+    {
+        (void)CartBulk_ReadRangeAbort();
+        if (Decoded) RestoreMapper(&Info);
+        CartBulk_End();
+    }
+    EndRun();
+    return Result;
+}
+
 static esp_err_t RunBackup(void)
 {
     esp_err_t Result = ESP_FAIL;

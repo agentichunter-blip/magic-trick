@@ -68,6 +68,22 @@ esp_err_t CartBackup_StreamToSD(uint32_t Selection,
                                 const CartBackupStreamSink_t *pSink,
                                 void *pContext);
 
+typedef struct {
+    CartBackupMetadata_t Metadata;
+    uint8_t Header[0x50];   /* cartridge bytes 0x100..0x14F */
+} CartBackupHeaderInfo_t;
+
+/* Reads and decodes the inserted cartridge's header with PC mode active.
+ * Returns ESP_ERR_INVALID_RESPONSE when the header is not a Game Boy one
+ * (no cartridge, or a bad read), ESP_ERR_NOT_SUPPORTED for an unknown mapper
+ * (Header and Metadata.Type are still filled). Does not probe the RTC. */
+esp_err_t CartBackup_ReadHeaderInfo(CartBackupHeaderInfo_t *pInfo);
+
+/* The file stem the menu's cartridge backup uses for a title. */
+enum { kCartBackupFileStemSize = 33 };
+void CartBackup_MakeFileStem(const char *pTitle,
+                             char Stem[kCartBackupFileStemSize]);
+
 esp_err_t CartBackup_ImportSaveFromPC(
     uint32_t SaveSize, uint32_t SaveCrc, bool HasRtc, uint32_t RtcCrc,
     const CartSaveImportSource_t *pSource, void *pContext);

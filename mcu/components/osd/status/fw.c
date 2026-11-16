@@ -285,8 +285,14 @@ OSD_Result_t Firmware_Initialize(void)
 }
 
 #if defined(ESP_PLATFORM)
+/* The web ChroMagician asks "connect status" and "fwversion" in turn and
+ * takes any JSON with "mcu" for stock firmware, so the connect module
+ * prints its STATUS record first (main/pc_connect.c). */
+__attribute__((weak)) void Firmware_ReportConnectStatus(void) {}
+
 static int version_command(int argc, char **argv)
 {
+    Firmware_ReportConnectStatus();
     const esp_app_desc_t* pDesc = esp_app_get_description();
     lv_snprintf(_Ctx.AppFWVerStr, sizeof(_Ctx.AppFWVerStr), "v%s", pDesc->version);
 

@@ -112,12 +112,19 @@ static const char *ArtifactName(CartBackupArtifact_t Artifact)
     }
 }
 
+static uint32_t ConsoleBaud = kPCBackupNormalConsoleBaud;
+
 static void SetConsoleBaud(uint32_t Baud)
 {
     if (!ConsoleReady)
     {
         return;
     }
+    /* The web ChroMagician probes at 115200 and reopens at 2 Mbaud when it
+     * reads this line. */
+    if (Baud != ConsoleBaud && Baud == kPCBackupConsoleBaud)
+        printf("\n> console at %lu\n", (unsigned long)Baud);
+    ConsoleBaud = Baud;
     fflush(stdout);
     (void)uart_wait_tx_done(kConsoleUart, pdMS_TO_TICKS(100));
     const uart_config_t Config = {
@@ -869,8 +876,89 @@ void PCBackup_ConsoleReady(void)
         return;
     }
     ConsoleReady = true;
-    SetConsoleBaud(PCBackup_GetConsoleBaud());
+    ConsoleBaud = PCBackup_GetConsoleBaud();
+    SetConsoleBaud(ConsoleBaud);
+    /* Tells the web ChroMagician the MCU restarted (its sync resets). */
+    printf("\n> console ready\n");
+    fflush(stdout);
     xSemaphoreGive(Gate);
+}
+
+esp_err_t PCBackup_WriteRaw(const void *pData, size_t Size)
+{
+    fflush(stdout);
+    const uint8_t *p = pData;
+    while (Size > 0)
+    {
+        const int Written = uart_write_bytes(kConsoleUart, p, Size);
+        if (Written <= 0) return ESP_FAIL;
+        p += Written;
+        Size -= (size_t)Written;
+    }
+    return ESP_OK;
+}
+
+esp_err_t PCBackup_ReceiveSends(const char *pKind, uint32_t Offset,
+                                uint8_t *pData, size_t Size)
+{
+    for (size_t Done = 0; Done < Size;)
+    {
+        const size_t Count = Size - Done < kPCBackupUploadBurst
+            ? Size - Done : kPCBackupUploadBurst;
+        printf("CONNECT SEND kind=%s offset=%lu size=%u\n", pKind,
+               (unsigned long)(Offset + Done), (unsigned)Count);
+        fflush(stdout);
+        ESP_RETURN_ON_ERROR(PCBackup_ReadUpload(pData + Done, Count), TAG,
+                            "receive SEND block");
+        Done += Count;
+    }
+    return ESP_OK;
+}
+
+void PCBackup_FlushInput(void)
+{
+    (void)uart_flush_input(kConsoleUart);
+}
+
+bool PCBackup_IsUSBModeOn(void)
+{
+    return PCBackupMode_GetState() == kPCBackupModeState_On;
+}
+
+esp_err_t PCBackup_RunGated(PCBackupGateUse_t Use,
+                            esp_err_t (*Fn)(void *pContext), void *pContext)
+{
+    if (!PCBackup_IsUSBModeOn() || Gate == NULL || Fn == NULL)
+        return ESP_ERR_INVALID_STATE;
+    if (xSemaphoreTake(Gate, pdMS_TO_TICKS(3000)) != pdTRUE)
+        return ESP_ERR_TIMEOUT;
+    esp_err_t Result;
+    if (Use == kPCBackupGate_Cartridge)
+        Result = EnableLocked();
+    else
+    {
+        Result = VirtualCart_IsBusy() ? ESP_ERR_INVALID_STATE : ESP_OK;
+        if (Result == ESP_OK && VirtualCart_IsActive())
+            Result = VirtualCart_Stop();
+    }
+    if (Result == ESP_OK) Result = Fn(pContext);
+    xSemaphoreGive(Gate);
+    return Result;
+}
+
+int PCBackup_CartridgePresent(void)
+{
+    int Present = -1;
+    if (PCBackup_IsEnabled() && Gate != NULL &&
+        xSemaphoreTake(Gate, pdMS_TO_TICKS(250)) == pdTRUE)
+    {
+        CartLinkResponse_t Reply = {0};
+        if (CartLink_TransactionOnce(kCartLinkOp_Ping, 0, 0, &Reply) == ESP_OK &&
+            Reply.Status == 0 && Reply.Count == 4)
+            Present = (Reply.Data[1] & 2u) != 0;
+        xSemaphoreGive(Gate);
+    }
+    return Present;
 }
 
 esp_err_t PCBackup_ConfigureConsoleInput(void)

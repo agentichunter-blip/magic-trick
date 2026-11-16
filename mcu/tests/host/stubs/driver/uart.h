@@ -9,3 +9,4 @@ esp_err_t uart_flush_input(int);
 int uart_read_bytes(int, void *, uint32_t, TickType_t);
 esp_err_t uart_driver_delete(int);
 esp_err_t uart_driver_install(int, int, int, int, void *, int);
+int uart_write_bytes(int, const void *, size_t);

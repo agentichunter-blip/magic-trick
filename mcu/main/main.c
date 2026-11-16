@@ -35,6 +35,7 @@
 #include "style.h"
 #include "player_num.h"
 #include "pc_backup.h"
+#include "pc_connect.h"
 #include "pc_backup_mode.h"
 #include "screen_transit_ctl.h"
 #include "mutex.h"
@@ -415,6 +416,7 @@ void app_main(void)
     ESP_ERROR_CHECK(VirtualCart_RegisterConsoleCommands());
     ESP_ERROR_CHECK(NativeStateControl_Init());
     ESP_ERROR_CHECK(PCBackup_RegisterConsoleCommand());
+    ESP_ERROR_CHECK(PCConnect_RegisterConsoleCommands());
     DiagLog_RegisterConsoleCommand();
     // All commands must be registered prior to starting the REPL
     ESP_ERROR_CHECK(esp_console_start_repl(pRepl));
