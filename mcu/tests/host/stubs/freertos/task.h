@@ -7,3 +7,5 @@ uint32_t ulTaskNotifyTake(int, TickType_t);
 TickType_t xTaskGetTickCount(void);
 void vTaskDelay(TickType_t);
 void vTaskDelete(TaskHandle_t);
+/* Host stand-in: stack headroom reported by the Wi-Fi status. */
+static inline unsigned uxTaskGetStackHighWaterMark(TaskHandle_t task) { (void)task; return 4096; }

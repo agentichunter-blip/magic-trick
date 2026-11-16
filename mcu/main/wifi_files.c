@@ -174,6 +174,7 @@ static esp_err_t GetStatus(httpd_req_t *Req)
     cJSON_AddNumberToObject(Reply,"idle_timeout_seconds",600);
     cJSON_AddNumberToObject(Reply,"free_heap",heap_caps_get_free_size(MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(Reply,"largest_free_block",heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(Reply,"httpd_stack_free",uxTaskGetStackHighWaterMark(NULL));
     return Json(Req,Reply);
 }
 static esp_err_t StartScan(httpd_req_t *Req)
@@ -379,7 +380,7 @@ static esp_err_t Checksum(httpd_req_t *Req)
 static esp_err_t StartServer(void)
 {
     httpd_config_t Config = HTTPD_DEFAULT_CONFIG();
-    Config.stack_size = 8192;
+    Config.stack_size = 6144;   /* RAM is tight with Wi-Fi up; /api/status reports the headroom */
     Config.max_open_sockets = 2;
     Config.lru_purge_enable = true;
     Config.recv_wait_timeout = 5; Config.send_wait_timeout = 5;
