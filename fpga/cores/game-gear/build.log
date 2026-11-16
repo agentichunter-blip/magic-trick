@@ -1,3 +1,6 @@
+QObject::connect(QObject, QThreadPool): invalid nullptr parameter
+QObject::connect(QObject, Unknown): invalid nullptr parameter
+QObject::connect(QObject, Unknown): invalid nullptr parameter
 *** GOWIN Tcl Command Line Console  *** 
 The available OpenGL surface format was either not version 3.2 or higher or not a Core Profile.
 Chromium on macOS will fall back to software rendering in this case.
@@ -629,5 +632,5 @@ Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl
 Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.txt" completed
 Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr.html" completed
 Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr" completed
-Sun Nov 15 13:30:30 2026
+Sun Nov 15 22:00:44 2026
 

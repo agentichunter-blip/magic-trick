@@ -12,27 +12,27 @@
   <Part Number>: GW5A-EV25UG256CC1/I0
   <Device>: GW5A-25
   <Device Version>: A
-  <Created Time>:Sun Nov 15 13:30:30 2026
+  <Created Time>:Sun Nov 15 22:00:43 2026
 
 
 2. PnR Details
 
   Running placement:
-    Placement Phase 0: CPU time = 0h 0m 12s, Elapsed time = 0h 0m 12s
-    Placement Phase 1: CPU time = 0h 0m 2s, Elapsed time = 0h 0m 2s
-    Placement Phase 2: CPU time = 0h 0m 49s, Elapsed time = 0h 0m 49s
-    Placement Phase 3: CPU time = 0h 2m 9s, Elapsed time = 0h 2m 10s
-    Total Placement: CPU time = 0h 3m 11s, Elapsed time = 0h 3m 13s
+    Placement Phase 0: CPU time = 0h 0m 8s, Elapsed time = 0h 0m 8s
+    Placement Phase 1: CPU time = 0h 0m 1s, Elapsed time = 0h 0m 1s
+    Placement Phase 2: CPU time = 0h 0m 41s, Elapsed time = 0h 0m 41s
+    Placement Phase 3: CPU time = 0h 1m 51s, Elapsed time = 0h 1m 51s
+    Total Placement: CPU time = 0h 2m 40s, Elapsed time = 0h 2m 41s
  Running routing:
-    Routing Phase 0: CPU time = 0h 0m 0.004s, Elapsed time = 0h 0m 0.005s
-    Routing Phase 1: CPU time = 0h 0m 32s, Elapsed time = 0h 0m 32s
-    Routing Phase 2: CPU time = 0h 0m 0.097s, Elapsed time = 0h 0m 0.1s
+    Routing Phase 0: CPU time = 0h 0m 0.016s, Elapsed time = 0h 0m 0.017s
+    Routing Phase 1: CPU time = 0h 5m 59s, Elapsed time = 0h 6m 2s
+    Routing Phase 2: CPU time = 0h 0m 0.103s, Elapsed time = 0h 0m 0.111s
     Routing Phase 3: CPU time = 0h 0m 0s, Elapsed time = 0h 0m 0s
-    Total Routing: CPU time = 0h 0m 32s, Elapsed time = 0h 0m 32s
+    Total Routing: CPU time = 0h 5m 59s, Elapsed time = 0h 6m 2s
  Generate output files:
-    CPU time = 0h 0m 0.978s, Elapsed time = 0h 0m 1s
+    CPU time = 0h 0m 1s, Elapsed time = 0h 0m 1s
 
- Total Time and Memory Usage: CPU time = 0h 3m 43s, Elapsed time = 0h 3m 46s, Peak memory usage = 868MB
+ Total Time and Memory Usage: CPU time = 0h 8m 40s, Elapsed time = 0h 8m 44s, Peak memory usage = 702MB
 
 
 3. Resource Usage Summary
@@ -40,15 +40,15 @@
   --------------------------------------------------------------------------------
   Resources                   | Usage                               | Utilization
   --------------------------------------------------------------------------------
-  Logic                       | 19913/23040                         |  87%
-    --LUT,ALU,ROM16           | 19913(17236 LUT, 2568 ALU, 109 ROM16)| -
+  Logic                       | 19770/23040                         |  86%
+    --LUT,ALU,ROM16           | 19770(17060 LUT, 2601 ALU, 109 ROM16)| -
     --SSRAM(RAM16)            | 0                                   | -
-  Register                    | 10941/23595                         |  47%
+  Register                    | 10967/23595                         |  47%
     --Logic Register as Latch | 0/23040                             |  0%
-    --Logic Register as FF    | 10908/23040                         |  48%
+    --Logic Register as FF    | 10934/23040                         |  48%
     --I/O Register as Latch   | 0/555                               |  0%
     --I/O Register as FF      | 33/555                              |  6%
-  CLS                         | 10881/11520                         |  95%
+  CLS                         | 10909/11520                         |  95%
   I/O Port                    | 126/191                             |  66%
   I/O Buf                     | 113                                 | -
     --Input Buf               | 21                                  | -
@@ -114,7 +114,7 @@
   QSPI_CLK_d     | PRIMARY        |  TR BR BL
   fClk           | PRIMARY        |  BR
   pClk           | PRIMARY        |  TR BR
-  hClk           | PRIMARY        |  TR TL BR
+  hClk           | PRIMARY        |  TR TL BR BL
   AUD_MCLK_d     | PRIMARY        |  TR TL BR BL
   xClk           | PRIMARY        |  TR TL BR BL
   PHY_CLKOUT     | PRIMARY        |  TL BL
