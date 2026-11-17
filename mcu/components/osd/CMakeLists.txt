@@ -11,6 +11,7 @@ idf_component_register(SRCS
                         "display/color_correct_usb.c"
                         "display/low_batt_icon_ctl.c"
                         "display/screen_transit_ctl.c"
+                        "display/lynx_stretch.c"
                         "osd.c"
                         "osd_default.c"
                         "status/brightness.c"

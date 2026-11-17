@@ -39,6 +39,7 @@
 #include "pc_connect.h"
 #include "pc_backup_mode.h"
 #include "screen_transit_ctl.h"
+#include "lynx_stretch.h"
 #include "mutex.h"
 #include "sd_card.h"
 #include "serial_num.h"
@@ -194,6 +195,7 @@ static void register_update_callbacks(void)
     FrameBlend_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     GBCColorTemp_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     ScreenTransitCtl_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
+    LynxStretch_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     DPadCtl_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     LowBattIconCtl_RegisterOnUpdateCb(FPGA_Tx_SendSysCtl);
     Button_RegisterOnButtonPokeCb(FPGA_Tx_PokeButtons);
@@ -216,6 +218,7 @@ static void persist_storage_init(void)
         [kSettingKey_SilentMode]       = SilentMode_ApplySetting,
         [kSettingKey_Brightness]       = Brightness_ApplySetting,
         [kSettingKey_ScreenTransitCtl] = ScreenTransitCtl_ApplySetting,
+        [kSettingKey_LynxStretch]      = LynxStretch_ApplySetting,
         [kSettingKey_DPadCtl]          = DPadCtl_ApplySetting,
         [kSettingKey_LowBattIconCtl]   = LowBattIconCtl_ApplySetting,
         [kSettingKey_PaletteStyleID]   = Style_ApplySetting,

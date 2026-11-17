@@ -27,6 +27,7 @@ typedef enum MutexKey
     kMutexKey_Brightness,
     kMutexKey_PlayerNum,
     kMutexKey_PCBackupMode,
+    kMutexKey_LynxStretch,
     kNumMutexKeys,
 
     kMutexKey_FirstKey = kMutexKey_Buttons,

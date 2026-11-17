@@ -21,6 +21,7 @@ module emu_system_top
     input [63:0]        paletteOBJ0In,
     input [63:0]        paletteOBJ1In,
     input               paletteOff,
+    input               lynxStretch,    // settings bit 15: fill the panel (see lynx_video_bridge.sv)
     output              gbc_mode,
     output [63:0]       gpd,
     
@@ -199,6 +200,7 @@ module emu_system_top
     assign virtual_state_status={2'b00,engine_loaded,engine_fault,engine_frozen,engine_busy};
     lynx_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(running),.paused(core_pause),
+        .stretch(lynxStretch),
         .pen_we(pen_we),.pen(pen),.pen_x(pen_x),.pen_y(pen_y),.palette(palette),
         .overflow(video_overflow),.lcd_pixel(gb_lcd_clkena),.lcd_data(gb_lcd_data),
         .lcd_repeat(gb_lcd_repeat),

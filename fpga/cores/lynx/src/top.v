@@ -1290,6 +1290,7 @@ module top #(parameter ISSIMU=0)
 
         .customPaletteEna(paletteBGIn[63]),
         .paletteOff(system_control[12]),
+        .lynxStretch(system_control[15]),
         .paletteBGIn(paletteBGIn),
         .paletteOBJ0In(paletteOBJ0In),
         .paletteOBJ1In(paletteOBJ1In),

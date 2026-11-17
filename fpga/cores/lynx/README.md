@@ -9,7 +9,7 @@ An Atari Lynx for the Chromatic, built from [AtariLynx_MiSTer](https://github.co
 | `vendor/AtariLynx_MiSTer/` | upstream sources, unchanged |
 | `lynx-rtl/` | the core as built: upstream VHDL with the Chromatic changes below, plus `lynx_chromatic.vhd` (std_logic ports for the Verilog board code) |
 | `lynx_board_core.sv` | 16 MHz clock enable, PSRAM loader (boot ROM, cartridge header, BS93 homebrew), cartridge reads through the ROM cache |
-| `board-rtl/lynx_video_bridge.sv` | Lynx rows to the panel: 64-row pen ring with per-row palettes, letterboxed 160x102 in 160x144, adaptive frame start |
+| `board-rtl/lynx_video_bridge.sv` | Lynx rows to the panel: 48-row pen ring with per-row palettes, letterboxed 160x102 in 160x144 or stretched to fill it, adaptive frame start |
 | `lynx_state_engine.sv` | save states over the Game Gear state commands; MiSTer's state image staged in PSRAM |
 | `lynx_dpram.v` | the core's dual-port RAMs (replaces Intel `altsyncram`) |
 | `emu_system_top.v`, `src/` | board shell (from the Game Gear core); panel ring 2 banks and hold-after-frame, version 50.3 |
@@ -22,6 +22,10 @@ An Atari Lynx for the Chromatic, built from [AtariLynx_MiSTer](https://github.co
 - **60 Hz frame lock** (`timer.vhd`, `timer_module.vhd`): Lynx games choose their own LCD rate (about 50 to 79 Hz). The panel refreshes at 60 Hz, so a 75 Hz game drops a frame in five and fine scrolling judders. When a game's frame is shorter than 1/60 s, timer 0 (the line timer that clocks timer 2, the frame counter) is clocked by a fractional divider so that exactly `(TIM0BKUP+1)*(TIM2BKUP+1)` ticks fill 1/60 s. Only the frame rate changes: the CPU, Suzy and the audio timers (chain 1-3-5-7-audio) keep their real speed, so sound neither pauses nor changes pitch. Game logic that runs once per frame runs at 60 per second (a 75 Hz game plays at 80% speed, smoothly). MiSTer's own "sync to 60 Hz" pauses the whole system every frame instead, which stutters the audio. Games at 60 Hz or below are untouched.
 - **Video** (`display_dma.vhd`): exports each pixel's 4-bit pen and the 16-entry palette, so the bridge buffers pens instead of 12-bit colour (4 block RAMs instead of 11).
 - **RAM** in Verilog (`lynx_dpram.v`); Gowin mapped the VHDL version to an unsupported read-before-write mode.
+
+## Screen: Original or Stretch
+
+Display > LYNX SCREEN in the menu (MCU setting `lynx-stretch`, sent as system control bit 15; the other cores ignore it). Original letterboxes the 160x102 picture with 21 black rows above and below. Stretch fills all 144 panel rows: each panel row covers 17/24 of a Lynx row, so a row inside one Lynx row shows it unchanged and a row straddling two shows both mixed by coverage in quarters (pure colours stay exact). Everything looks 41% taller. The bridge starts stretched frames later so that Lynx row 101 is ready at panel row 142. The change applies from the next frame; while the menu is open the panel repeats the old picture.
 
 ## Boot ROM and game files
 

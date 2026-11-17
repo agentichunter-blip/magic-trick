@@ -5,6 +5,7 @@ module lynx_sim_top(
  input xclk, input hclk, input xreset, input reset_n,
  input [8:0] keys, // up down left right A B start select menu
  input quiesce,
+ input stretch,
  input freeze_t, release_t, load_t, block_t, input [6:0] block_n, input [15:0] block_seq,
  output block_ready, output [15:0] block_ready_seq,
  input [9:0] qaddress, output [7:0] qdata,
@@ -49,7 +50,7 @@ module lynx_sim_top(
   .hclk(hclk),.pclk(hclk),.xclk(xclk),.reset_n(reset_n),.xreset(xreset),.POWER_GOOD(1'b1),
   .maintenance_reset_h(1'b0),.virtual_attempt_reset_h(1'b0),.virtual_quiesce_h(quiesce),
   .virtual_quiesced_h(quiesced),.virtual_core_reset_h(core_reset_ack),
-  .customPaletteEna(1'b0),.paletteBGIn(64'd0),.paletteOBJ0In(64'd0),.paletteOBJ1In(64'd0),.paletteOff(1'b0),
+  .customPaletteEna(1'b0),.paletteBGIn(64'd0),.paletteOBJ0In(64'd0),.paletteOBJ1In(64'd0),.paletteOff(1'b0),.lynxStretch(stretch),
   .gbc_mode(),.gpd(),
   .BTN_NODIAGONAL(1'b0),.BTN_A(keys[4]),.BTN_B(keys[5]),.BTN_DPAD_DOWN(keys[1]),.BTN_DPAD_LEFT(keys[2]),
   .BTN_DPAD_RIGHT(keys[3]),.BTN_DPAD_UP(keys[0]),.BTN_MENU(keys[8]),.BTN_SEL(keys[7]),.BTN_START(keys[6]),

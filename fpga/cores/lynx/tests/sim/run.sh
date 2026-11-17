@@ -8,7 +8,7 @@ mkdir -p build out
 if [ ! -f $L/generated/lynx_chromatic.v ] || [ -n "$(find $L/lynx-rtl -newer $L/generated/lynx_chromatic.v -name '*.vhd')" ]; then
   $L/generate/build_netlist.sh > build/ghdl.log 2>&1
 fi
-verilator --cc --exe --build -j 8 -O3 --x-assign fast --x-initial fast -Wno-fatal -Wno-lint -Wno-style \
+verilator --cc --exe --build -j 8 -O3 +define+LYNX_BRIDGE_CHECK --x-assign fast --x-initial fast -Wno-fatal -Wno-lint -Wno-style \
   --top-module lynx_sim_top -Mdir build/obj \
   lynx_sim_top.sv $L/emu_system_top.v $L/lynx_board_core.sv $L/lynx_state_engine.sv $L/lynx_dpram.v \
   $L/board-rtl/lynx_video_bridge.sv $L/board-rtl/gg_async_fifo.sv $L/board-rtl/gg_audio_bridge.sv \

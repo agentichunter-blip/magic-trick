@@ -156,6 +156,7 @@ int main(int argc, char **argv) {
     std::vector<uint8_t> file; int c; while ((c = fgetc(f)) != EOF) file.push_back(c); fclose(f);
 
     t->xreset = 1; t->reset_n = 0; t->keys = 0; t->quiesce = 0;
+    t->stretch = getenv("LYNX_STRETCH") && atoi(getenv("LYNX_STRETCH"));
     run(64);
     // image: info block, then file at 0x1000 (ROM window base = PSRAM 0x020000)
     const uint32_t base = 0x020000;

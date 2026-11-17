@@ -19,6 +19,7 @@
 #include "palette/gbc_color_temp.h"
 #include "display/low_batt_icon_ctl.h"
 #include "display/screen_transit_ctl.h"
+#include "display/lynx_stretch.h"
 #include "system/silent.h"
 #include "system/player_num.h"
 #include "system/serial_num.h"
@@ -229,6 +230,21 @@ static void CreateMenuDisplay(lv_obj_t *const pScreen)
     if ((eResult = Tab_AddItem(pList, &ScreenTransitCtl, pScreen)) != kOSD_Result_Ok)
     {
         ESP_LOGE(TAG, "%s tab item init failed %d", ScreenTransitCtl.Widget.Name, eResult);
+        return;
+    }
+
+    static TabItem_t LynxStretch = {
+        .Widget = {
+            .Name = "LYNX SCREEN",
+            .fnDraw = LynxStretch_Draw,
+            .fnOnButton = LynxStretch_OnButton,
+            .fnOnTransition = LynxStretch_OnTransition,
+        },
+    };
+
+    if ((eResult = Tab_AddItem(pList, &LynxStretch, pScreen)) != kOSD_Result_Ok)
+    {
+        ESP_LOGE(TAG, "%s tab item init failed %d", LynxStretch.Widget.Name, eResult);
         return;
     }
 

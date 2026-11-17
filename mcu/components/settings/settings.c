@@ -23,6 +23,7 @@ static const char* NVS_KeyStr[kNumSettingKeys] = {
     [kSettingKey_PaletteStyleID]   = "plt-style-id",
     [kSettingKey_PCBackupMode]     = "pc_backup",
     [kSettingKey_GBCColorTemp]     = "gbc-ctemp",   /* same key as ModRetro's firmware */
+    [kSettingKey_LynxStretch]      = "lynx-stretch",
 };
 
 const SettingValue_t DefaultSettings[kNumSettingKeys] = {
@@ -73,7 +74,11 @@ const SettingValue_t DefaultSettings[kNumSettingKeys] = {
     [kSettingKey_GBCColorTemp] = {
         .eType = kSettingDataType_U8,
         .U8 = 0,
-    }
+    },
+    [kSettingKey_LynxStretch] = {
+        .eType = kSettingDataType_U8,
+        .U8 = 0,
+    },
 };
 
 static const char* TAG = "Settings";

@@ -7,12 +7,12 @@ RELEASE = '1.0.0-beta.7'          # firmware this installer installs
 INSTALLER_VERSION = '1.0.0-beta.10'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
-    'mcu': ('magic-trick-1.0.0-beta.7-mcu.bin', '4ec6a561f7759af9db4e99d3b0204e89dd496061524da262a1b312852dda7dfb'),
+    'mcu': ('magic-trick-1.0.0-beta.7-mcu.bin', 'b606e79f2b0e84a71a9763c38180b5237146121eadd354cdefd2b14f54bb56bc'),
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '4d9c4da100d480c947ed4742bd79eab810c6019559e3fc01370b717d65fe81f2'),
     'fpga_gg': ('magic-trick-game-gear.fs', 'd8809a4ca13ab213a7cdd26cc3fd9c6dfc1310e7e157be57cc5d0ce5b168fe4d'),
-    'fpga_lynx': ('magic-trick-lynx.fs', '8069bc18061910b1e10cc48f84a17b42bce8654ff8aceec71b45bd7a37c9daf2'),
+    'fpga_lynx': ('magic-trick-lynx.fs', '167be891eaac0301ce109096dc5753488b2c30d6d729bda565c841069a2d274f'),
     'fpga_chromagic': ('chromagic-1.0.1-fpga.fs', '79791d915060a9898c9be6adc7ab22f298cbea9619c6bb765b8667db62c337a2'),
 }
 TABLE_OFFSET = 0x8000

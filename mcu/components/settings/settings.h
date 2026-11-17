@@ -15,6 +15,7 @@ typedef enum SettingKey {
     kSettingKey_PaletteStyleID,
     kSettingKey_PCBackupMode,
     kSettingKey_GBCColorTemp,
+    kSettingKey_LynxStretch,
     kNumSettingKeys,
 
     kSettingKey_FirstKey = kSettingKey_FrameBlend,
