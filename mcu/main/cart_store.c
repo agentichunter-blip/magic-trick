@@ -10,6 +10,7 @@
 #include "esp_vfs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "nvs.h"
 
 #include <errno.h>
@@ -19,6 +20,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static const char *TAG = "cart_store";
 
@@ -38,6 +40,13 @@ static const char kEntryMagic[4] = {'M', 'T', 'E', '1'};
 static const char kNvsNamespace[] = "cartstore";
 static const char kNvsKey[] = "stage";
 static const char kNvsDirKey[] = "dir";
+/* 1 from staging until the target core has replayed it (the record itself
+ * stays, so that core can still open the game for later reads). */
+static const char kNvsFreshKey[] = "fresh";
+/* Full copy of the staged game, for reads the target core needs past the
+ * first 1 KiB (e.g. restoring the Game Gear ROM mirror after a save or
+ * state import). Written by the GB core while staging. */
+static const char kStagedCopy[] = CART_STORE_SIDECAR_ROOT "/.staged.bin";
 
 static SemaphoreHandle_t Lock;
 static StaticSemaphore_t LockStorage;
@@ -52,7 +61,8 @@ static bool CacheValid;
 
 typedef struct {
     bool Used;
-    bool HeadOnly; /* Lynx core: served from the NVS record */
+    bool HeadOnly; /* core without cartridge access: NVS head + SD copy */
+    FILE *pCopy;   /* the SD copy, opened on the first read past the head */
     CartStoreEntry_t Entry;
     uint32_t Position;
 } OpenFile_t;
@@ -356,9 +366,29 @@ esp_err_t CartStore_StageBegin(const char *pPath)
     Record->EntryCrc = Entry.Crc;
     memset(Record->Head, 0xff, sizeof(Record->Head));
     xSemaphoreTake(Lock, portMAX_DELAY);
-    const esp_err_t Result = ReadCart(Entry.Offset, Record->Head, 1);
+    esp_err_t Result = ReadCart(Entry.Offset, Record->Head, 1);
+    /* The SD copy (the caller has the SD mounted). */
+    uint8_t *pChunk = Result == ESP_OK ? malloc(kCacheBlocks * kBlock) : NULL;
+    FILE *pCopy = pChunk ? fopen(kStagedCopy, "wb") : NULL;
+    if (Result == ESP_OK && (!pChunk || !pCopy)) Result = ESP_FAIL;
+    uint32_t Crc = 0;
+    for (uint32_t Done = 0; Result == ESP_OK && Done < Entry.Size; Done += kCacheBlocks * kBlock)
+    {
+        const uint32_t Want = Entry.Size - Done < kCacheBlocks * kBlock ? Entry.Size - Done : kCacheBlocks * kBlock;
+        Result = ReadCart(Entry.Offset + Done, pChunk, (Want + kBlock - 1) / kBlock);
+        if (Result == ESP_OK && fwrite(pChunk, 1, Want, pCopy) != Want) Result = ESP_FAIL;
+        Crc = esp_rom_crc32_le(Crc, pChunk, Want);
+    }
+    if (pCopy && fclose(pCopy) != 0 && Result == ESP_OK) Result = ESP_FAIL;
+    free(pChunk);
+    if (Result == ESP_OK && Crc != Entry.Crc) Result = ESP_ERR_INVALID_CRC;
     xSemaphoreGive(Lock);
-    if (Result != ESP_OK) FreeRecord();
+    if (Result != ESP_OK)
+    {
+        printf("CARTSTORE copy_error=%s\n", esp_err_to_name(Result));
+        (void)unlink(kStagedCopy);
+        FreeRecord();
+    }
     return Result;
 }
 
@@ -396,6 +426,7 @@ esp_err_t CartStore_StageCommit(uint32_t RomCrc)
     if (Result == ESP_OK)
     {
         Result = nvs_set_blob(Handle, kNvsKey, Record, RecordLength(Record));
+        if (Result == ESP_OK) Result = nvs_set_u8(Handle, kNvsFreshKey, 1);
         if (Result == ESP_OK) Result = nvs_commit(Handle);
         nvs_close(Handle);
     }
@@ -417,7 +448,7 @@ static bool LoadRecord(void)
     const bool Ok = Record && nvs_get_blob(Handle, kNvsKey, Record, &Length) == ESP_OK &&
         Length >= offsetof(StageRecord_t, Unique) && Record->Magic == kRecordMagic &&
         Record->UniqueCount <= kMaxUnique && Record->AddressCount <= kMaxAddresses &&
-        Length == RecordLength(Record) && Record->Fresh == 1 &&
+        Length == RecordLength(Record) &&
         strnlen(Record->Name, kCartStoreNameSize) < kCartStoreNameSize;
     for (unsigned i = 0; Ok && i < Record->AddressCount; ++i)
         if (Record->Addresses[i].Unique >= Record->UniqueCount) { nvs_close(Handle); FreeRecord(); RecordLoaded = true; return false; }
@@ -430,6 +461,14 @@ bool CartStore_ReplayReady(const char *pPath, uint32_t *pRomCrc, uint32_t *pSize
 {
     if (!CartStore_IsCartPath(pPath) || CartStore_CanReadCart()) return false;
     if (!LoadRecord() || strcmp(Record->Name, pPath + sizeof(CART_STORE_ROOT)) != 0) return false;
+    nvs_handle_t Handle;
+    uint8_t Fresh = 0;
+    if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) == ESP_OK)
+    {
+        if (nvs_get_u8(Handle, kNvsFreshKey, &Fresh) != ESP_OK) Fresh = 0;
+        nvs_close(Handle);
+    }
+    if (Fresh != 1) return false;
     if (pRomCrc) *pRomCrc = Record->RomCrc;
     if (pSize) *pSize = Record->Size;
     return true;
@@ -451,12 +490,10 @@ void CartStore_ReplayDone(void)
     nvs_handle_t Handle;
     if (nvs_open(kNvsNamespace, NVS_READWRITE, &Handle) == ESP_OK)
     {
-        (void)nvs_erase_key(Handle, kNvsKey);
+        (void)nvs_erase_key(Handle, kNvsFreshKey);
         (void)nvs_commit(Handle);
         nvs_close(Handle);
     }
-    FreeRecord();
-    RecordLoaded = true; /* nothing left to load */
 }
 
 /* -------------------------------------------------------------------- VFS */
@@ -501,8 +538,25 @@ static ssize_t VfsRead(int Fd, void *pDst, size_t Size)
     size_t Done = 0;
     if (pFile->HeadOnly)
     {
-        if (pFile->Position + Size > kCartStoreHeadSize || !Record) { errno = EIO; return -1; }
-        memcpy(pOut, &Record->Head[pFile->Position], Size);
+        if (pFile->Position + Size <= kCartStoreHeadSize && Record)
+        {
+            memcpy(pOut, &Record->Head[pFile->Position], Size);
+            pFile->Position += Size;
+            return (ssize_t)Size;
+        }
+        /* Past the head: the GB core's SD copy (same size; CRC-checked when written). */
+        if (!pFile->pCopy)
+        {
+            struct stat Stat;
+            pFile->pCopy = stat(kStagedCopy, &Stat) == 0 && (uint32_t)Stat.st_size == pFile->Entry.Size
+                ? fopen(kStagedCopy, "rb") : NULL;
+        }
+        if (!pFile->pCopy || fseek(pFile->pCopy, (long)pFile->Position, SEEK_SET) != 0 ||
+            fread(pOut, 1, Size, pFile->pCopy) != Size)
+        {
+            errno = EIO;
+            return -1;
+        }
         pFile->Position += Size;
         return (ssize_t)Size;
     }
@@ -572,6 +626,7 @@ static int VfsStat(const char *pPath, struct stat *pStat)
 static int VfsClose(int Fd)
 {
     if (Fd < 0 || Fd >= kMaxFiles || !Files[Fd].Used) { errno = EBADF; return -1; }
+    if (Files[Fd].pCopy) { fclose(Files[Fd].pCopy); Files[Fd].pCopy = NULL; }
     Files[Fd].Used = false;
     return 0;
 }
@@ -749,21 +804,51 @@ static esp_err_t AddFn(void *pContext)
             break;
         }
         printf("CARTADD file=\"%s\" size=%lu offset=0x%lx\n", pName, (unsigned long)Size, (unsigned long)End);
-        Result = CheckErased(End, Blocks, pBlock);
-        uint32_t Crc = 0;
+        /* Each block is blank, partly written by an interrupted cartadd, or
+         * already right: program it only where that just clears bits (NOR
+         * programming can't set a 0 back to 1), so a retry resumes safely. */
+        uint8_t *pCart = malloc(kBlock);
+        if (!pCart) Result = ESP_ERR_NO_MEM;
+        uint32_t Crc = 0, Programmed = 0, Kept = 0;
         for (uint32_t b = 0; Result == ESP_OK && b < Blocks; ++b)
         {
+            const uint32_t Offset = End + b * kBlock;
             memset(pBlock, 0xff, kBlock);
             const size_t Count = Size - b * kBlock < kBlock ? Size - b * kBlock : kBlock;
             if (fread(pBlock, 1, Count, pFile) != Count) { Result = ESP_FAIL; break; }
             Crc = esp_rom_crc32_le(Crc, pBlock, Count);
-            bool Blank = true;
-            for (size_t j = 0; j < kBlock && Blank; ++j) Blank = pBlock[j] == 0xff;
-            if (!Blank) Result = CartBulk_ProgramCart(End + b * kBlock, pBlock, Mode);
+            for (int Attempt = 0; Result == ESP_OK; ++Attempt)
+            {
+                Result = CartBulk_ReadCart(Offset, pCart, 1);
+                if (Result != ESP_OK) break;
+                if (!memcmp(pCart, pBlock, kBlock)) { if (Attempt == 0) ++Kept; break; }
+                bool Programmable = true;
+                for (size_t j = 0; j < kBlock && Programmable; ++j) Programmable = (pBlock[j] & ~pCart[j]) == 0;
+                if (!Programmable)
+                {
+                    printf("CARTADD not_erased offset=0x%lx\n", (unsigned long)Offset);
+                    Result = ESP_ERR_INVALID_STATE;
+                    break;
+                }
+                if (Attempt == 3) { Result = ESP_ERR_TIMEOUT; break; }
+                if (Attempt > 0) printf("CARTADD retry offset=0x%lx attempt=%d\n", (unsigned long)Offset, Attempt);
+                const esp_err_t ProgramResult = CartBulk_ProgramCart(Offset, pBlock, Mode);
+                if (ProgramResult == ESP_OK && Attempt == 0) ++Programmed;
+                if (ProgramResult != ESP_OK)
+                {
+                    printf("CARTADD program_error offset=0x%lx error=%s\n", (unsigned long)Offset, esp_err_to_name(ProgramResult));
+                    (void)CartBulk_ReadRangeAbort();
+                    (void)Writes(kReset, 1); /* back to read mode */
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                }
+                /* Any outcome: read back and decide again. */
+            }
             if (Result != ESP_OK) printf("CARTADD FAIL stage=program offset=0x%lx error=%s\n",
-                                         (unsigned long)(End + b * kBlock), esp_err_to_name(Result));
+                                         (unsigned long)Offset, esp_err_to_name(Result));
             if ((b & 63u) == 63u) printf("CARTADD progress=%lu/%lu\n", (unsigned long)(b + 1), (unsigned long)Blocks);
         }
+        free(pCart);
+        if (Result == ESP_OK) printf("CARTADD blocks programmed=%lu kept=%lu\n", (unsigned long)Programmed, (unsigned long)Kept);
         fclose(pFile);
         /* Verify against the file's CRC. */
         uint32_t Check = 0;

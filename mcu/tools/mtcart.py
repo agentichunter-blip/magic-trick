@@ -104,7 +104,9 @@ def stub_lines(names):
     lines = ['', '  MAGIC TRICK CART', '', 'GAME GEAR AND LYNX', 'GAMES FOR CHROMATIC.', '',
              'ON A CHROMATIC WITH', 'MAGIC TRICK, OPEN', 'THE MENU AND PICK', 'CARTRIDGE.', '']
     for name in names[:6]:
-        lines.append(' ' + Path(name).stem[:19])
+        # No-Intro names: the title before the first "(" tag, "Columns (USA, ...)" -> "Columns".
+        title = Path(name).stem.split(' (')[0].strip() or Path(name).stem
+        lines.append(' ' + title[:19])
     return lines
 
 
@@ -262,7 +264,7 @@ def main():
     sub = p.add_subparsers(dest='cmd', required=True)
     b = sub.add_parser('build')
     b.add_argument('out')
-    b.add_argument('games', nargs='+')
+    b.add_argument('games', nargs='*')
     b.add_argument('--capacity', type=lambda v: int(v, 0), default=4 << 20)
     a = sub.add_parser('append')
     a.add_argument('base')
