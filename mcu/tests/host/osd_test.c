@@ -39,15 +39,16 @@ static esp_err_t OpenResult, StartResult;
 static bool CompleteImmediately;
 static bool FolderFixture, SystemFixture, RecentFixture;
 static size_t SystemIndex;
-static bool ThreeSystems, FiveSystems;
+static bool ThreeSystems, FiveSystems, StrayFile;
 static unsigned Depth;
 static PCBackupModeState_t PCMode;
 PCBackupModeState_t PCBackupMode_GetState(void) { return PCMode; }
 static unsigned BackupStarts;
 static esp_err_t BackupStart(void) { ++BackupStarts; return ESP_OK; }
 static char StartedName[80];
-static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (FiveSystems ? 5 : ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
+static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (FiveSystems ? 5 : StrayFile ? 4 : ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
 static const char *NameAt(size_t Index) {
+    if (SystemFixture && StrayFile && !Depth && Index==3) return "MR.TETRIS.gbc";
     if (SystemFixture) {
         static const char *Ranges[]={"0-F","G-L","M-R","S-Z"};
         /* Reverse catalog order verifies that logo positions do not depend on sorting. */
@@ -60,9 +61,9 @@ static const char *NameAt(size_t Index) {
     }
     assert(Index < Count); return Names[Index];
 }
-static bool IsDirectory(size_t Index) { return SystemFixture || (FolderFixture && Index == (Depth == 0 ? 1 : 0)); }
+static bool IsDirectory(size_t Index) { if (SystemFixture && StrayFile && !Depth && Index==3) return false; return SystemFixture || (FolderFixture && Index == (Depth == 0 ? 1 : 0)); }
 static RomPlatform_t FixturePlatform;
-static RomPlatform_t FolderPlatform(size_t Index) { if (SystemFixture && FiveSystems) return (RomPlatform_t)(kRomPlatformCart - (Depth ? SystemIndex : Index)); if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
+static RomPlatform_t FolderPlatform(size_t Index) { if (!IsDirectory(Index)) return kRomPlatformUnknown; if (SystemFixture && FiveSystems) return (RomPlatform_t)(kRomPlatformCart - (Depth ? SystemIndex : Index)); if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
 static bool AtRoot(void) { return Depth == 0; }
 static esp_err_t Enter(size_t Index, size_t *pCount) {
     assert(IsDirectory(Index)); if (SystemFixture && !Depth) SystemIndex=Index; ++Depth; return Open(pCount);
@@ -521,6 +522,13 @@ int main(void) {
     assert(Depth==1 && SystemIndex==0 && Text(Screen,"CARTRIDGE"));
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
     FiveSystems=false;
+    /* A loose file at the root (e.g. a cart backup) turns the tiles into a
+     * list; system folders still read as full names, never GB/GBC/GG. */
+    StrayFile=true;
+    Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
+    Snapshot("systems-stray-file-list");
+    assert(!Text(Screen,"GB") && !Text(Screen,"GBC") && !Text(Screen,"GG"));
+    StrayFile=false;
     Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
     RecentFixture=true;
     Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);

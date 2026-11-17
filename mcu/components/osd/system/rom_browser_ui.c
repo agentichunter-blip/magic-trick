@@ -15,6 +15,7 @@ LV_FONT_DECLARE(chromatic_progress);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #if LV_COLOR_DEPTH != 16 || LV_COLOR_16_SWAP
 #error "Box art requires native unswapped RGB565; update the converter for other formats."
@@ -131,6 +132,17 @@ static void SelectionChanged(void) {
 }
 static void DisplayName(size_t Index, char Output[256]) {
     const bool Folder = Directory(Index);
+    /* System folders at the root read as their full names (GAME BOY, not GB),
+     * also when stray files there turn the tiles into a list. */
+    static const char *const kSystemFolders[kSystems-1]={"GB","GBC","GG","LYNX"};
+    if (Folder && AtRoot() && C.Source.FolderPlatform) {
+        const RomPlatform_t Platform = C.Source.FolderPlatform(Index);
+        if (Platform >= kRomPlatformGB && Platform <= kRomPlatformLynx &&
+            !strcasecmp(C.Source.NameAt(Index), kSystemFolders[Platform - kRomPlatformGB])) {
+            snprintf(Output, 256, "%s", kSystemNames[Platform - kRomPlatformGB]);
+            return;
+        }
+    }
     RomTitle_Make(C.Source.NameAt(Index), Folder, Output, 256);
 }
 static void SetCatalog(esp_err_t Error, size_t Count, size_t Selected) {

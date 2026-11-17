@@ -82,6 +82,13 @@ typedef struct {
 
 static const char *TAG = "CartBackup";
 static const char *BackupDirectory = "/sdcard/CHROMAGIC/BACKUPS";
+/* Backups go in the library's GB or GBC folder, so the Games menu root keeps
+ * only the system folders (a loose file there turns the system tiles into a
+ * plain folder list). FAT names are case-insensitive. */
+static const char *SystemDirectory(bool IsColor)
+{
+    return IsColor ? "/sdcard/CHROMAGIC/BACKUPS/GBC" : "/sdcard/CHROMAGIC/BACKUPS/GB";
+}
 static portMUX_TYPE StateLock = portMUX_INITIALIZER_UNLOCKED;
 static bool Running;
 static bool PCModeActive;
@@ -670,6 +677,7 @@ static void MakePaths(const CartInfo_t *pInfo,
     char Stem[kFileStemSize];
     MakeFileStem(pInfo->Title, Stem);
     const char *RomExtension = pInfo->IsColor ? "gbc" : "gb";
+    const char *BackupDirectory = SystemDirectory(pInfo->IsColor);
     snprintf(RomFinal, kPathSize, "%s/%s.%s", BackupDirectory, Stem,
              RomExtension);
     snprintf(RomTemp, kPathSize, "%s/%s.%s.tmp", BackupDirectory, Stem,
@@ -759,6 +767,7 @@ static void RemoveObsoleteCopies(const CartInfo_t *pInfo,
     const char *pRomExtension = pInfo->IsColor ? "gbc" : "gb";
     const char *pRomName = strrchr(pRomFinal, '/') + 1;
     const char *pSaveName = strrchr(pSaveFinal, '/') + 1;
+    const char *BackupDirectory = SystemDirectory(pInfo->IsColor);
     enum { kCleanupBatchSize = 8, kCleanupNameSize = 64,
            kCleanupMaximum = 128 };
     char Names[kCleanupBatchSize][kCleanupNameSize];
@@ -1690,6 +1699,11 @@ static esp_err_t RunBackup(void)
            Info.Mapper.HasRtc ? 1u : 0u,
            Info.Mapper.HasRumble ? 1u : 0u);
 
+    if (mkdir(SystemDirectory(Info.IsColor), 0775) != 0 && errno != EEXIST)
+    {
+        Result = ESP_FAIL;
+        goto Cleanup;
+    }
     MakePaths(&Info, RomFinal, RomTemp, RomOld,
               SaveFinal, SaveTemp, SaveOld);
     Result = SDPublish_Recover(RomFinal, RomOld);

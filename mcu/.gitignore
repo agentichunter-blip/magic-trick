@@ -9,3 +9,4 @@ build-lynx-sdkconfig
 build-lynx.log
 build-host/
 managed_components
+build-cartload.log
