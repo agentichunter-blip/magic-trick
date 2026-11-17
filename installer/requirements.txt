@@ -1,2 +1,4 @@
 esptool==4.13.0
 pyinstaller==6.16.0
+Pillow==13.0.0
+certifi==2026.10.23

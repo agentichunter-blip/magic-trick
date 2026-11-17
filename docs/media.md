@@ -2,6 +2,8 @@
 
 Supply your own images and videos. The firmware download/source does not include a media pack. Keep source media and generated assets outside this repository.
 
+The easiest way is the installer's **SD card library**: it downloads box art for your games, converts your clips and writes everything in the right place (see the [installer guide](../installer/README.md#sd-card-library)). The tools below do the same by hand.
+
 Install the pinned Pillow dependency as described in [building.md](building.md). Video conversion also requires FFmpeg on PATH. Run these examples from the repository root.
 
 ## Convert individual files

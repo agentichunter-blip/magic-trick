@@ -2,10 +2,10 @@ import contextlib, datetime, io, json, math, os, queue, random, re, subprocess, 
 from pathlib import Path
 try:
     import tkinter as tk
-    from tkinter import messagebox, filedialog, font as tkfont
+    from tkinter import messagebox, filedialog, simpledialog, font as tkfont
 except ImportError:   # command-line mode does not need a window
     tk = None
-import core, fpga
+import core, fpga, library
 
 DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md'
 SOURCE = 'https://github.com/agentichunter-blip/magic-trick'
@@ -31,13 +31,28 @@ STEPS = {
     'table': ('SWITCH OVER', 'Switching the MCU over to the new firmware.', 0.3),
     'mcu_restore': ('RESTORE MCU', 'Putting your saved MCU flash back. This takes a few minutes.', 6),
     'confirm': ('RESTART', 'Restarting your Chromatic and checking that it starts up.', 1),
+    'lib_scan': ('LOOK AT CARD', 'Looking at the games already on the SD card.', 0.5),
+    'lib_copy': ('COPY GAMES', 'Copying your games into the right system folders.', 3),
+    'art_match': ('FIND COVERS', 'Matching your games to the cover pack.', 1),
+    'art_write': ('WRITE COVERS', 'Downloading covers and writing them next to your games.', 3),
+    'vid_write': ('PREVIEWS', 'Converting your clips and writing them next to your games.', 5),
 }
 PLANS = {
     'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'table', 'confirm'],
     'uninstall': ['check', 'backup', 'fpga_chromagic', 'table', 'confirm'],
     'restore': ['check', 'precopy', 'fpga_chromagic', 'mcu_restore', 'confirm'],
+    'games': ['lib_scan', 'lib_copy'],
+    'covers': ['lib_scan', 'art_match', 'art_write'],
+    'previews': ['lib_scan', 'vid_write'],
 }
-TITLES = {'install': 'INSTALLING', 'uninstall': 'UNINSTALLING', 'restore': 'RESTORING'}
+TITLES = {'install': 'INSTALLING', 'uninstall': 'UNINSTALLING', 'restore': 'RESTORING',
+          'games': 'ADDING GAMES', 'covers': 'COVER ART', 'previews': 'ADDING PREVIEWS'}
+LIBRARY = ('games', 'covers', 'previews')
+# How the library reaches the SD card: key, label, speed note.
+ROUTES = [('folder', 'CARD READER', 'Fastest. Put the SD card in this computer and choose it.'),
+          ('wifi', 'WI-FI', 'About 90 KB/s. On the Chromatic, open Wi-Fi Files for its address and WEB CODE.'),
+          ('usb', 'USB (SLOW)', 'About 4 KB/s: a cover takes ~6 s, a 1 MB game ~4 min, a preview ~10 min. '
+                                'Fine for a few covers, not for a whole library.')]
 SPINNER = '▖▘▝▗'
 
 
@@ -193,8 +208,156 @@ class App:
             button = PixelButton(tile, 'START ▶', (lambda k=key: self.begin(k)), self.f_pixel, kind)
             button.pack(side='right', padx=16)
             self.tiles[key] = button
+        tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
+        tile.pack(fill='x', pady=(12, 4))
+        words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+        self.label(words, 'SD CARD LIBRARY', self.f_pixel, LILAC).pack(anchor='w')
+        self.label(words, 'Add games, cover art and gameplay previews to your SD card, in the folders Magic Trick '
+                   'reads. Doesn\'t change the firmware.', self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(5, 0))
+        PixelButton(tile, 'OPEN ▶', self.show_library, self.f_pixel, 'secondary').pack(side='right', padx=16)
         self.refresh_device()
         self.fit_window()
+
+    # ---------- SD card library ----------
+    def show_library(self):
+        if self.busy:
+            return
+        self.clear(); self.mode = 'library'
+        self.status_dot.configure(fg=LILAC); self.status_text.configure(text='SD CARD LIBRARY')
+        self.route = getattr(self, 'route', 'folder')
+        self.replace = getattr(self, 'replace', False)
+        self.label(self.screen, 'SD CARD LIBRARY', self.f_pixel_big, LILAC).pack(anchor='w', pady=(4, 6))
+        self.label(self.screen, 'Puts games in their system folder and covers and previews next to them, named '
+                   'to match. Files already on the card are kept.', self.f_body_big, INK, wrap=840).pack(anchor='w')
+        self.label(self.screen, 'HOW TO REACH THE CARD', self.f_pixel, MUTED).pack(anchor='w', pady=(14, 4))
+        self.route_rows = {}
+        for key, name, note in ROUTES:
+            row = tk.Frame(self.screen, bg=BG, cursor='hand2'); row.pack(fill='x', pady=2)
+            mark = self.label(row, '', self.f_pixel, INK); mark.pack(side='left')
+            text = self.label(row, note, self.f_body, AMBER if key == 'usb' else MUTED, wrap=520)
+            text.pack(side='left', padx=(12, 0))
+            for w in (row, mark, text):
+                w.bind('<Button-1>', lambda e, k=key: self.pick_route(k))
+            self.route_rows[key] = (mark, name)
+        self.draw_routes()
+        self.replace_box = self.label(self.screen, '', self.f_pixel, INK, cursor='hand2')
+        self.replace_box.pack(anchor='w', pady=(10, 6))
+        self.replace_box.bind('<Button-1>', lambda e: self.toggle_replace())
+        self.draw_replace()
+        for key, title, text, buttons in [
+                ('games', 'ADD GAMES', 'Game Boy, Game Boy Color, Game Gear and Lynx games, or .zip files holding '
+                 'them. Each goes in its system folder.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
+                ('covers', 'GET COVER ART', 'Finds box art for every game without a cover, by name or checksum, '
+                 'and downloads it to this computer first. ' + library.ART_CREDIT, [('START ▶', None)]),
+                ('previews', 'ADD PREVIEWS', 'Your own gameplay clips (at least 10 s), named like the game. '
+                 'Needs FFmpeg on this computer.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')])]:
+            tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
+            tile.pack(fill='x', pady=4)
+            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+            self.label(words, title, self.f_pixel, INK).pack(anchor='w')
+            self.label(words, text, self.f_body, MUTED, wrap=450).pack(anchor='w', pady=(5, 0))
+            for label, pick in reversed(buttons):
+                PixelButton(tile, label, (lambda k=key, p=pick: self.begin_library(k, p)), self.f_pixel,
+                            'primary' if key == 'covers' else 'secondary').pack(side='right', padx=(0, 16))
+        PixelButton(self.screen, '◀ BACK', self.show_home, self.f_pixel, 'secondary').pack(anchor='w', pady=(12, 0))
+        self.fit_window()
+
+    def pick_route(self, key):
+        self.route = key
+        self.draw_routes()
+
+    def draw_routes(self):
+        for key, (mark, name) in self.route_rows.items():
+            on = key == self.route
+            mark.configure(text=('(•) ' if on else '( ) ') + name.ljust(12), fg=GREEN if on else INK)
+
+    def toggle_replace(self):
+        self.replace = not self.replace
+        self.draw_replace()
+
+    def draw_replace(self):
+        self.replace_box.configure(text=('[X]' if self.replace else '[ ]') + ' REPLACE COVERS AND PREVIEWS ON THE CARD', fg=GREEN if self.replace else INK)
+
+    def begin_library(self, operation, pick):
+        if self.busy:
+            return
+        sources = []
+        if operation != 'covers':
+            if operation == 'games':
+                kinds = [('Games', '*.gb *.gbc *.gg *.lnx *.lyx *.zip'), ('All files', '*')]
+            else:
+                kinds = [('Video clips', ' '.join('*' + e for e in sorted(library.VIDEO_EXTENSIONS))), ('All files', '*')]
+            what = 'games' if operation == 'games' else 'gameplay clips'
+            if pick == 'folder':
+                chosen = filedialog.askdirectory(title='Choose a folder of ' + what)
+                sources = [chosen] if chosen else []
+            else:
+                sources = list(filedialog.askopenfilenames(title='Choose ' + what, filetypes=kinds))
+            if not sources:
+                return
+            if operation == 'previews' and not library.find_ffmpeg():
+                messagebox.showinfo('Magic Trick', 'Previews need FFmpeg on this computer.\n\nMac: brew install '
+                                    'ffmpeg\nWindows: winget install ffmpeg\nLinux: install the ffmpeg package.')
+                return
+        opener, folder = self.library_target()
+        if not opener:
+            return
+        replace = self.replace
+
+        def work():
+            target = opener()
+            try:
+                if operation == 'games':
+                    self.library_result = library.add_games(target, sources)
+                elif operation == 'covers':
+                    self.library_result = library.get_covers(target, replace)
+                else:
+                    self.library_result = library.add_previews(target, sources, replace)
+                if replace and not target.can_replace:
+                    self.library_result += ' (Wi-Fi can\'t replace files, so existing ones were kept.)'
+            finally:
+                target.close()
+        self.library_result = ''
+        self.run(operation, work, folder)
+
+    def library_target(self):
+        """Ask how to reach the card. Returns (a function that opens it, a local folder or None)."""
+        if self.route == 'folder':
+            chosen = filedialog.askdirectory(title='Choose your SD card (or its CHROMAGIC folder)')
+            if not chosen:
+                return None, None
+            path = Path(chosen)
+            root = path.parent if path.name.upper() == 'CHROMAGIC' else path
+            if not any(c.name.upper() == 'CHROMAGIC' for c in root.iterdir() if c.is_dir()) and \
+                    not messagebox.askyesno('Magic Trick', 'There\'s no CHROMAGIC folder in ' + str(root) + '.\n\n'
+                                            'Is this your Chromatic\'s SD card? Choose Yes to create it there.'):
+                return None, None
+            return (lambda: library.FolderTarget(root)), root
+        if self.route == 'wifi':
+            address = simpledialog.askstring('Wi-Fi Files', 'On the Chromatic, open Settings > Wi-Fi Files.\n\n'
+                                             'Address it shows (like 192.168.1.23):', parent=self.root)
+            if not address:
+                return None, None
+            code = simpledialog.askstring('Wi-Fi Files', 'Its six-digit WEB CODE (press A on the Chromatic to see '
+                                          'it):', parent=self.root)
+            if not code:
+                return None, None
+            return (lambda: library.WifiTarget(address, code)), None
+        try:
+            ports = core.device_ports()
+        except Exception:
+            ports = []
+        if len(ports) != 1:
+            messagebox.showinfo('Magic Trick', 'Connect one Chromatic with a USB cable and switch it on first.')
+            return None, None
+        if not messagebox.askyesno('USB is slow', 'USB transfers run at about 4 KB/s:\n\n• a cover: about 6 '
+                                   'seconds\n• a 1 MB game: about 4 minutes\n• a gameplay preview: about 10 '
+                                   'minutes\n\nFor more than a handful, a card reader or Wi-Fi is much faster. '
+                                   'The details show an estimate once the card has been read.\n\nOn the '
+                                   'Chromatic, turn Wi-Fi off and USB TRANSFERS on first. Continue over USB?'):
+            return None, None
+        port = ports[0]
+        return (lambda: library.UsbTarget(port)), None
 
     def fit_window(self):
         """Grow the window to fit its content (high-DPI Windows needs more room), within the screen."""
@@ -352,13 +515,15 @@ class App:
                 error = str(exc) or exc.__class__.__name__
                 self.log('STOPPED: ' + error)
             finally:
-                self.save_log(folder)
+                if operation not in LIBRARY:
+                    self.save_log(folder)
                 self.events.put(('finished', error))
         threading.Thread(target=worker, daemon=True).start()
 
     def show_running(self):
         self.clear(); self.mode = 'running'
-        self.status_dot.configure(fg=ACCENT); self.status_text.configure(text='WORKING… KEEP IT PLUGGED IN')
+        self.status_dot.configure(fg=ACCENT)
+        self.status_text.configure(text='WORKING…' if self.operation in LIBRARY else 'WORKING… KEEP IT PLUGGED IN')
         top = tk.Frame(self.screen, bg=BG); top.pack(fill='x')
         self.run_title = self.label(top, TITLES[self.operation], self.f_pixel_big, INK)
         self.run_title.pack(side='left')
@@ -372,8 +537,11 @@ class App:
         self.bar = tk.Canvas(right, height=34, bg=BG, highlightthickness=0); self.bar.pack(fill='x', pady=(18, 6))
         self.stats = self.label(right, '', self.f_pixel, MUTED); self.stats.pack(anchor='w')
         self.note_label = self.label(right, '', self.f_body, AMBER, wrap=460); self.note_label.pack(anchor='w', pady=(12, 0))
-        self.label(right, 'Keep the Chromatic switched on and the USB cable plugged in until it says DONE.',
-                   self.f_body, MUTED, wrap=460).pack(anchor='w', pady=(12, 0))
+        reminder = {'folder': 'Leave the SD card in the reader until it says DONE.',
+                    'wifi': 'Keep the Chromatic on Wi-Fi Files until it says DONE.'}.get(
+            getattr(self, 'route', None) if self.operation in LIBRARY else None,
+            'Keep the Chromatic switched on and the USB cable plugged in until it says DONE.')
+        self.label(right, reminder, self.f_body, MUTED, wrap=460).pack(anchor='w', pady=(12, 0))
         self.details_toggle = self.label(self.screen, '▸ SHOW DETAILS', self.f_pixel, MUTED, cursor='hand2')
         self.details_toggle.pack(anchor='w', pady=(18, 4))
         self.details_toggle.bind('<Button-1>', lambda e: self.toggle_details())
@@ -462,6 +630,9 @@ class App:
 
     def on_line(self, line):
         """Turn tool output into progress and reassuring notes."""
+        m = re.search(r'^Progress: (\d+) of (\d+)', line)
+        if m:
+            self.step_fraction = int(m.group(1)) / max(int(m.group(2)), 1); return
         m = re.search(r'Read (\d+)% of the MCU flash', line)
         if m:
             self.step_fraction = int(m.group(1)) / 100; return
@@ -497,7 +668,22 @@ class App:
         box = tk.Frame(self.screen, bg=BG); box.pack(fill='both', expand=True)
         self.sparkles = tk.Canvas(box, height=90, bg=BG, highlightthickness=0); self.sparkles.pack(fill='x')
         folder = str(self.folder)
-        if error is None and stage != 'complete_unconfirmed':
+        if self.operation in LIBRARY:
+            word, colour = ('DONE!', GREEN) if error is None else ('STOPPED', RED)
+            if error is None:
+                lines = self.library_result
+                extra = {'folder': 'Eject the SD card safely, put it back in the Chromatic and open BACKUPS.',
+                         'wifi': 'Press B on Wi-Fi Files, then open BACKUPS to see them.',
+                         'usb': 'Turn USB TRANSFERS off, then open BACKUPS to see them.'}[self.route]
+            else:
+                lines = 'It stopped before finishing: ' + error
+                extra = ('Everything written before it stopped is complete and stays on the card. Run it again to '
+                         'carry on; files already there are skipped.')
+            if self.operation == 'covers':
+                extra += '\n' + library.ART_CREDIT
+            extra += '\nSHOW DETAILS (or COPY LOG) lists every file and anything that didn\'t match.'
+            self.status_dot.configure(fg=colour); self.status_text.configure(text='ALL DONE' if error is None else 'STOPPED')
+        elif error is None and stage != 'complete_unconfirmed':
             word, colour = 'DONE!', GREEN
             lines = {'install': 'Magic Trick is installed. Turn your Chromatic off and on once, then enjoy.',
                      'uninstall': 'Magic Trick is uninstalled. Turn your Chromatic off and on. To go all the way back '
@@ -537,11 +723,14 @@ class App:
         row = tk.Frame(box, bg=BG); row.pack(anchor='w', pady=(22, 0))
         if error is None and stage == 'complete_unconfirmed':
             PixelButton(row, 'CHECK AGAIN', self.check_again, self.f_pixel, 'primary').pack(side='left', padx=(0, 10))
-        if Path(folder).is_dir():
+        if self.folder and Path(folder).is_dir():
             PixelButton(row, 'OPEN FOLDER', lambda: self.open_folder(folder), self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
         PixelButton(row, 'COPY LOG', self.copy_log, self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
         if error is not None:
             PixelButton(row, 'HELP', lambda: webbrowser.open(DOCS), self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
+        if self.operation in LIBRARY:
+            PixelButton(row, 'BACK TO LIBRARY', self.show_library, self.f_pixel, 'primary').pack(side='left')
+            return
         PixelButton(row, 'START OVER', self.show_home, self.f_pixel,
                     'secondary' if error is None and stage == 'complete_unconfirmed' else 'primary').pack(side='left')
 
@@ -662,6 +851,10 @@ def self_test():
     assert 'esptool' in out, 'bundled esptool did not run: ' + out
     assert (ASSETS / 'unscii-8.ttf').is_file() and (ASSETS / 'logo-mark.png').is_file(), 'installer artwork missing'
     fpga.run(['--version'], print)
+    import certifi   # noqa: F401  (cover downloads need its certificates in the packaged app)
+    from PIL import Image
+    png = io.BytesIO(); Image.new('RGB', (40, 30), (200, 30, 30)).save(png, 'PNG')
+    assert len(library.cover_bytes(png.getvalue())) == library.COVER_BYTES, 'cover conversion failed'
     print('Magic Trick installer ' + core.INSTALLER_VERSION + ' (firmware ' + core.RELEASE + '): bundled firmware and dependencies OK')
 
 
@@ -739,6 +932,12 @@ if __name__ == '__main__':
             print('VERSIONS:', json.dumps(core.version(sys.argv[2], trace=lambda s: print(s, flush=True))))
         except ValueError as exc:
             print('NO VERSION:', exc)
+    elif len(sys.argv) > 1 and sys.argv[1] == '--library':
+        try:
+            sys.exit(library.main(sys.argv[2:]))
+        except (ValueError, OSError) as exc:
+            print('ERROR: ' + str(exc), flush=True)
+            sys.exit(1)
     elif '--self-test' in sys.argv:
         self_test()
     elif len(sys.argv) == 4 and sys.argv[1] in ('--install', '--uninstall', '--restore'):

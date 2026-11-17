@@ -33,6 +33,7 @@ This is an independent community project with no guaranteed support or release s
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
 - **Recent games** and **last-game startup** (hold B at power-on to skip).
 - **Wi-Fi file transfers** to and from the SD card in a web browser. Files already on the card are skipped, so you can drop a whole folder again after an interruption.
+- **SD card library** in the installer: adds games to the right system folder, downloads box art for them and converts your gameplay clips into previews, over a card reader, Wi-Fi or USB.
 - **USB file transfers** with [ChroMagician](https://github.com/cursedtoast2/ChroMagician) (Windows and Linux): turn on **USB TRANSFERS** in the menu, with Wi-Fi off. It's the same switch ChroMagician calls **C. MAGICIAN**. USB uploads are slow (a few KB/s), so use Wi-Fi or a card reader for a big library.
 - **Boot animation** with the Magic Trick logo.
 - Files beginning with `[BIOS]` are hidden without being deleted. Demo and Kiosk ROMs are filtered out.
@@ -135,6 +136,7 @@ Magic Trick is a modification of other people's work, and they deserve the credi
 - **[GOWIN Semiconductor](https://www.gowinsemi.com/en/)**: acknowledged in the upstream FPGA notices.
 - **[Espressif ESP-IDF and esptool](https://github.com/espressif)**, **[LVGL](https://lvgl.io/)**, **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)**, **[libusb](https://libusb.info/)**, **Python** and **PyInstaller**: firmware framework, UI library, and the flashing tools bundled in the installer.
 - **[libretro-database](https://github.com/libretro/libretro-database)** contributors: the optional external cheat data used by the cheat pack compiler. No database or generated pack is bundled.
+- **[ScreenScraper](https://www.screenscraper.fr)** contributors and **[chipster6502](https://github.com/chipster6502/MiSTer_artwork_pack)**: the box art the installer's SD card library downloads, collected and matched in the MiSTer Artwork Pack. No artwork is bundled.
 
 Additional authors are named in the source file headers; those notices are preserved. See [CREDITS.md](CREDITS.md) for source provenance and exactly what Magic Trick adds. The repository's neutral commit author does not claim authorship of upstream work.
 

@@ -59,6 +59,24 @@ ModRetro's updater and ChroMagician can't reflash the FPGA of a device running M
 
 Choose **Restore backup…** and pick `mcu-backup.bin` from your **first** install. It works whatever state the device is in, even with no USB serial port: it writes the ChroMagic 1.0.1 FPGA first, then puts back your saved MCU flash. Use it when install, update or uninstall can't finish. Afterwards ModRetro's updater works normally.
 
+## SD card library
+
+**SD card library** puts games, covers and gameplay previews on the card, in the folders and with the names Magic Trick reads. It doesn't touch the firmware, and files already on the card are kept unless you tick **Replace covers and previews**.
+
+- **Add games:** `.gb`, `.gbc`, `.gg`, `.lnx` and `.lyx` files, or `.zip` files holding them. Each goes in `CHROMAGIC/BACKUPS/<system>/`; a game with the same file name anywhere in `BACKUPS` is skipped. Game Boy Color-only games go to `GBC` even when named `.gb`.
+- **Get cover art:** finds box art for every game without a cover and writes it to `CHROMAGIC/ART/`, next to the game's path. Games are matched by file name, then by checksum, then by title when only one game has that title. Unmatched games are listed in the details. Box art comes from [ScreenScraper](https://www.screenscraper.fr), through the [MiSTer Artwork Pack](https://github.com/chipster6502/MiSTer_artwork_pack) by chipster6502. It's downloaded to your computer when you ask; the installer doesn't include any.
+- **Add previews:** your own gameplay clips, at least 10 seconds long, named like the game file (`Tetris (World).mp4`) or its title (`Tetris.mp4`, used for every version of that game). Needs FFmpeg: `brew install ffmpeg`, `winget install ffmpeg`, or your Linux distribution's package.
+
+Three ways to reach the card:
+
+| | Speed | How |
+|---|---|---|
+| **Card reader** | Fastest | Put the SD card in your computer and choose it (or its `CHROMAGIC` folder). |
+| **Wi-Fi** | About 90 KB/s | On the Chromatic open **Settings > Wi-Fi Files**, then type the address and the six-digit WEB CODE it shows. Wi-Fi can't replace files that are already there. |
+| **USB** | About 4 KB/s | Turn Wi-Fi off and **USB TRANSFERS** on. A cover takes about 6 s, a 1 MB game about 4 min and a preview about 10 min, so use it for a handful of files, not a whole library. |
+
+From the command line: `app.py --library games|covers|previews TARGET [FILES…] [--replace]`, where `TARGET` is the card's folder, `wifi:ADDRESS:CODE` or `usb:PORT`.
+
 ## If something goes wrong
 
 The full step-by-step is in the [recovery guide](../docs/recovery.md).
