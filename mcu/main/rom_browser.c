@@ -9,6 +9,7 @@
 #include "rom_title.h"
 #include "cheats.h"
 #include "recent_games.h"
+#include "cart_store.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -42,12 +43,17 @@ static const char *const RomDirectory = ROM_BROWSER_ROOT;
 enum { kPathSize = 320, kSavePathReserve = 5 };
 static char CurrentDirectory[kPathSize] = ROM_BROWSER_ROOT;
 static bool RecentView;
+/* The inserted cartridge's Magic Trick games (cart_store.c), shown as a
+ * "Cartridge" folder at the library root. */
+static bool CartView;
+static const char kCartFolder[] = "Cartridge";
 
 typedef struct {
     char *pName;
     char *pPath;
     bool Directory;
     bool Recent;
+    bool Cart;
 } RomEntry_t;
 
 typedef struct RomCatalog {
@@ -121,12 +127,12 @@ static esp_err_t AppendName(const char *pName, bool Directory)
 
 static bool AtRoot(void)
 {
-    return strcmp(CurrentDirectory, RomDirectory) == 0;
+    return !CartView && strcmp(CurrentDirectory, RomDirectory) == 0;
 }
 
 static RecentSystem_t CurrentSystem(void)
 {
-    if (AtRoot()) return kRecentNone;
+    if (AtRoot() || CartView) return kRecentNone;
     const char *Name=CurrentDirectory+strlen(RomDirectory)+1;
     return !strcasecmp(Name,"GB") ? kRecentGB : !strcasecmp(Name,"GBC") ? kRecentGBC :
         !strcasecmp(Name,"GG") ? kRecentGG : !strcasecmp(Name,"LYNX") ? kRecentLynx : kRecentNone;
@@ -181,6 +187,19 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
     }
 
     TraceCatalog("directory", ESP_OK);
+
+    if (CartView) {
+        const size_t Count = CartStore_Refresh(false);
+        for (size_t I = 0; Result == ESP_OK && I < Count; ++I) {
+            CartStoreEntry_t Entry;
+            char Path[kPathSize];
+            if (!CartStore_Entry(I, &Entry) || !IsRomName(Entry.Name)) continue;
+            snprintf(Path, sizeof(Path), "%s/%s", CART_STORE_ROOT, Entry.Name);
+            Result = AppendName(Entry.Name, false);
+            if (Result == ESP_OK && !(Catalog.pEntries[Catalog.Count-1].pPath = strdup(Path))) Result = ESP_ERR_NO_MEM;
+        }
+        goto Cleanup;
+    }
 
     if (RecentView) {
         struct stat Stat;
@@ -252,6 +271,11 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
         Result = ESP_FAIL;
     }
     if (Result==ESP_OK) Result=AppendRecent();
+    /* The cartridge folder, when the inserted cart carries Magic Trick games. */
+    if (Result == ESP_OK && AtRoot() && CartStore_Refresh(false) > 0) {
+        Result = AppendName(kCartFolder, true);
+        if (Result == ESP_OK) Catalog.pEntries[Catalog.Count-1].Cart = true;
+    }
 
 Cleanup:
     TraceCatalog("unmount", Result);
@@ -301,6 +325,11 @@ static esp_err_t EnterDirectory(size_t Index, size_t *pCount)
         RecentView=true;
         return ReadCatalog(pCount,false);
     }
+    if (Catalog.pEntries[Index].Cart) {
+        CartView=true;
+        (void)CartStore_Refresh(true);
+        return ReadCatalog(pCount,false);
+    }
     char Path[kPathSize];
     const int Length = snprintf(Path, sizeof(Path), "%s/%s", CurrentDirectory,
                                 NameAt(Index));
@@ -312,6 +341,13 @@ static esp_err_t EnterDirectory(size_t Index, size_t *pCount)
 static esp_err_t ParentDirectory(size_t *pCount, size_t *pSelected)
 {
     if (AtRoot() || pCount == NULL || pSelected == NULL) return ESP_ERR_INVALID_ARG;
+    if (CartView) {
+        CartView=false;
+        const esp_err_t Result=ReadCatalog(pCount,false);
+        *pSelected=0;
+        for (size_t I=0; Result==ESP_OK && I<Catalog.Count; ++I) if (Catalog.pEntries[I].Cart) *pSelected=I;
+        return Result;
+    }
     if (RecentView) {
         RecentView=false;
         *pSelected=0;
@@ -340,7 +376,7 @@ static esp_err_t StartRom(const char *pName)
 
     if (pName == NULL) return ESP_ERR_INVALID_ARG;
     char Path[kPathSize];
-    const int Length = snprintf(Path, sizeof(Path), "%s/%s", CurrentDirectory, pName);
+    const int Length = snprintf(Path, sizeof(Path), "%s/%s", CartView ? CART_STORE_ROOT : CurrentDirectory, pName);
     if (Length < 0 || Length + kSavePathReserve >= (int)sizeof(Path)) return ESP_ERR_INVALID_SIZE;
     return VirtualCart_Start(Path);
 }
@@ -390,7 +426,7 @@ static esp_err_t StartIndex(size_t Index)
 static bool ArtPath(size_t Index, char *Path, size_t Size)
 {
     char Rom[kPathSize];
-    if (!RomPath(Index,Rom,sizeof(Rom))) return false;
+    if (!RomPath(Index,Rom,sizeof(Rom)) || strncmp(Rom,RomDirectory,strlen(RomDirectory))) return false;
     const int Length = snprintf(Path, Size, "/sdcard/CHROMAGIC/ART%s.cma", Rom+strlen(RomDirectory));
     return Length >= 0 && (size_t)Length < Size;
 }
@@ -398,14 +434,14 @@ static bool ArtPath(size_t Index, char *Path, size_t Size)
 static bool VideoPath(size_t Index, char *Path, size_t Size)
 {
     char Rom[kPathSize];
-    if (!RomPath(Index,Rom,sizeof(Rom))) return false;
+    if (!RomPath(Index,Rom,sizeof(Rom)) || strncmp(Rom,RomDirectory,strlen(RomDirectory))) return false;
     const int Length = snprintf(Path, Size, "/sdcard/CHROMAGIC/VIDEO%s.cmv", Rom+strlen(RomDirectory));
     return Length >= 0 && (size_t)Length < Size;
 }
 
 static RomPlatform_t FolderPlatform(size_t Index)
 {
-    if (!IsDirectory(Index)) return kRomPlatformUnknown;
+    if (!IsDirectory(Index) || CartView || Catalog.pEntries[Index].Cart) return kRomPlatformUnknown;
     /* Use the top-level system, so every range/nested folder inherits it. */
     const char *Name = AtRoot() ? NameAt(Index) : CurrentDirectory + strlen(RomDirectory) + 1;
     const size_t Length = strcspn(Name, "/");

@@ -26,14 +26,20 @@ CoreSystem_t CoreSwitch_NextCore(CoreSystem_t System);
 /* Caller must have saved active battery data, stopped the core, closed files,
  * released bulk transport and unmounted SD. Success resets the device. */
 esp_err_t CoreSwitch_Request(const char *Path);
+/* Land on Target instead of the game's own core first (the game is then
+ * launched there, e.g. GB to stage a cartridge game; see cart_store.h). */
+esp_err_t CoreSwitch_RequestVia(const char *Path, CoreSystem_t Target);
 /* After a reload landed on an intermediate core: reload again, at most
  * kCoreSwitchMaxHops reloads per request. */
 enum { kCoreSwitchMaxHops = 2 };
 esp_err_t CoreSwitch_Continue(const char *Path, uint8_t Hops);
+esp_err_t CoreSwitch_ContinueTo(const char *Path, uint8_t Hops, CoreSystem_t Target);
 /* Consume before launching, including failure paths, to prevent reboot loops. */
 esp_err_t CoreSwitch_TakePending(char Path[LAST_GAME_PATH_SIZE]);
 /* Same, and how many reloads the request has used so far (1 after the first). */
 esp_err_t CoreSwitch_TakePendingHops(char Path[LAST_GAME_PATH_SIZE], uint8_t *pHops);
+/* Same, and the core the request is for (its via core, or the game's own). */
+esp_err_t CoreSwitch_TakePendingTarget(char Path[LAST_GAME_PATH_SIZE], uint8_t *pHops, CoreSystem_t *pTarget);
 /* Diagnostics: store a pending launch without reloading (taken at the next
  * boot if that core is running, e.g. after loading a core over JTAG). */
 esp_err_t CoreSwitch_SetPending(const char *Path);

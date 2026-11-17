@@ -16,6 +16,7 @@
 #include "cart_backup.h"
 
 #include "cart_bulk.h"
+#include "cart_store.h"
 #include "cart_link.h"
 #include "cart_mapper.h"
 #include "cart_rtc.h"
@@ -603,7 +604,29 @@ static bool ReadLynxBios(const char *pRomPath, uint8_t Bios[kLynxBiosSize])
 /* 60 Hz frame lock for the next Lynx game (lynx_board_core.sv flag bit 1). */
 static bool LynxLock60 = true;
 
-static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const char *pPath)
+/* Normal: SD or cartridge file to PSRAM. Capture: the same, also keeping the
+ * blocks the next core's PSRAM self-test overwrites (cart_store.c), before a
+ * core switch. Replay: in the Lynx core, the game is already in PSRAM; write
+ * the info block and the kept blocks only. */
+typedef enum { kUploadNormal, kUploadCapture, kUploadReplay } UploadMode_t;
+
+static esp_err_t ReplayStaged(uint32_t ReplayCrc, uint32_t Size)
+{
+    for (size_t i = 0; i < CartStore_ReplayCount(); ++i)
+    {
+        uint32_t Address;
+        const uint8_t *pData;
+        if (!CartStore_ReplayBlock(i, &Address, &pData)) return ESP_FAIL;
+        memcpy(TransferBuffer, pData, sizeof(TransferBuffer));
+        ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(Address, TransferBuffer), TAG, "staged replay");
+    }
+    printf("VIRTUAL_CART_REPLAY blocks=%u\n", (unsigned)CartStore_ReplayCount());
+    GGRomCrc = ReplayCrc;
+    RomBrowserUI_SetProgress(Size, Size);
+    return ESP_OK;
+}
+
+static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const char *pPath, UploadMode_t Mode, uint32_t ReplayCrc)
 {
     /* Block 0: info block, then the boot ROM at 0x200. */
     memset(TransferBuffer, 0, sizeof(TransferBuffer));
@@ -647,6 +670,7 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
     Info[12] = (uint8_t)pInfo->LynxRom.Load; Info[13] = (uint8_t)(pInfo->LynxRom.Load >> 8);
     ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase, TransferBuffer), TAG, "Lynx info");
     GGRomCrc = 0;
+    if (Mode == kUploadReplay) return ReplayStaged(ReplayCrc, Size);
     if (fseek(pRom, 0, SEEK_SET)) return ESP_FAIL;
     for (uint32_t Offset = 0; Offset < Size; Offset += sizeof(TransferBuffer))
     {
@@ -659,9 +683,33 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
         for (size_t i = 0; i < Stage2Length; ++i)
             if (Stage2Offset + i >= Offset && Stage2Offset + i < Offset + Count)
                 TransferBuffer[Stage2Offset + i - Offset] = Stage2[i];
+        if (Mode == kUploadCapture)
+            CartStore_StageBlock(kRomBase + kLynxFileAddress + Offset, TransferBuffer);
         ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + kLynxFileAddress + Offset, TransferBuffer),
                             TAG, "Lynx ROM upload");
         RomBrowserUI_SetProgress(Offset + Count, Size);
+    }
+    return ESP_OK;
+}
+
+/* Game Gear from a cartridge: read each ROM block once and write it to
+ * every mirror position (the SD path rereads the file for each mirror, too
+ * slow over the cartridge bus). Same PSRAM contents as UploadRomPatched. */
+static esp_err_t UploadGGOnce(FILE *pRom, const VirtualCartInfo_t *pInfo, UploadMode_t Mode, uint32_t ReplayCrc)
+{
+    if (Mode == kUploadReplay) return ReplayStaged(ReplayCrc, pInfo->RomSize);
+    GGRomCrc = 0;
+    if (pInfo->RomSize == 0 || (pInfo->RomSize % sizeof(TransferBuffer)) || fseek(pRom, 0, SEEK_SET)) return ESP_FAIL;
+    for (uint32_t Offset = 0; Offset < pInfo->RomSize; Offset += sizeof(TransferBuffer))
+    {
+        if (fread(TransferBuffer, 1, sizeof(TransferBuffer), pRom) != sizeof(TransferBuffer)) return ESP_FAIL;
+        GGRomCrc = StateFile_Crc32(GGRomCrc, TransferBuffer, sizeof(TransferBuffer));
+        for (uint32_t Base = 0; Base + Offset < kMaximumRomSize; Base += pInfo->RomSize)
+        {
+            if (Mode == kUploadCapture) CartStore_StageBlock(kRomBase + Base + Offset, TransferBuffer);
+            ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + Base + Offset, TransferBuffer), TAG, "GG ROM upload");
+        }
+        RomBrowserUI_SetProgress(Offset + sizeof(TransferBuffer), pInfo->RomSize);
     }
     return ESP_OK;
 }
@@ -740,6 +788,13 @@ static esp_err_t MakeCompanionPath(const char *pRomPath,
                                    const char Extension[5],
                                    char Output[kPathSize])
 {
+    /* Cartridge games keep their saves on the SD card. */
+    char Base[kPathSize];
+    if (CartStore_IsCartPath(pRomPath))
+    {
+        ESP_RETURN_ON_ERROR(CartStore_SidecarBase(pRomPath, Base, sizeof(Base)), TAG, "cart save path");
+        pRomPath = Base;
+    }
     const int Length = snprintf(Output, kPathSize, "%s", pRomPath);
     if (Length < 0 || Length >= kPathSize)
     {
@@ -765,6 +820,12 @@ static esp_err_t MakeStatePath(const char *pRomPath, unsigned Slot,
                                char StatePath[kPathSize])
 {
     static const char *const Extensions[kStateSlots] = {".state", ".state2", ".state3"};
+    char Base[kPathSize];
+    if (CartStore_IsCartPath(pRomPath))
+    {
+        if (CartStore_SidecarBase(pRomPath, Base, sizeof(Base)) != ESP_OK) { StatePath[0] = '\0'; return ESP_ERR_INVALID_SIZE; }
+        pRomPath = Base;
+    }
     const int Length = snprintf(StatePath, kPathSize, "%s", pRomPath);
     char *pDot = Length > 0 && Length < kPathSize ? strrchr(StatePath, '.') : NULL;
     /* Leave room for the ".tmp"/".old" publication sidecars. */
@@ -1806,28 +1867,46 @@ static esp_err_t RunLoad(const char *pPath)
     bool RtcPresent = false;
     bool RtcSupported = false;
     CheatPlan_t Cheats = {0};
+    bool Replay = false, ViaGB = false;
+    uint32_t ReplayCrc = 0, ReplaySize = 0;
 
     Result = SDCard_Mount(&pCard);
     if (Result != ESP_OK) goto Cleanup;
     Mounted = true;
+    const bool FromCart = CartStore_IsCartPath(pPath);
+    if (FromCart && mkdir(CART_STORE_SIDECAR_ROOT, 0775) != 0 && errno != EEXIST)
+    {
+        Result = ESP_FAIL;
+        goto Cleanup;
+    }
+    /* Cartridge games: only the GB core reads the cart (cart_store.h). In
+     * another core the game is either staged already (replay) or the GB core
+     * must stage it first (ViaGB). */
+    Replay = FromCart && !CartStore_CanReadCart() &&
+        CoreSwitch_IsCore(CoreSwitch_SystemForPath(pPath)) && CartStore_ReplayReady(pPath, &ReplayCrc, &ReplaySize);
+    ViaGB = FromCart && !CartStore_CanReadCart() && !Replay;
+    const char *extension=strrchr(pPath,'.');
+    Info.GameGear=extension && !strcasecmp(extension,".gg");
+    Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;
 
-    pRom = fopen(pPath, "rb");
-    if (pRom == NULL)
+    if (!ViaGB) pRom = fopen(pPath, "rb");
+    if (!ViaGB && pRom == NULL)
     {
         Result = ESP_ERR_NOT_FOUND;
         goto Cleanup;
     }
-    const char *extension=strrchr(pPath,'.');
-    Info.GameGear=extension && !strcasecmp(extension,".gg");
-    Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;
-    if (Info.Lynx) {
+    if (ViaGB) {
+        snprintf(Info.Title,sizeof(Info.Title),"CARTRIDGE");
+        Result = ESP_OK;
+    } else if (Info.Lynx) {
         Result=LynxRom_Inspect(pRom,&Info.LynxRom);
         Info.RomSize=Info.LynxRom.Size;
         Info.MappedRomSize=Info.LynxRom.Size;
         /* The state file identifies the game by title, size and CRC. */
         snprintf(Info.Title,sizeof(Info.Title),"%.16s",Info.LynxRom.Title);
     } else if (Info.GameGear) {
-        Result=GGRom_Inspect(pRom,&Info.RomSize);
+        if (Replay) { Info.RomSize=ReplaySize; Result=ESP_OK; }
+        else Result=GGRom_Inspect(pRom,&Info.RomSize);
         if(Result==ESP_OK) Result=Cheats_Prepare(pPath,pRom,&Cheats);
         Info.MappedRomSize=kMaximumRomSize;
         snprintf(Info.Title,sizeof(Info.Title),"GAME GEAR");
@@ -1850,9 +1929,9 @@ static esp_err_t RunLoad(const char *pPath)
     CartLinkResponse_t identity={0};
     Result=VirtualCommand(kVirtualCommandStatus,NULL,&identity);
     if (Result!=ESP_OK) goto Cleanup;
-    const bool coreMatches=identity.Data[3]==CoreTag(&Info) && (!CoreTag(&Info) || identity.Data[2]==1);
+    const bool coreMatches=!ViaGB && identity.Data[3]==CoreTag(&Info) && (!CoreTag(&Info) || identity.Data[2]==1);
     if (!coreMatches) {
-        if (!CoreSwitch_IsSupported() || CoreSwitch_IsCore(CoreSwitch_SystemForPath(pPath))) {
+        if (!CoreSwitch_IsSupported() || (!ViaGB && CoreSwitch_IsCore(CoreSwitch_SystemForPath(pPath)))) {
             Result=ESP_ERR_NOT_SUPPORTED;
             goto Cleanup;
         }
@@ -1866,6 +1945,17 @@ static esp_err_t RunLoad(const char *pPath)
         VirtualDisturbed = true;
         SetActive(false);
         ClearActiveSave();
+        if (FromCart && !ViaGB && (Info.Lynx || Info.GameGear))
+        {
+            /* The target core cannot read the cartridge: stage the game in
+             * PSRAM from here; it survives the FPGA reload. */
+            Result = CartStore_StageBegin(pPath);
+            if (Result == ESP_OK)
+                Result = Info.Lynx ? UploadLynx(pRom, &Info, pPath, kUploadCapture, 0)
+                                   : UploadGGOnce(pRom, &Info, kUploadCapture, 0);
+            if (Result == ESP_OK) Result = CartStore_StageCommit(GGRomCrc);
+            if (Result != ESP_OK) goto Cleanup;
+        }
         SwitchRequested = true;
         goto Cleanup;
     }
@@ -1882,7 +1972,13 @@ static esp_err_t RunLoad(const char *pPath)
     SetActive(false);
     ClearActiveSave();
 
-    Result = Info.Lynx ? UploadLynx(pRom, &Info, pPath) : UploadRomPatched(pRom, &Info, &Cheats);
+    if (Info.Lynx)
+        Result = UploadLynx(pRom, &Info, pPath, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
+    else if (Info.GameGear && FromCart)
+        Result = UploadGGOnce(pRom, &Info, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
+    else
+        Result = UploadRomPatched(pRom, &Info, &Cheats);
+    if (Replay) CartStore_ReplayDone();
     if (Info.GameGear || Info.Lynx) Info.GlobalChecksum = (uint16_t)(GGRomCrc ^ (GGRomCrc >> 16));
     if (Result != ESP_OK) goto Cleanup;
     if (fclose(pRom) != 0)
@@ -1972,7 +2068,7 @@ Cleanup:
         }
     }
     if (SwitchRequested && Result == ESP_OK)
-        Result = CoreSwitch_Request(pPath);
+        Result = ViaGB ? CoreSwitch_RequestVia(pPath, kCoreSystem_GB) : CoreSwitch_Request(pPath);
     /* Completion clears the browser's error tracking. Publish it only after
      * cleanup succeeds, so an unmount failure is still reported to the UI. */
     if (Result == ESP_OK)
@@ -1981,12 +2077,16 @@ Cleanup:
 #ifdef ESP_PLATFORM
         if (Info.Lynx) { DiagLog_Append("lynx load PASS %s", Info.Title); LynxDiagMaybeStart(); }
 #endif
-        const esp_err_t RememberResult = LastGame_Remember(pPath);
-        if (RememberResult != ESP_OK)
-            printf("LAST_GAME remember_error=%s\n", esp_err_to_name(RememberResult));
-        const esp_err_t RecentResult = RecentGames_Remember(pPath);
-        if (RecentResult != ESP_OK)
-            printf("RECENT_GAMES remember_error=%s\n", esp_err_to_name(RecentResult));
+        /* Cartridge games are not resumed at power-on (that needs the cart). */
+        if (!CartStore_IsCartPath(pPath))
+        {
+            const esp_err_t RememberResult = LastGame_Remember(pPath);
+            if (RememberResult != ESP_OK)
+                printf("LAST_GAME remember_error=%s\n", esp_err_to_name(RememberResult));
+            const esp_err_t RecentResult = RecentGames_Remember(pPath);
+            if (RecentResult != ESP_OK)
+                printf("RECENT_GAMES remember_error=%s\n", esp_err_to_name(RecentResult));
+        }
         if (RomBrowserUI_SetComplete())
         {
             const esp_err_t CloseResult = RomBrowser_CloseMenu();
@@ -2784,6 +2884,87 @@ static bool AcquireRunning(void)
     return false;
 }
 
+/* psramtest w|r <seed> [blocks]: write or check a seeded pattern in PSRAM
+ * 0x420000.. (the GB save window, 1 KiB blocks, default 128). Reading uses
+ * the GB core's save-block snapshot, so "r" needs the GB/GBC core; "w" works
+ * in any core with the cart engine. Diagnostics: shows whether PSRAM keeps
+ * its contents across FPGA core switches (cart-as-storage for Lynx). */
+static void PsramPattern(uint32_t Seed, uint32_t Block, uint8_t *pOut)
+{
+    uint32_t X = Seed * 2654435761u ^ (Block + 1u) * 40503u ^ 0x9e3779b9u;
+    for (size_t i = 0; i < kCartBulkBlockSize; ++i)
+    {
+        X ^= X << 13; X ^= X >> 17; X ^= X << 5;
+        pOut[i] = (uint8_t)(X >> 11);
+    }
+}
+
+static int PsramTestCommand(int argc, char **argv)
+{
+    if (argc < 3 || (argv[1][0] != 'w' && argv[1][0] != 'r'))
+    {
+        printf("PSRAMTEST FAIL usage\n");
+        return 1;
+    }
+    const bool Write = argv[1][0] == 'w';
+    const uint32_t Seed = (uint32_t)strtoul(argv[2], NULL, 0);
+    uint32_t Blocks = argc > 3 ? (uint32_t)strtoul(argv[3], NULL, 0) : 128u;
+    if (Blocks == 0 || Blocks > 256u) Blocks = 128u;
+    if (!Write && !CoreSwitch_IsCore(kCoreSystem_GB))
+    {
+        printf("PSRAMTEST FAIL read_needs_gb_core\n");
+        return 1;
+    }
+    if (!AcquireRunning()) { printf("PSRAMTEST FAIL busy\n"); return 1; }
+    static uint8_t Expect[kCartBulkBlockSize];
+    esp_err_t Result = CartBulk_Begin();
+    uint32_t BadBlocks = 0, BadBytes = 0, FfBlocks = 0, ZeroBlocks = 0;
+    for (uint32_t Block = 0; Result == ESP_OK && Block < Blocks; ++Block)
+    {
+        PsramPattern(Seed, Block, Write ? TransferBuffer : Expect);
+        if (Write)
+        {
+            Result = CartBulk_WritePSRAMBlock(kSaveBase + Block * kCartBulkBlockSize, TransferBuffer);
+            continue;
+        }
+        if (++SaveSequence == 0) ++SaveSequence;
+        CartLinkResponse_t Response = {0};
+        Result = VirtualCommandRaw(kVirtualCommandSaveBlock, SaveSequence, (uint8_t)Block, &Response);
+        if (Result == ESP_OK) Result = CartBulk_ReadVirtualBlock(SaveSequence, TransferBuffer);
+        if (Result != ESP_OK) break;
+        uint32_t Bad = 0, Ff = 0, Zero = 0;
+        for (size_t i = 0; i < kCartBulkBlockSize; ++i)
+        {
+            Bad += TransferBuffer[i] != Expect[i];
+            Ff += TransferBuffer[i] == 0xff;
+            Zero += TransferBuffer[i] == 0;
+        }
+        FfBlocks += Ff == kCartBulkBlockSize;
+        ZeroBlocks += Zero == kCartBulkBlockSize;
+        if (Bad)
+        {
+            ++BadBlocks; BadBytes += Bad;
+            if (BadBlocks <= 8)
+                printf("PSRAMTEST_BAD block=%lu bytes=%lu got=%02x%02x%02x%02x want=%02x%02x%02x%02x\n",
+                       (unsigned long)Block, (unsigned long)Bad, TransferBuffer[0], TransferBuffer[1],
+                       TransferBuffer[2], TransferBuffer[3], Expect[0], Expect[1], Expect[2], Expect[3]);
+        }
+    }
+    CartBulk_End();
+    (void)SetRunning(false);
+    if (Result != ESP_OK)
+    {
+        printf("PSRAMTEST FAIL %s\n", esp_err_to_name(Result));
+        return 1;
+    }
+    if (Write) printf("PSRAMTEST WROTE seed=%lu blocks=%lu\n", (unsigned long)Seed, (unsigned long)Blocks);
+    else printf("PSRAMTEST %s seed=%lu blocks=%lu bad_blocks=%lu bad_bytes=%lu all_ff=%lu all_zero=%lu\n",
+                BadBlocks ? "MISMATCH" : "MATCH", (unsigned long)Seed, (unsigned long)Blocks,
+                (unsigned long)BadBlocks, (unsigned long)BadBytes, (unsigned long)FfBlocks,
+                (unsigned long)ZeroBlocks);
+    return 0;
+}
+
 static int LynxShotCommand(int argc,char **argv)
 {
     /* "lynxshot live" reads while the game runs (no freeze). */
@@ -2987,6 +3168,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
       {.command="sdcat",.help="Print an SD card file as base64 (diagnostics)",.hint="</sdcard/...>",.func=SdCatCommand},
       {.command="lynxlock",.help="60 Hz frame lock for the next Lynx game (diagnostics)",.hint="[0|1]",.func=LynxLockCommand},
       {.command="lynxshot",.help="Print the Lynx core's panel framebuffer (base64, diagnostics)",.hint="[live|state]",.func=LynxShotCommand},
+      {.command="psramtest",.help="Write or check a PSRAM pattern at 0x420000 (diagnostics)",.hint="w|r <seed> [blocks]",.func=PsramTestCommand},
 #endif
     };
     for(unsigned i=0;i<sizeof(NativeCommands)/sizeof(NativeCommands[0]);++i) {

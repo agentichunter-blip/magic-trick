@@ -21,6 +21,7 @@
 #include "color_correct_lcd.h"
 #include "color_correct_usb.h"
 #include "cart_bulk.h"
+#include "cart_store.h"
 #include "cart_link.h"
 #include "cart_backup.h"
 #include "dpad_ctl.h"
@@ -274,6 +275,7 @@ void app_main(void)
     Mutex_Init();
     ESP_ERROR_CHECK(CartLink_Init());
     ESP_ERROR_CHECK(CartBackup_Init());
+    ESP_ERROR_CHECK(CartStore_Init());
     ESP_ERROR_CHECK(RomBrowser_Init());
     if (RomBrowserWorker_Init() != ESP_OK)
         printf("ROM_BROWSER: low memory; artwork disabled, basic browser available\n");
@@ -413,6 +415,7 @@ void app_main(void)
     ESP_ERROR_CHECK(FPGA_Rx_RegisterConsoleCommand());
     ESP_ERROR_CHECK(CartBulk_RegisterConsoleCommand());
     ESP_ERROR_CHECK(CartBackup_RegisterConsoleCommand());
+    ESP_ERROR_CHECK(CartStore_RegisterConsoleCommands());
     ESP_ERROR_CHECK(VirtualCart_RegisterConsoleCommands());
     ESP_ERROR_CHECK(NativeStateControl_Init());
     ESP_ERROR_CHECK(PCBackup_RegisterConsoleCommand());

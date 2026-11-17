@@ -241,16 +241,17 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
 {
     char Path[LAST_GAME_PATH_SIZE];
     uint8_t Hops = 1;
-    const esp_err_t PendingResult = CoreSwitch_TakePendingHops(Path, &Hops);
+    CoreSystem_t Target = kCoreSystem_None;
+    const esp_err_t PendingResult = CoreSwitch_TakePendingTarget(Path, &Hops, &Target);
     LYNX_DIAG("boot pending=%s hops=%u path=%s", esp_err_to_name(PendingResult), (unsigned)Hops, Path);
     if (Interrupted()) { LYNX_DIAG("boot interrupted"); return; }
     PwrMgr_InhibitSleep();
     if (PendingResult == ESP_OK) {
-        if (!CoreSwitch_IsCore(CoreSwitch_SystemForPath(Path))) {
+        if (!CoreSwitch_IsCore(Target)) {
             /* Three cores in a cycle: this reload may have landed on the core
              * between. Reload once more (bounded); a refusal falls back. */
             printf("CORE_SWITCH resume=intermediate hop=%u\n", (unsigned)Hops);
-            const esp_err_t ContinueResult = CoreSwitch_Continue(Path, Hops);
+            const esp_err_t ContinueResult = CoreSwitch_ContinueTo(Path, Hops, Target);
             printf("CORE_SWITCH resume=wrong_core continue=%s; pending consumed\n", esp_err_to_name(ContinueResult));
             goto Fallback;
         }

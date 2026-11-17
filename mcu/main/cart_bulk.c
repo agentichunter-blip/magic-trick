@@ -15,6 +15,7 @@
 #include "pwrmgr.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum {
@@ -978,8 +979,159 @@ static int ConsoleStress(int argc, char **argv)
     return Result == ESP_OK ? 0 : 1;
 }
 
+/* ---- Linear cartridge access for Magic Trick carts (cart_store.c) ----
+ * The cartridge is treated as MBC5: bank N (16 KiB) appears at 0x4000 after
+ * writing N to 0x2000 (low 8 bits) and 0x3000 (bit 8). */
+bool CartBulk_IsSessionActive(void) { return SessionActive; }
+
+esp_err_t CartBulk_CartEnter(bool *pPresent)
+{
+    if (!SessionActive) return ESP_ERR_INVALID_STATE;
+    CartLinkResponse_t Response = {0};
+    ESP_RETURN_ON_ERROR(TransactionOk(kCartLinkOp_Ping, 0, 0, &Response), TAG, "cart ping");
+    /* Ping data: [1] bit 1 = cartridge present, bit 0 = maintenance active. */
+    const bool Present = Response.Count == 4 && (Response.Data[1] & 2u) != 0;
+    if (pPresent) *pPresent = Present;
+    if (!Present) return ESP_ERR_NOT_FOUND;
+    return TransactionOk(kCartLinkOp_Enter, 0, 0, &Response);
+}
+
+esp_err_t CartBulk_CartExit(void)
+{
+    if (!SessionActive) return ESP_ERR_INVALID_STATE;
+    (void)CartBulk_ReadRangeAbort();
+    CartLinkResponse_t Response = {0};
+    /* Leave bank 1 selected, as after reset. */
+    (void)TransactionOk(kCartLinkOp_Write, 0x3000, 0, &Response);
+    (void)TransactionOk(kCartLinkOp_Write, 0x2000, 1, &Response);
+    return TransactionOk(kCartLinkOp_Exit, 0, 0, &Response);
+}
+
+esp_err_t CartBulk_ReadCart(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
+{
+    if (!SessionActive || pData == NULL || (Offset & (kCartBulkBlockSize - 1u)) ||
+        Offset + Blocks * kCartBulkBlockSize > (8u << 20))
+        return ESP_ERR_INVALID_ARG;
+    /* Single-block reads: the Game Gear core's engine returns 0xFF for
+     * streamed ranges (ReadRange), while ReadBlock works in every core. */
+    uint32_t Selected = UINT32_MAX;
+    while (Blocks)
+    {
+        const uint32_t Bank = Offset >> 14;
+        if (Bank != Selected)
+        {
+            CartLinkResponse_t Response = {0};
+            ESP_RETURN_ON_ERROR(TransactionOk(kCartLinkOp_Write, 0x3000, (uint8_t)(Bank >> 8), &Response),
+                                TAG, "bank high");
+            ESP_RETURN_ON_ERROR(TransactionOk(kCartLinkOp_Write, 0x2000, (uint8_t)Bank, &Response),
+                                TAG, "bank low");
+            Selected = Bank;
+        }
+        ESP_RETURN_ON_ERROR(CartBulk_ReadBlock((uint16_t)(0x4000u + (Offset & 0x3fffu)), pData), TAG, "cart block");
+        pData += kCartBulkBlockSize;
+        Offset += kCartBulkBlockSize;
+        --Blocks;
+    }
+    return ESP_OK;
+}
+
+esp_err_t CartBulk_CartWrite(uint16_t Address, uint8_t Value)
+{
+    if (!SessionActive) return ESP_ERR_INVALID_STATE;
+    CartLinkResponse_t Response = {0};
+    return TransactionOk(kCartLinkOp_Write, Address, Value, &Response);
+}
+
+esp_err_t CartBulk_ProgramCart(uint32_t Offset, const uint8_t Data[kCartBulkBlockSize], uint8_t Mode)
+{
+    if (!SessionActive || (Offset & (kCartBulkBlockSize - 1u)) || Offset >= (8u << 20))
+        return ESP_ERR_INVALID_ARG;
+    const uint32_t Bank = Offset >> 14;
+    CartLinkResponse_t Response = {0};
+    ESP_RETURN_ON_ERROR(TransactionOk(kCartLinkOp_Write, 0x3000, (uint8_t)(Bank >> 8), &Response), TAG, "bank high");
+    ESP_RETURN_ON_ERROR(TransactionOk(kCartLinkOp_Write, 0x2000, (uint8_t)Bank, &Response), TAG, "bank low");
+    return CartBulk_ProgramCartBlock((uint16_t)(0x4000u + (Offset & 0x3fffu)), Data, Mode);
+}
+
+/* cartscan [banks]: read MBC5 ROM banks 0..banks-1 (default 256 = 4 MiB) at
+ * 0x4000 and print each bank's CRC32, its count of 0xFF bytes and its first
+ * 8 bytes. Diagnostics for cart-as-storage: shows whether the cart's mapper
+ * reaches past the header's ROM size (mirrors repeat the same CRCs). */
+static int ConsoleScan(int argc, char **argv)
+{
+    uint32_t Banks = argc > 1 ? (uint32_t)strtoul(argv[1], NULL, 0) : 256u;
+    if (Banks == 0 || Banks > 256u) Banks = 256u;
+    static uint8_t Block[kCartBulkBlockSize];
+    esp_err_t Result = CartBulk_Begin();
+    bool Entered = false;
+    CartLinkResponse_t Response = {0};
+    const int64_t Start_us = esp_timer_get_time();
+    if (Result == ESP_OK) Result = TransactionOk(kCartLinkOp_Ping, 0, 0, &Response);
+    if (Result == ESP_OK)
+    {
+        Result = TransactionOk(kCartLinkOp_Enter, 0, 0, &Response);
+        Entered = Result == ESP_OK;
+    }
+    /* MBC5 high bank bit (0x3000) = 0, then read one block to finish the range. */
+    if (Result == ESP_OK) Result = CartBulk_ReadMappedRangeBegin(0x0000, 1, 0x3000, 0);
+    if (Result == ESP_OK) Result = CartBulk_ReadRangeNext(Block);
+    if (Result == ESP_OK) Result = CartBulk_ReadRangeEnd();
+    for (uint32_t Bank = 0; Result == ESP_OK && Bank < Banks; ++Bank)
+    {
+        uint32_t Crc = 0, Ff = 0;
+        uint8_t Head[8] = {0};
+        Result = CartBulk_ReadMappedRangeBegin(0x4000, 16, 0x2000, (uint8_t)Bank);
+        for (uint32_t i = 0; Result == ESP_OK && i < 16; ++i)
+        {
+            Result = CartBulk_ReadRangeNext(Block);
+            if (Result != ESP_OK) break;
+            if (i == 0) memcpy(Head, Block, sizeof(Head));
+            Crc = esp_rom_crc32_le(Crc, Block, sizeof(Block));
+            for (size_t j = 0; j < sizeof(Block); ++j) Ff += Block[j] == 0xff;
+        }
+        if (Result == ESP_OK) Result = CartBulk_ReadRangeEnd();
+        if (Result == ESP_OK)
+        {
+            printf("CARTSCAN_BANK %lu crc=%08lx ff=%lu head=", (unsigned long)Bank,
+                   (unsigned long)Crc, (unsigned long)Ff);
+            for (size_t j = 0; j < sizeof(Head); ++j) printf("%02x", Head[j]);
+            printf("\n");
+        }
+        else
+        {
+            printf("CARTSCAN_FAIL bank=%lu error=%s\n", (unsigned long)Bank,
+                   esp_err_to_name(Result));
+        }
+    }
+    /* Leave bank 1 selected, as a game would expect after reset. */
+    if (Result == ESP_OK) Result = CartBulk_ReadMappedRangeBegin(0x4000, 1, 0x2000, 1);
+    if (Result == ESP_OK) Result = CartBulk_ReadRangeNext(Block);
+    if (Result == ESP_OK) Result = CartBulk_ReadRangeEnd();
+    if (Entered)
+    {
+        CartLinkResponse_t ExitResponse = {0};
+        const esp_err_t ExitResult = TransactionOk(kCartLinkOp_Exit, 0, 0, &ExitResponse);
+        if (Result == ESP_OK) Result = ExitResult;
+    }
+    CartBulk_End();
+    printf("CARTSCAN=%s banks=%lu elapsed_ms=%lld error=%s\n",
+           Result == ESP_OK ? "PASS" : "FAIL", (unsigned long)Banks,
+           (long long)((esp_timer_get_time() - Start_us) / 1000), esp_err_to_name(Result));
+    return Result == ESP_OK ? 0 : 1;
+}
+
 esp_err_t CartBulk_RegisterConsoleCommand(void)
 {
+    const esp_console_cmd_t ScanCommand = {
+        .command = "cartscan",
+        .help = "Print CRC32 of MBC5 ROM banks 0..N-1 (diagnostics)",
+        .hint = "[banks]",
+        .func = ConsoleScan,
+        .argtable = NULL,
+    };
+    ESP_RETURN_ON_ERROR(esp_console_cmd_register(&ScanCommand), TAG,
+                        "register cartscan");
+
     const esp_console_cmd_t ProbeCommand = {
         .command = "cartprobe",
         .help = "Read one validated 1 KiB cartridge block over QSPI",

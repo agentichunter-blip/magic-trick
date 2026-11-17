@@ -26,6 +26,7 @@ CoreSystem_t CoreSwitch_SystemForPath(const char *P) {
 esp_err_t CoreSwitch_Request(const char *Path) {
  assert(Path && !Mounted && !Bulk && !Active && !Started);++Switches;return ESP_ERR_TIMEOUT;
 }
+esp_err_t CoreSwitch_RequestVia(const char *Path, CoreSystem_t Target) { (void)Target; return CoreSwitch_Request(Path); }
 esp_err_t GGCheats_Install(const CheatPlan_t *Plan) {
  assert(Plan && Bulk && Mounted && !Started && !Active);return ESP_OK;
 }

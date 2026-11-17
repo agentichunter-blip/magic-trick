@@ -10,6 +10,7 @@ static const char GG[]="/sdcard/CHROMAGIC/BACKUPS/GG/Test.gg";
 static const char LYNX[]="/sdcard/CHROMAGIC/BACKUPS/LYNX/Test.lnx";
 static const char *Expected=GG; static unsigned ExpectedTarget=1;
 static int StoredHops=-1, StagedHops=-1;
+static int StoredVia=-1,StagedVia=-1;
 static char Stored[400], Staged[400];
 static bool Open, ReadOnly, FailSet, FailCommit, FailErase, ResetOnReload;
 static unsigned Sends, FailSend, Commits;
@@ -31,18 +32,23 @@ esp_err_t nvs_set_str(nvs_handle_t H,const char *K,const char *P) {
 esp_err_t nvs_erase_key(nvs_handle_t H,const char *K) {
  assert(Open && !ReadOnly && H==1);
  if(!strcmp(K,"hops")) { bool Had=StagedHops>=0;StagedHops=-1;return Had?ESP_OK:ESP_ERR_NVS_NOT_FOUND; }
+ if(!strcmp(K,"via")) { bool Had=StagedVia>=0;StagedVia=-1;return Had?ESP_OK:ESP_ERR_NVS_NOT_FOUND; }
  assert(!strcmp(K,"path"));if(FailErase)return ESP_FAIL;
  Staged[0]=0;return Stored[0]?ESP_OK:ESP_ERR_NVS_NOT_FOUND;
 }
 esp_err_t nvs_get_u8(nvs_handle_t H,const char *K,uint8_t *V) {
- assert(Open && H==1 && !strcmp(K,"hops"));if(StoredHops<0)return ESP_ERR_NVS_NOT_FOUND;*V=(uint8_t)StoredHops;return ESP_OK;
+ assert(Open && H==1);
+ if(!strcmp(K,"via")) { if(StoredVia<0)return ESP_ERR_NVS_NOT_FOUND;*V=(uint8_t)StoredVia;return ESP_OK; }
+ assert(!strcmp(K,"hops"));if(StoredHops<0)return ESP_ERR_NVS_NOT_FOUND;*V=(uint8_t)StoredHops;return ESP_OK;
 }
 esp_err_t nvs_set_u8(nvs_handle_t H,const char *K,uint8_t V) {
- assert(Open && !ReadOnly && H==1 && !strcmp(K,"hops"));StagedHops=V;return ESP_OK;
+ assert(Open && !ReadOnly && H==1);
+ if(!strcmp(K,"via")) { StagedVia=V;return ESP_OK; }
+ assert(!strcmp(K,"hops"));StagedHops=V;return ESP_OK;
 }
 esp_err_t nvs_commit(nvs_handle_t H) {
  assert(Open && !ReadOnly && H==1);if(FailCommit)return ESP_FAIL;
- strcpy(Stored,Staged);StoredHops=StagedHops;++Commits;return ESP_OK;
+ strcpy(Stored,Staged);StoredHops=StagedHops;StoredVia=StagedVia;++Commits;return ESP_OK;
 }
 void nvs_close(nvs_handle_t H) { assert(Open && H==1);Open=false; }
 esp_err_t FPGA_Tx_CoreReload(uint8_t Op,uint8_t Target,uint16_t Nonce) {

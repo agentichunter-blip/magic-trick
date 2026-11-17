@@ -44,6 +44,15 @@ esp_err_t CartBulk_ReadRangeNext(uint8_t Data[kCartBulkBlockSize]);
 esp_err_t CartBulk_ReadRangeEnd(void);
 esp_err_t CartBulk_ReadRangeAbort(void);
 
+/* Linear (MBC5) cartridge access, within a CartBulk session. Enter takes the
+ * cartridge bus (ESP_ERR_NOT_FOUND: no cartridge); Exit returns it. */
+bool CartBulk_IsSessionActive(void);
+esp_err_t CartBulk_CartEnter(bool *pPresent);
+esp_err_t CartBulk_CartExit(void);
+esp_err_t CartBulk_ReadCart(uint32_t Offset, uint8_t *pData, uint32_t Blocks);
+esp_err_t CartBulk_CartWrite(uint16_t Address, uint8_t Value);
+esp_err_t CartBulk_ProgramCart(uint32_t Offset, const uint8_t Data[kCartBulkBlockSize], uint8_t Mode);
+
 void CartBulk_OnStreamEvent(const uint8_t *pPayload, size_t Length);
 
 esp_err_t CartBulk_RegisterConsoleCommand(void);
