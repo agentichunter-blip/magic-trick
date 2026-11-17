@@ -441,7 +441,8 @@ static bool VideoPath(size_t Index, char *Path, size_t Size)
 
 static RomPlatform_t FolderPlatform(size_t Index)
 {
-    if (!IsDirectory(Index) || CartView || Catalog.pEntries[Index].Cart) return kRomPlatformUnknown;
+    if (!IsDirectory(Index) || CartView) return kRomPlatformUnknown;
+    if (Catalog.pEntries[Index].Cart) return kRomPlatformCart;
     /* Use the top-level system, so every range/nested folder inherits it. */
     const char *Name = AtRoot() ? NameAt(Index) : CurrentDirectory + strlen(RomDirectory) + 1;
     const size_t Length = strcspn(Name, "/");

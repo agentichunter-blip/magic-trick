@@ -23,7 +23,7 @@ LV_FONT_DECLARE(chromatic_progress);
 enum { kCoverDwellMs = 1500, kBadgeMarginX = 132, kBadgeMarginY = 119,
        kBadgeTitleX = 128, kBadgeTitleY = 25, kBadgePaddingStart = 115,
        kOverlayRows = 5, kFolderRows = 4,
-       kVisibleRows = 6, kRowHeight = 13, kListX = 92, kSystems = 4,
+       kVisibleRows = 6, kRowHeight = 13, kListX = 92, kSystems = 5,
        kListWidth = 52, kCoverWidth = BOX_ART_WIDTH, kCoverHeight = BOX_ART_HEIGHT };
 typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked, kCheats, kCheatBusy } State_t;
 typedef struct {
@@ -61,21 +61,33 @@ static unsigned Held(void) {
     return ((Bits & kButtonBits_Up) ? kScrollUp : 0) | ((Bits & kButtonBits_Down) ? kScrollDown : 0);
 }
 static bool AtRoot(void) { return !C.Source.AtRoot || C.Source.AtRoot(); }
+/* Plain-text names (no third-party logos), indexed from kRomPlatformGB. */
+static const char *const kSystemNames[kSystems]={"GAME BOY","GAME BOY COLOR","GAME GEAR","ATARI LYNX","CARTRIDGE"};
 static bool Directory(size_t Index) { return C.Source.IsDirectory && C.Source.IsDirectory(Index); }
-static bool SystemPicker(size_t Indices[kSystems]) {
+/* The root shows one tile per system folder (plus the Cartridge folder) when
+ * every entry is one, in a fixed order; otherwise it falls back to the list. */
+static bool SystemPicker(size_t Indices[kSystems], RomPlatform_t pPlatforms[kSystems]) {
     if (C.State != kSelecting || C.Count < 2 || C.Count > kSystems || !AtRoot() || !C.Source.FolderPlatform) return false;
     bool Found[kSystems] = {false};
+    size_t ByPlatform[kSystems];
     for (size_t I=0; I<C.Count; ++I) {
         const RomPlatform_t Platform = Directory(I) ? C.Source.FolderPlatform(I) : kRomPlatformUnknown;
-        if (Platform < kRomPlatformGB || Platform > kRomPlatformLynx) return false;
+        if (Platform < kRomPlatformGB || Platform > kRomPlatformCart) return false;
         const unsigned Slot = Platform - kRomPlatformGB;
-        if (Found[Slot] || Slot >= C.Count) return false;
-        Found[Slot]=true; Indices[Slot]=I;
+        if (Found[Slot]) return false;
+        Found[Slot]=true; ByPlatform[Slot]=I;
+    }
+    size_t Tile=0;
+    for (unsigned Slot=0; Slot<kSystems; ++Slot) {
+        if (!Found[Slot]) continue;
+        Indices[Tile]=ByPlatform[Slot];
+        if (pPlatforms) pPlatforms[Tile]=(RomPlatform_t)(kRomPlatformGB+Slot);
+        ++Tile;
     }
     return true;
 }
 bool RomBrowserUI_HasPickerFocus(void)
-{ size_t Systems[kSystems];return C.SystemFocus && SystemPicker(Systems); }
+{ size_t Systems[kSystems];return C.SystemFocus && SystemPicker(Systems,NULL); }
 static void Hide(lv_obj_t *Object, bool Hidden) {
     if (Hidden) lv_obj_add_flag(Object, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_clear_flag(Object, LV_OBJ_FLAG_HIDDEN);
@@ -317,13 +329,12 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
         lv_obj_set_style_border_post(C.SystemTiles[I],true,0);
         /* Plain-text system names (no third-party logos) inside the 2 px
          * border, which shows the selection in the accent colour. */
-        static const char *const Names[kSystems]={"GAME BOY","GAME BOY COLOR","GAME GEAR","ATARI LYNX"};
         C.SystemNames[I]=Label(C.SystemTiles[I],0,6,124);
         lv_obj_set_style_text_font(C.SystemNames[I],&chromatic_banner,0);
         lv_obj_set_style_text_letter_space(C.SystemNames[I],-1,0);
         lv_label_set_long_mode(C.SystemNames[I],LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_align(C.SystemNames[I],LV_TEXT_ALIGN_CENTER,0);
-        lv_label_set_text_static(C.SystemNames[I],Names[I]);
+        lv_label_set_text_static(C.SystemNames[I],kSystemNames[I]);
     }
     Hide(C.Systems,true);
     C.Loading = lv_obj_create(Screen); lv_obj_remove_style_all(C.Loading);
@@ -351,7 +362,7 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
 }
 static void TickSelection(uint64_t Time) {
     size_t Systems[kSystems];
-    if (SystemPicker(Systems)) {
+    if (SystemPicker(Systems,NULL)) {
         if (C.SystemPending) {
             const size_t Selected=C.PendingSystem; C.SystemPending=false;
             if (Selected!=C.Selected) { C.Selected=Selected; SelectionChanged(); }
@@ -545,7 +556,8 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     const bool Selecting = State == kSelecting;
     const bool Game = Selecting && !Directory(C.Selected);
     size_t Systems[kSystems];
-    const bool Picker = Selecting && SystemPicker(Systems);
+    RomPlatform_t Platforms[kSystems];
+    const bool Picker = Selecting && SystemPicker(Systems,Platforms);
     const bool Folders = Selecting && !Game && !Picker;
     const bool Loading = State == kLoading;
     const bool Overlay = Game && C.ListOpacity;
@@ -562,7 +574,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
         else if (Picker) strcpy(Title,"GAMES");
         else if (Folders) {
             const RomPlatform_t Platform=C.Source.FolderPlatform ? C.Source.FolderPlatform(C.Selected) : kRomPlatformUnknown;
-            strcpy(Title,Platform==kRomPlatformGB?"GAME BOY":Platform==kRomPlatformGBC?"GAME BOY COLOR":Platform==kRomPlatformGG?"GAME GEAR":Platform==kRomPlatformLynx?"ATARI LYNX":"FOLDERS");
+            strcpy(Title,Platform>=kRomPlatformGB && Platform<=kRomPlatformCart?kSystemNames[Platform-kRomPlatformGB]:"FOLDERS");
         } else snprintf(Title,sizeof(Title),"%s",C.CurrentName);
         /* Replacing identical text restarts LVGL's marquee every video frame. */
         const lv_label_long_mode_t Mode=GameHeading && (C.Marquee || !Game) ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_CLIP;
@@ -594,13 +606,17 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     lv_img_set_src(C.BadgeLamp,C.BadgeState.Enabled?&GenieLampFilled:&GenieLampOutline);
     if (Selecting) {
         if (Picker) {
-            /* Three systems: 24 px tiles, 26 apart; four: 18 px, 20 apart. */
-            const bool Four=C.Count>3;
+            /* Up to three tiles: 24 px, 26 apart; four: 18 px, 20 apart;
+             * five: 14 px, 16 apart (all inside the 80 px panel). */
+            const unsigned Height=C.Count>4?14:C.Count>3?18:24;
             for(unsigned I=0;I<kSystems;++I) {
-                lv_obj_set_pos(C.SystemTiles[I],0,I*(Four?20:26));
-                lv_obj_set_height(C.SystemTiles[I],Four?18:24);
-                lv_obj_set_y(C.SystemNames[I],Four?3:6);
+                lv_obj_set_pos(C.SystemTiles[I],0,I*(Height+2));
+                lv_obj_set_height(C.SystemTiles[I],Height);
+                lv_obj_set_y(C.SystemNames[I],(Height-8)/2-2);
                 Hide(C.SystemTiles[I],I>=C.Count);
+                if (I>=C.Count) continue;
+                const char *Name=kSystemNames[Platforms[I]-kRomPlatformGB];
+                if (lv_label_get_text(C.SystemNames[I])!=Name) lv_label_set_text_static(C.SystemNames[I],Name);
                 const bool Active=I<C.Count &&C.SystemFocus && C.Selected==Systems[I];
                 lv_obj_set_style_border_color(C.SystemTiles[I],Active?Draw->AccentColor:lv_color_hex(0x444444),0);
                 lv_obj_set_style_bg_color(C.SystemTiles[I],Active?Draw->AccentColor:lv_color_hex(0x202020),0);
@@ -666,7 +682,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
 bool RomBrowserUI_HandleHorizontal(Button_t Button, ButtonState_t State) {
     if(C.State==kCheats || C.State==kCheatBusy) return true;
     size_t Systems[kSystems];
-    if (!C.SystemFocus || !SystemPicker(Systems) || FilesBusy()) return false;
+    if (!C.SystemFocus || !SystemPicker(Systems,NULL) || FilesBusy()) return false;
     if (Button!=kButton_Left && Button!=kButton_Right) return false;
     if (State==kButtonState_Pressed) {
         size_t Slot=0;
@@ -696,7 +712,7 @@ OSD_Result_t RomBrowserUI_OnButton(Button_t Button, ButtonState_t State, void *A
         BeginCheats(kRomActionCheatsOpen,C.Selected); return kOSD_Result_Ok;
     }
     size_t Systems[kSystems];
-    if (SystemPicker(Systems)) {
+    if (SystemPicker(Systems,NULL)) {
         if (C.SystemFocus && (Button==kButton_Up || Button==kButton_Down)) {
             size_t Slot=0;
             while (Slot+1<C.Count && Systems[Slot]!=C.Selected) ++Slot;
