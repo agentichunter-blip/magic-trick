@@ -23,6 +23,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "cJSON.h"
+#include "esp_console.h"
 #include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -567,6 +568,38 @@ static bool JoinFromScreen(const char *SSID, const char *Password)
     esp_err_t R=WifiNetwork_Configure(&C);
     memset(&C,0,sizeof(C));
     return R==ESP_OK;
+}
+/* Diagnostics: free memory, and whether a cover-sized block (23,552 bytes) can be had. */
+static int HeapCommand(int argc, char **argv)
+{
+    (void)argc; (void)argv;
+    void *Probe = malloc(128 * 92 * 2);
+    printf("HEAPINFO heap8=%u largest8=%u largest_dma=%u exec=%u largest_exec=%u cover_alloc=%u\n",
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_EXEC | MALLOC_CAP_32BIT),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_EXEC | MALLOC_CAP_32BIT), Probe != NULL);
+    free(Probe);
+    return 0;
+}
+/* Diagnostics: start or stop Wi-Fi Files as the Settings screen does. */
+static int WifiFilesCommand(int argc, char **argv)
+{
+    if (argc == 2 && (!strcmp(argv[1], "on") || !strcmp(argv[1], "off"))) Toggle(!strcmp(argv[1], "on"));
+    portENTER_CRITICAL(&Lock);
+    const bool Busy = Status.Busy, Ready = Status.Ready;
+    char Text[sizeof(Status.Message)]; memcpy(Text, Status.Message, sizeof(Text));
+    portEXIT_CRITICAL(&Lock);
+    printf("WIFIFILES busy=%u ready=%u message=%s\n", Busy, Ready, Text);
+    return 0;
+}
+void WifiFiles_RegisterConsoleCommands(void)
+{
+    const esp_console_cmd_t Cmds[] = {
+        {.command = "heapinfo", .help = "Report free memory (diagnostics)", .func = HeapCommand},
+        {.command = "wififiles", .help = "Start or stop Wi-Fi Files (diagnostics)", .hint = "[on|off]", .func = WifiFilesCommand},
+    };
+    for (unsigned I = 0; I < sizeof(Cmds) / sizeof(Cmds[0]); ++I) (void)esp_console_cmd_register(&Cmds[I]);
 }
 void WifiFiles_Init(void)
 {

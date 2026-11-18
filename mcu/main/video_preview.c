@@ -31,6 +31,12 @@ void Preview_CopyToBytes(uint8_t *Out, const uint8_t *Pixels) {
         Out[I+2]=(uint8_t)(W>>16); Out[I+3]=(uint8_t)(W>>24);
     }
 }
+void Preview_CopyWords(uint8_t *Out, const uint8_t *Pixels) {
+    /* Both buffers may be in instruction RAM: aligned 32-bit access only. */
+    volatile uint32_t *O=(volatile uint32_t *)Out;
+    const volatile uint32_t *In=(const volatile uint32_t *)Pixels;
+    for (unsigned I=0;I<PREVIEW_BYTES/4;++I) O[I]=In[I];
+}
 bool VideoPreview_Open(VideoPreview_t *V, FILE *F) {
     uint8_t H[PREVIEW_HEADER_BYTES];
     *V=(VideoPreview_t){0};

@@ -132,7 +132,7 @@ static bool CopyArt(uint32_t Token, uint8_t *Pixels, bool *Valid)
     if (Ready) { Worker.Copying = true; *Valid = Worker.ArtValid; }
     portEXIT_CRITICAL(&Lock);
     if (!Ready) return false;
-    if (*Valid) Preview_CopyToBytes(Pixels, Worker.Pixels);
+    if (*Valid) Preview_CopyWords(Pixels, Worker.Pixels);
     portENTER_CRITICAL(&Lock);
     Worker.Copying = Worker.ArtReady = false;
     portEXIT_CRITICAL(&Lock);
@@ -157,7 +157,7 @@ static bool CopyVideo(uint32_t Token, uint8_t *Pixels, bool *Valid)
     if (Ready) { Worker.Copying = true; *Valid = Worker.VideoValid; }
     portEXIT_CRITICAL(&Lock);
     if (!Ready) return false;
-    if (*Valid) Preview_CopyToBytes(Pixels, Worker.Pixels);
+    if (*Valid) Preview_CopyWords(Pixels, Worker.Pixels);
     portENTER_CRITICAL(&Lock);
     Worker.Copying = Worker.VideoReady = false;
     portEXIT_CRITICAL(&Lock);

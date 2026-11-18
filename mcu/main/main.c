@@ -424,6 +424,9 @@ void app_main(void)
     ESP_ERROR_CHECK(PCBackup_RegisterConsoleCommand());
     ESP_ERROR_CHECK(PCConnect_RegisterConsoleCommands());
     DiagLog_RegisterConsoleCommand();
+#ifdef CONFIG_CHROMAGIC_WIFI_FILES
+    WifiFiles_RegisterConsoleCommands();
+#endif
     // All commands must be registered prior to starting the REPL
     ESP_ERROR_CHECK(esp_console_start_repl(pRepl));
     PCBackup_ConsoleReady();

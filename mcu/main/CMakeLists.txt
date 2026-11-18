@@ -11,7 +11,7 @@ idf_component_register(
         "sd_card.c" "sd_list.c" "sd_publish.c" "cart_link.c" "cart_bulk.c" "cart_mapper.c" "cart_rtc.c"
         "native_state_control.c" "native_state_shortcuts.c" "color_temp_hotkey.c"
         "cart_backup.c" "cart_store.c" "virtual_cart.c" "lynx_hle.c" "diag_log.c" "state_save_branch.c" "state_file.c" "rom_browser.c" "pc_backup.c" "pc_sd.c" "pc_connect.c" "pc_connect_proto.c"
-        "rom_browser_worker.c" "box_art.c" "video_preview.c" "last_game.c" "recent_games.c" "boot_resume.c" "intro_video.c" "intro_video_data.c" "core_switch.c" "cheats.c" "gg_cheats.c" "cheat_patch.c"
+        "rom_browser_worker.c" "box_art.c" "video_preview.c" "last_game.c" "recent_games.c" "boot_resume.c" "intro_video.c" "intro_video_data.c" "core_switch.c" "cheats.c" "gg_cheats.c" "cheat_patch.c" "task_delete_fix.c"
     EMBED_TXTFILES ${WIFI_ASSETS}
     INCLUDE_DIRS "."
     REQUIRES
@@ -20,3 +20,6 @@ idf_component_register(
         common battery button osd menu_mgr settings mutex
         console crc mbedtls json esp_wifi esp_netif esp_event esp_http_server esp_app_format
 )
+
+# See task_delete_fix.c: replaces ESP-IDF 5.3's self-deleting vTaskDeleteWithCaps (leaks).
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=vTaskDeleteWithCaps" "-u __wrap_vTaskDeleteWithCaps")

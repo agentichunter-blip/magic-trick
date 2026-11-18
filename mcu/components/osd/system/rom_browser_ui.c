@@ -16,6 +16,9 @@ LV_FONT_DECLARE(chromatic_progress);
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 
 #if LV_COLOR_DEPTH != 16 || LV_COLOR_16_SWAP
 #error "Box art requires native unswapped RGB565; update the converter for other formats."
@@ -99,15 +102,71 @@ static void ResetScroll(void) {
     C.ListPinned = false; C.ListOpacity = 0;
     C.SystemPending = false;
 }
+/* The cover/clip pixels live in instruction RAM when it's free: after a Wi-Fi Files
+ * session the byte-addressable heap is too fragmented for a 23 KB block (covers then
+ * silently stopped showing until a restart, 2026-11-18). Instruction RAM only allows
+ * aligned 32-bit access, so every read and write of C.Pixels goes through words and
+ * LVGL draws it line by line through PreviewDecoder. */
+static uint8_t *AllocatePreview(void) {
+#ifdef ESP_PLATFORM
+    uint8_t *Pixels = heap_caps_malloc(PREVIEW_BYTES, MALLOC_CAP_EXEC | MALLOC_CAP_32BIT);
+    if (Pixels) return Pixels;
+#endif
+    return malloc(PREVIEW_BYTES);
+}
+static uint16_t PreviewPixel(const uint8_t *Pixels, unsigned Index) {
+    const uint32_t Word = ((const volatile uint32_t *)Pixels)[Index >> 1];
+    return (uint16_t)(Index & 1 ? Word >> 16 : Word);
+}
+static lv_res_t PreviewInfo(lv_img_decoder_t *Decoder, const void *Src, lv_img_header_t *Header) {
+    (void)Decoder;
+    if (lv_img_src_get_type(Src) != LV_IMG_SRC_VARIABLE) return LV_RES_INV;
+    const lv_img_dsc_t *Image = Src;
+    if (Image->header.cf != LV_IMG_CF_USER_ENCODED_0) return LV_RES_INV;
+    *Header = Image->header;
+    return LV_RES_OK;
+}
+static lv_res_t PreviewOpen(lv_img_decoder_t *Decoder, lv_img_decoder_dsc_t *Dsc) {
+    (void)Decoder;
+    if (Dsc->src_type != LV_IMG_SRC_VARIABLE ||
+        ((const lv_img_dsc_t *)Dsc->src)->header.cf != LV_IMG_CF_USER_ENCODED_0) return LV_RES_INV;
+    Dsc->img_data = NULL;   /* no direct access: LVGL reads it line by line */
+    return LV_RES_OK;
+}
+static lv_res_t PreviewReadLine(lv_img_decoder_t *Decoder, lv_img_decoder_dsc_t *Dsc,
+                                lv_coord_t X, lv_coord_t Y, lv_coord_t Length, uint8_t *Buffer) {
+    (void)Decoder;
+    const lv_img_dsc_t *Image = Dsc->src;
+    if (X < 0 || Y < 0 || Length < 0 || X + Length > Image->header.w || Y >= Image->header.h) return LV_RES_INV;
+    const unsigned First = (unsigned)Y * Image->header.w + (unsigned)X;
+    for (lv_coord_t I = 0; I < Length; ++I) {
+        const uint16_t Pixel = PreviewPixel(Image->data, First + (unsigned)I);
+        Buffer[I * 2] = (uint8_t)Pixel; Buffer[I * 2 + 1] = (uint8_t)(Pixel >> 8);
+    }
+    return LV_RES_OK;
+}
+static void PreviewClose(lv_img_decoder_t *Decoder, lv_img_decoder_dsc_t *Dsc) { (void)Decoder; (void)Dsc; }
+static void RegisterPreviewDecoder(void) {
+    static lv_img_decoder_t *Decoder;
+    if (Decoder) return;
+    Decoder = lv_img_decoder_create();
+    if (!Decoder) return;
+    lv_img_decoder_set_info_cb(Decoder, PreviewInfo);
+    lv_img_decoder_set_open_cb(Decoder, PreviewOpen);
+    lv_img_decoder_set_read_line_cb(Decoder, PreviewReadLine);
+    lv_img_decoder_set_close_cb(Decoder, PreviewClose);
+}
+static lv_img_dsc_t PreviewImage(void) {
+    return (lv_img_dsc_t){ .header = {.cf = LV_IMG_CF_USER_ENCODED_0, .w = PREVIEW_WIDTH, .h = PREVIEW_HEIGHT},
+        .data_size = PREVIEW_BYTES, .data = C.Pixels };
+}
 static bool HasBadgeMargin(void) {
     if (!C.Pixels) return false;
     /* Preview converters center media on pure black. Check the whole strip,
      * not just a dark corner of a picture. Never alter or rescale the pixels. */
     for (unsigned Y=0; Y<PREVIEW_HEIGHT; ++Y)
-        for (unsigned X=kBadgePaddingStart; X<PREVIEW_WIDTH; ++X) {
-            const unsigned Offset=(Y*PREVIEW_WIDTH+X)*2;
-            if (C.Pixels[Offset] || C.Pixels[Offset+1]) return false;
-        }
+        for (unsigned X=kBadgePaddingStart; X<PREVIEW_WIDTH; ++X)
+            if (PreviewPixel(C.Pixels, Y*PREVIEW_WIDTH+X)) return false;
     return true;
 }
 static void ForgetArt(void) {
@@ -300,6 +359,7 @@ static void Create(lv_obj_t *Screen, lv_color_t Accent) {
     lv_obj_set_style_bg_opa(C.Cover, LV_OPA_COVER, 0);
     C.Placeholder = Label(C.Cover, 0, 34, kCoverWidth);
     lv_obj_set_style_text_align(C.Placeholder, LV_TEXT_ALIGN_CENTER, 0);
+    RegisterPreviewDecoder();
     C.Image = lv_img_create(C.Cover); lv_obj_set_pos(C.Image, 0, 0); Hide(C.Image, true);
     lv_img_set_pivot(C.Image, 0, 0);
     lv_img_set_zoom(C.Image, LV_IMG_ZOOM_NONE);
@@ -421,7 +481,7 @@ static void TickSelection(uint64_t Time) {
         if(C.Async.RequestBadge && C.Source.RomPath && C.Source.RomPath(C.Selected,Path,sizeof(Path)))
             C.Async.RequestBadge(Path,C.ArtToken);
         if (!C.Pixels && C.Async.RequestArt && C.Async.CopyArt && C.Source.ArtPath)
-            C.Pixels = malloc(PREVIEW_BYTES);
+            C.Pixels = AllocatePreview();
         if (C.Pixels && C.Async.RequestArt && C.Async.CopyArt && C.Source.ArtPath &&
             C.Source.ArtPath(C.Selected, Path, sizeof(Path))) C.Async.RequestArt(Path, C.ArtToken);
         else { C.ArtResolved = true; C.ArtValid = false; C.RenderValid = false; }
@@ -436,8 +496,7 @@ static void TickSelection(uint64_t Time) {
         C.CoverAt = Time;
         if (Valid) {
             /* Both ESP32 and the host fixture use unswapped little-endian RGB565. */
-            C.Art = (lv_img_dsc_t){ .header = {.cf = LV_IMG_CF_TRUE_COLOR, .w = PREVIEW_WIDTH, .h = PREVIEW_HEIGHT},
-                .data_size = PREVIEW_BYTES, .data = C.Pixels };
+            C.Art = PreviewImage();
             lv_img_set_src(C.Image, &C.Art);
             /* Setting a source resets LVGL's pivot to the source center. */
             lv_img_set_pivot(C.Image, 0, 0);
@@ -462,8 +521,7 @@ static void TickSelection(uint64_t Time) {
             C.BadgeMargin=Margin;
             if (!C.VideoPlaying || !C.ArtValid) C.RenderValid=false;
             C.VideoPlaying=true; C.ArtValid=true;
-            C.Art=(lv_img_dsc_t){.header={.cf=LV_IMG_CF_TRUE_COLOR,.w=PREVIEW_WIDTH,.h=PREVIEW_HEIGHT},
-                .data_size=PREVIEW_BYTES,.data=C.Pixels};
+            C.Art=PreviewImage();
             lv_img_cache_invalidate_src(&C.Art); lv_img_set_src(C.Image,&C.Art);
             lv_img_set_pivot(C.Image,0,0); lv_obj_invalidate(C.Image);
         } else if (C.VideoPlaying) {
@@ -791,7 +849,7 @@ OSD_Result_t RomBrowserUI_OnTransition(void *Arg) {
     }
     C.Image = C.Placeholder = C.Title = NULL;
     C.Badge = C.BadgeLamp = C.HeaderLamp = NULL;
-    for (unsigned I=0;I<3;++I) C.SystemTiles[I]=C.SystemNames[I]=NULL;
+    for (unsigned I=0;I<kSystems;++I) C.SystemTiles[I]=C.SystemNames[I]=NULL;
     C.LoadingText = C.Percent = C.ProgressBar = NULL;
     C.Selection = NULL;
     for (size_t I = 0; I < kVisibleRows; ++I) C.Rows[I] = C.Arrows[I] = NULL;
