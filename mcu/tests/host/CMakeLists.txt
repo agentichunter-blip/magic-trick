@@ -62,7 +62,7 @@ add_test(NAME qspi_input_timing COMMAND "${Python3_EXECUTABLE}"
   "${CMAKE_CURRENT_LIST_DIR}/qspi_timing_test.py" --cc "${CMAKE_C_COMPILER}")
 
 find_path(CJSON_SOURCE_DIR cJSON.c PATHS "$ENV{IDF_PATH}/components/json/cJSON" "$ENV{HOME}/esp-idf/components/json/cJSON" REQUIRED)
-add_executable(sd_files_test sd_files_test.c "${CJSON_SOURCE_DIR}/cJSON.c" "${FW_ROOT}/main/sd_publish.c")
+add_executable(sd_files_test sd_files_test.c "${CJSON_SOURCE_DIR}/cJSON.c" "${FW_ROOT}/main/sd_publish.c" "${FW_ROOT}/main/sd_list.c")
 target_include_directories(sd_files_test PRIVATE "${CJSON_SOURCE_DIR}")
 target_compile_options(sd_files_test PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(sd_files_test PRIVATE ${DEAD_STRIP})
@@ -156,7 +156,7 @@ target_sources(recent_games_test PRIVATE "${FW_ROOT}/components/common/rom_title
 add_executable(wifi_file_store_test wifi_file_store_test.c "${FW_ROOT}/main/wifi_file_store.c")
 target_include_directories(wifi_file_store_test PRIVATE "${FW_ROOT}/main")
 add_test(NAME wifi_file_store COMMAND wifi_file_store_test)
-add_executable(wifi_http_test wifi_http_test.c "${FW_ROOT}/main/wifi_file_store.c" "${CJSON_SOURCE_DIR}/cJSON.c")
+add_executable(wifi_http_test wifi_http_test.c "${FW_ROOT}/main/wifi_file_store.c" "${CJSON_SOURCE_DIR}/cJSON.c" "${FW_ROOT}/main/sd_list.c")
 target_include_directories(wifi_http_test BEFORE PRIVATE "stubs/wifi" "${CJSON_SOURCE_DIR}")
 target_compile_options(wifi_http_test PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(wifi_http_test PRIVATE ${DEAD_STRIP})

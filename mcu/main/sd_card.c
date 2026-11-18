@@ -4,6 +4,8 @@
 #include "esp_console.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "diskio_sdmmc.h"
+#include "sd_list.h"
 #include "sdmmc_cmd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -106,6 +108,7 @@ static esp_err_t Mount(sdmmc_card_t **const ppCard, bool Preview)
         portEXIT_CRITICAL(&GateInitLock);
         xSemaphoreGive(MountGate);
     }
+    else SDList_SetDrive(ff_diskio_get_pdrv_card(*ppCard));
     return Result;
 }
 
@@ -258,6 +261,7 @@ esp_err_t SDCard_Unmount(sdmmc_card_t *const pCard)
     {
         return ESP_ERR_INVALID_ARG;
     }
+    SDList_SetDrive(-1);
     esp_err_t Result = esp_vfs_fat_sdcard_unmount(MountPoint, pCard);
     portENTER_CRITICAL(&GateInitLock);
     PreviewOwnsGate = false;

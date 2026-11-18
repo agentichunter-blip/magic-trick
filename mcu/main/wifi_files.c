@@ -8,6 +8,7 @@
 #include "pc_backup.h"
 #include "cart_backup.h"
 #include "sd_card.h"
+#include "sd_list.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -247,37 +248,39 @@ static esp_err_t Home(httpd_req_t *Req)
     return httpd_resp_send(Req,(const char *)PageStart,PageEnd-PageStart-1);
 }
 
+typedef struct { httpd_req_t *Req; esp_err_t Result; } ListContext;
+
+static bool ListEntry(const char *Name, bool Directory, uint64_t Size, void *Context)
+{
+    ListContext *List = Context;
+    if (Stopping()) { List->Result = ESP_FAIL; return false; }
+    if (WifiFile_IsInternal(Name)) return true;
+    cJSON *Row = cJSON_CreateObject();
+    if (!Row) { List->Result = ESP_ERR_NO_MEM; return false; }
+    bool Ok = cJSON_AddStringToObject(Row, "name", Name) &&
+        cJSON_AddBoolToObject(Row, "directory", Directory) &&
+        cJSON_AddNumberToObject(Row, "size", (double)Size);
+    char *JSON = Ok ? cJSON_PrintUnformatted(Row) : NULL;
+    cJSON_Delete(Row);
+    if (!JSON) { List->Result = ESP_ERR_NO_MEM; return false; }
+    List->Result = httpd_resp_send_chunk(List->Req, JSON, strlen(JSON)); free(JSON);
+    if (List->Result == ESP_OK) List->Result = httpd_resp_send_chunk(List->Req, "\n", 1);
+    Touch();
+    return List->Result == ESP_OK;
+}
+
 static esp_err_t List(httpd_req_t *Req)
 {
     if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
-    char Folder[WIFI_FILE_PATH_SIZE], Child[WIFI_FILE_PATH_SIZE];
+    char Folder[WIFI_FILE_PATH_SIZE];
     if (!Path(Req, Folder)) return Error(Req, "400 Bad Request", "Invalid folder path.");
-    DIR *Dir = opendir(Folder);
-    if (!Dir) return Error(Req, "404 Not Found", "Folder unavailable.");
+    struct stat Info;
+    if (stat(Folder, &Info) != 0 || !S_ISDIR(Info.st_mode)) return Error(Req, "404 Not Found", "Folder unavailable.");
     httpd_resp_set_type(Req, "application/x-ndjson");
-    struct dirent *Entry;
-    esp_err_t Result = ESP_OK;
-    while (!Stopping() && (Entry = readdir(Dir)))
-    {
-        if (!strcmp(Entry->d_name, ".") || !strcmp(Entry->d_name, "..") || WifiFile_IsInternal(Entry->d_name)) continue;
-        int N = snprintf(Child, sizeof(Child), "%s/%s", Folder, Entry->d_name);
-        struct stat Info;
-        if (N < 0 || N >= sizeof(Child) || stat(Child, &Info) != 0) continue;
-        cJSON *Row = cJSON_CreateObject();
-        if (!Row) { Result = ESP_ERR_NO_MEM; break; }
-        bool Ok = cJSON_AddStringToObject(Row, "name", Entry->d_name) &&
-            cJSON_AddBoolToObject(Row, "directory", S_ISDIR(Info.st_mode)) &&
-            cJSON_AddNumberToObject(Row, "size", Info.st_size);
-        char *JSON = Ok ? cJSON_PrintUnformatted(Row) : NULL;
-        cJSON_Delete(Row);
-        if (!JSON) { Result = ESP_ERR_NO_MEM; break; }
-        Result = httpd_resp_send_chunk(Req, JSON, strlen(JSON)); free(JSON);
-        if (Result == ESP_OK) Result = httpd_resp_send_chunk(Req, "\n", 1);
-        if (Result != ESP_OK) break;
-        Touch();
-    }
-    closedir(Dir);
-    if (Result != ESP_OK || Stopping()) return ESP_FAIL;
+    ListContext Context = { .Req = Req, .Result = ESP_OK };
+    /* One pass: a stat() per entry rescans the folder, which made big folders take minutes. */
+    const esp_err_t Listed = SDList_Folder(Folder, ListEntry, &Context);
+    if (Listed != ESP_OK || Context.Result != ESP_OK || Stopping()) return ESP_FAIL;
     return httpd_resp_send_chunk(Req, NULL, 0);
 }
 static esp_err_t Download(httpd_req_t *Req)

@@ -38,6 +38,8 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char *path, const sdmmc_host_t *host,
     return MountResult;
 }
 esp_err_t esp_vfs_fat_sdcard_unmount(const char *path, sdmmc_card_t *card) { assert(card == &Card); return ESP_OK; }
+BYTE ff_diskio_get_pdrv_card(const sdmmc_card_t *card) { (void)card; return 0; }
+void SDList_SetDrive(int Drive) { (void)Drive; }
 void sdmmc_card_print_info(FILE *f, const sdmmc_card_t *card) {}
 int esp_console_cmd_register(const esp_console_cmd_t *c) { return ESP_OK; }
 int main(void) {

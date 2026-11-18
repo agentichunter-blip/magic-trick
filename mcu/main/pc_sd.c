@@ -5,6 +5,7 @@
 #include "cart_bulk.h"
 #include "cart_link.h"
 #include "sd_card.h"
+#include "sd_list.h"
 #include "sd_publish.h"
 #include "virtual_cart.h"
 #include "driver/uart.h"
@@ -77,29 +78,22 @@ static esp_err_t JsonLine(const char *Kind, cJSON *Object)
     return ESP_OK;
 }
 
+static bool ListEntry(const char *Name, bool Directory, uint64_t Size, void *Context)
+{
+    esp_err_t *Result = Context;
+    cJSON *Object = cJSON_CreateObject();
+    cJSON_AddStringToObject(Object, "name", Name);
+    cJSON_AddBoolToObject(Object, "directory", Directory);
+    cJSON_AddNumberToObject(Object, "size", (double)Size);
+    *Result = JsonLine("ENTRY", Object);
+    return *Result == ESP_OK;
+}
+
 static esp_err_t List(const char *Directory)
 {
-    DIR *Dir = opendir(Directory);
-    if (Dir == NULL) return ESP_FAIL;
     esp_err_t Result = ESP_OK;
-    struct dirent *Entry;
-    while ((Entry = readdir(Dir)) != NULL)
-    {
-        if (strcmp(Entry->d_name, ".") == 0 || strcmp(Entry->d_name, "..") == 0) continue;
-        if (snprintf(Other, sizeof(Other), "%s%s%s", Directory,
-                     Directory[strlen(Directory) - 1] == '/' ? "" : "/",
-                     Entry->d_name) >= sizeof(Other)) { Result = ESP_ERR_INVALID_SIZE; break; }
-        struct stat Info;
-        if (stat(Other, &Info) != 0) { Result = ESP_FAIL; break; }
-        cJSON *Object = cJSON_CreateObject();
-        cJSON_AddStringToObject(Object, "name", Entry->d_name);
-        cJSON_AddBoolToObject(Object, "directory", S_ISDIR(Info.st_mode));
-        cJSON_AddNumberToObject(Object, "size", Info.st_size);
-        Result = JsonLine("ENTRY", Object);
-        if (Result != ESP_OK) break;
-    }
-    closedir(Dir);
-    return Result;
+    const esp_err_t Listed = SDList_Folder(Directory, ListEntry, &Result);
+    return Listed != ESP_OK ? (Listed == ESP_ERR_NOT_FOUND ? ESP_FAIL : Listed) : Result;
 }
 
 static esp_err_t BeginDownload(void)
@@ -553,33 +547,24 @@ static bool ConnectPath(char *Out, const char *pClientPath, bool AllowRoot)
     return MakePath(Out, (const uint8_t *)pClientPath, strlen(pClientPath));
 }
 
+static bool ConnectEntry(const char *Name, bool Directory, uint64_t Size, void *Context)
+{
+    esp_err_t *Result = Context;
+    if (ConnectProto_FormatEntry(Temporary, sizeof(Temporary), Name, Directory, (uint32_t)Size) == 0) return true;
+    fputs(Temporary, stdout);
+    return (*Result = Keepalive()) == ESP_OK;
+}
+
 static esp_err_t ListNow(const char **ppDetail)
 {
     struct stat Info;
     if (stat(Path, &Info) != 0) return ESP_ERR_NOT_FOUND;
     if (!S_ISDIR(Info.st_mode)) { errno = ENOTDIR; return ESP_ERR_NOT_FOUND; }
-    DIR *Dir = opendir(Path);
-    if (Dir == NULL) return ESP_FAIL;
     esp_err_t Result = ESP_OK;
-    struct dirent *Entry;
-    while ((Entry = readdir(Dir)) != NULL)
-    {
-        if (strcmp(Entry->d_name, ".") == 0 || strcmp(Entry->d_name, "..") == 0) continue;
-        if (snprintf(Other, sizeof(Other), "%s%s%s", Path,
-                     Path[strlen(Path) - 1] == '/' ? "" : "/",
-                     Entry->d_name) >= (int)sizeof(Other)) continue;
-        struct stat EntryInfo;
-        if (stat(Other, &EntryInfo) != 0) continue;
-        if (ConnectProto_FormatEntry(Temporary, sizeof(Temporary), Entry->d_name,
-                                     S_ISDIR(EntryInfo.st_mode),
-                                     (uint32_t)EntryInfo.st_size) == 0) continue;
-        fputs(Temporary, stdout);
-        if ((Result = Keepalive()) != ESP_OK) break;
-    }
+    const esp_err_t Listed = SDList_Folder(Path, ConnectEntry, &Result);
     Temporary[0] = 0;
-    closedir(Dir);
     fflush(stdout);
-    return Result;
+    return Listed != ESP_OK ? Listed : Result;
 }
 
 esp_err_t PCSD_ConnectList(const char *pPath, const char **ppDetail)
