@@ -86,6 +86,32 @@ class Card(unittest.TestCase):
         self.assertIn('Added 3 games', result)
         self.assertIn('1 was already on the card, so it was skipped', result)
 
+    def test_games_go_in_existing_letter_folders(self):
+        for sub in ('0-F', 'G-L', 'M-R', 'S-Z'):
+            (self.card / 'CHROMAGIC/BACKUPS/GB' / sub).mkdir(parents=True)
+        src = self.tmp / 'in'; src.mkdir()
+        names = {'Tetris (World).gb': 'S-Z', 'Alleyway (World).gb': '0-F', '3D Pocket Pool (Europe).gb': '0-F',
+                 "'Rare' Demo (PD).gb": '0-F', 'Mole Mania (USA).gb': 'M-R', 'Kirby (USA).gb': 'G-L',
+                 'Zelda (USA).gb': 'S-Z'}
+        for i, name in enumerate(names):
+            (src / name).write_bytes(rom(seed=10 + i))
+        (src / 'Wario (USA).gg').write_bytes(b'GG' * 64)   # GG has no letter folders here
+        library.add_games(library.FolderTarget(self.card), [src], log=lambda *a: None)
+        for name, sub in names.items():
+            self.assertTrue((self.card / 'CHROMAGIC/BACKUPS/GB' / sub / name).is_file(), name)
+        self.assertTrue((self.card / 'CHROMAGIC/BACKUPS/GG/Wario (USA).gg').is_file())
+
+    def test_letter_folder_edge_cases(self):
+        target = library.FolderTarget(self.card)
+        (self.card / 'CHROMAGIC/BACKUPS/GBC/g-l').mkdir(parents=True)
+        (self.card / 'CHROMAGIC/BACKUPS/GBC/S-Z').mkdir()
+        (self.card / 'CHROMAGIC/BACKUPS/GBC/Favourites').mkdir()
+        pick = lambda name: library.letter_folder(target, 'CHROMAGIC/BACKUPS/GBC', name)
+        self.assertEqual(pick('kirby.gbc'), 'g-l')
+        self.assertEqual(pick('Alleyway.gbc'), 'g-l')     # before the first range: the first range
+        self.assertEqual(pick('Pokemon.gbc'), 'S-Z')      # between ranges with no folder: the later one
+        self.assertIsNone(library.letter_folder(target, 'CHROMAGIC/BACKUPS/GB', 'x.gb'))
+
     def test_existing_folder_spelling_is_reused(self):
         self.put('chromagic/backups/gb/a.gb', rom())
         target = library.FolderTarget(self.card)

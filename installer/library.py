@@ -446,6 +446,29 @@ def collect_games(sources):
     return found
 
 
+LETTER_RANGE = re.compile(r'^([0-9A-Z])-([0-9A-Z])$', re.I)
+
+
+def letter_folder(target, system_folder, name):
+    """The A-Z range folder (like 0-F, G-L, M-R, S-Z) a game belongs in, if the system folder is split that way.
+    Numbers, symbols and non-Latin titles go to the range that starts with 0 (or the first range)."""
+    ranges = []
+    for entry, is_dir, _ in target.list(system_folder):
+        m = LETTER_RANGE.match(entry) if is_dir else None
+        if m:
+            ranges.append((m.group(1).upper(), m.group(2).upper(), entry))
+    if not ranges:
+        return None
+    ranges.sort()
+    first = name[:1].upper()
+    if not ('A' <= first <= 'Z' or '0' <= first <= '9'):
+        first = '0'
+    for low, high, entry in ranges:
+        if low <= first <= high:
+            return entry
+    return ranges[0][2] if first < ranges[0][0] else ranges[-1][2]
+
+
 def add_games(target, sources, log=print):
     """Copy game files into CHROMAGIC/BACKUPS/<system>/. Games already on the card (same name) are skipped."""
     emit('step', key='lib_scan')
@@ -473,10 +496,14 @@ def add_games(target, sources, log=print):
     for i, (name, loader, size) in enumerate(todo):
         data = loader()
         system = system_of(name, data)
+        folder = '%s/%s' % (GAMES, system)
+        sub = letter_folder(target, folder, name)   # keep a card that's sorted A-Z sorted
+        if sub:
+            folder += '/' + sub
         try:
-            target.write('%s/%s/%s' % (GAMES, system, name), data)
+            target.write('%s/%s' % (folder, name), data)
             added += 1; systems[system] = systems.get(system, 0) + 1
-            log('Added %s/%s' % (system, name))
+            log('Added %s' % (folder[len(GAMES) + 1:] + '/' + name))
         except FileExistsError:
             skipped += 1
         progress(i + 1, len(todo), 'games')
