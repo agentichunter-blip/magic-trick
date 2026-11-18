@@ -19,3 +19,8 @@ CONFIG_LV_COLOR_DEPTH_16=y
 CONFIG_LV_COLOR_16_SWAP=n
 
 CONFIG_FATFS_API_ENCODING_UTF_8=y
+# FatFs sizes its volume and per-file sector buffers by the largest sector it may
+# meet: the wear-levelling sector size, 4096 by default. There is no flash FAT
+# partition, and SD cards use 512-byte sectors, so 4096 only wasted ~10 KB of
+# internal RAM while the card is mounted (Wi-Fi Files ran out, 2026-11-17).
+CONFIG_WL_SECTOR_SIZE_512=y
