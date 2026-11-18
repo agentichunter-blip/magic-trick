@@ -808,9 +808,9 @@ def add_previews(target, sources, replace=False, log=print, ffmpeg=None):
         log('No game on the card matches the clip %s' % Path(clip).name)
     summary = 'Added %s.' % plural(written, 'gameplay clip')
     if unmatched:
-        summary += (' %s didn\'t match any game on the card. Rename %s like the game file (for example '
-                    'Tetris (World).mp4) and try again.' % (plural(len(unmatched), 'clip'),
-                                                            'it' if len(unmatched) == 1 else 'them'))
+        summary += (' %s didn\'t match any game on the card, so %s skipped. To use one of yours, give it the '
+                    'same name as the game file (for example Tetris (World).mp4).' % (
+                        plural(len(unmatched), 'clip'), 'it was' if len(unmatched) == 1 else 'they were'))
     if failed:
         summary += ' %s couldn\'t be read (it must be a video at least 10 seconds long).' % plural(len(failed), 'clip')
     return summary

@@ -249,13 +249,17 @@ class App:
                 ('covers', 'GET BOX ART', 'Press START. It finds box art for every game on the card that has '
                  'none yet. ' + library.ART_CREDIT, [('START ▶', None)]),
                 ('previews', 'ADD GAMEPLAY CLIPS', 'Pick video clips, 10 seconds or longer, or a folder of them. '
-                 'Name each clip like its game, for example Tetris.mp4. Unzip downloaded packs first.',
+                 'Each clip needs the same name as its game, for example Tetris.mp4.',
                  [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')])]:
             tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
             tile.pack(fill='x', pady=4)
             words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=8)
             self.label(words, title, self.f_pixel, INK).pack(anchor='w')
             self.label(words, text, self.f_body, MUTED, wrap=450).pack(anchor='w', pady=(3, 0))
+            if key == 'previews':
+                link = self.label(words, 'HOW DO I GET CLIPS? ▸', self.f_pixel, ACCENT, cursor='hand2')
+                link.pack(anchor='w', pady=(4, 0))
+                link.bind('<Button-1>', lambda e: self.clips_help())
             for label, pick in reversed(buttons):
                 PixelButton(tile, label, (lambda k=key, p=pick: self.begin_library(k, p)), self.f_pixel,
                             'primary' if key == 'covers' else 'secondary').pack(side='right', padx=(0, 16))
@@ -264,6 +268,23 @@ class App:
         self.replace_box.bind('<Button-1>', lambda e: self.toggle_replace())
         self.draw_replace()
         self.fit_window()
+
+    def clips_help(self):
+        if messagebox.askyesno('Getting gameplay clips', (
+                'Most people use EmuMovies, a website with gameplay clips for thousands of games. Magic Trick '
+                'can\'t include them, so you download them yourself:\n\n'
+                '1. Make an account at emumovies.com.\n'
+                '2. Find the "Video Snaps (SQ)" pack for each system you play: Game Boy, Game Boy Color, '
+                'Game Gear or Atari Lynx.\n'
+                '3. Download every part of the pack (files ending in .part1.rar, .part2.rar and so on) into one '
+                'folder.\n'
+                '4. Open the first part to unzip it. Windows 11 can do this by itself. On a Mac, use a free app '
+                'such as The Unarchiver.\n'
+                '5. Come back here, press FOLDER next to ADD GAMEPLAY CLIPS, and pick the unzipped folder.\n\n'
+                'The clips are already named like the games, so they match by themselves. Clips for games that '
+                'aren\'t on your card are skipped. Your own recordings work too: 10 seconds or longer, named '
+                'like the game.\n\nOpen emumovies.com now?')):
+            webbrowser.open('https://emumovies.com')
 
     def pick_route(self, key):
         self.route = key

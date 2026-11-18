@@ -75,7 +75,17 @@ Choose **Restore backup…** and pick `mcu-backup.bin` from your **first** insta
 
 - **Add games:** pick game files (`.gb`, `.gbc`, `.gg`, `.lnx`, `.lyx`), zip files with games inside, or a folder of them. Each game goes in its system folder; if that folder is split into A–Z folders (like `0-F`, `G-L`, `M-R`, `S-Z`), it goes in the right one. A game that's already on the card is skipped. Game Boy Color-only games go to `GBC` even when they end in `.gb`.
 - **Get box art:** press **START**. It finds box art for every game on the card that has none, by file name or by checking the game's contents, so renamed games are found too. Homebrew and rare games often have no box art. Box art comes from [ScreenScraper](https://www.screenscraper.fr), through the [MiSTer Artwork Pack](https://github.com/chipster6502/MiSTer_artwork_pack) by chipster6502. It's downloaded to your computer when you ask; the installer doesn't include any.
-- **Add gameplay clips:** pick video clips 10 seconds or longer, or a folder of them. Name each clip like its game file (`Tetris (World).mp4`) or just its title (`Tetris.mp4`, used for every version of that game). Downloaded clip packs usually come as `.rar` or `.zip` files: unzip them first and pick the folder. The installer includes the video converter (FFmpeg), so there's nothing else to install.
+- **Add gameplay clips:** pick video clips 10 seconds or longer, or a folder of them. Name each clip like its game file (`Tetris (World).mp4`) or just its title (`Tetris.mp4`, used for every version of that game). See **Getting gameplay clips** below. The installer includes the video converter (FFmpeg), so there's nothing else to install.
+
+**Getting gameplay clips.** Most people use [EmuMovies](https://emumovies.com), which has gameplay clips for thousands of games. Magic Trick can't include them, so you download them yourself (the app's **HOW DO I GET CLIPS?** link shows the same steps):
+
+1. Make an account at emumovies.com.
+2. Find the **Video Snaps (SQ)** pack for each system you play: Game Boy, Game Boy Color, Game Gear or Atari Lynx.
+3. Download every part of the pack (files ending in `.part1.rar`, `.part2.rar` and so on) into one folder.
+4. Open the first part to unzip it. Windows 11 can do this by itself; on a Mac, use a free app such as The Unarchiver.
+5. In the installer, press **FOLDER** next to **ADD GAMEPLAY CLIPS** and pick the unzipped folder.
+
+The clips are already named like the games, so they match by themselves; clips for games that aren't on your card are skipped.
 
 Box art and clips already on the card are kept. Tick **Replace box art and clips already there** to replace them (card reader and USB only; Wi-Fi can't replace files).
 
