@@ -248,25 +248,56 @@ static esp_err_t Home(httpd_req_t *Req)
     return httpd_resp_send(Req,(const char *)PageStart,PageEnd-PageStart-1);
 }
 
-typedef struct { httpd_req_t *Req; esp_err_t Result; } ListContext;
+/* Listing rows are batched into one static buffer: two tiny chunks plus a cJSON
+ * allocation per entry starved the ~5 KB of free heap on big folders, and the
+ * send then timed out mid-listing (2026-11-17). httpd runs one handler at a time. */
+typedef struct { httpd_req_t *Req; esp_err_t Result; size_t Used; } ListContext;
+static char ListBuffer[512];
+
+static bool ListFlush(ListContext *List)
+{
+    if (List->Used && List->Result == ESP_OK)
+        List->Result = httpd_resp_send_chunk(List->Req, ListBuffer, List->Used);
+    List->Used = 0;
+    return List->Result == ESP_OK;
+}
+
+static bool ListPut(ListContext *List, const char *Text, size_t Length)
+{
+    while (Length)
+    {
+        if (List->Used == sizeof(ListBuffer) && !ListFlush(List)) return false;
+        size_t Count = sizeof(ListBuffer) - List->Used;
+        if (Count > Length) Count = Length;
+        memcpy(ListBuffer + List->Used, Text, Count);
+        List->Used += Count; Text += Count; Length -= Count;
+    }
+    return true;
+}
+
+static bool ListPutName(ListContext *List, const char *Name)
+{
+    for (const unsigned char *C = (const unsigned char *)Name; *C; ++C)
+    {
+        char Escaped[7];
+        if (*C == '"' || *C == '\\') { Escaped[0] = '\\'; Escaped[1] = *C; if (!ListPut(List, Escaped, 2)) return false; }
+        else if (*C < 0x20) { snprintf(Escaped, sizeof(Escaped), "\\u%04x", *C); if (!ListPut(List, Escaped, 6)) return false; }
+        else if (!ListPut(List, (const char *)C, 1)) return false;
+    }
+    return true;
+}
 
 static bool ListEntry(const char *Name, bool Directory, uint64_t Size, void *Context)
 {
     ListContext *List = Context;
     if (Stopping()) { List->Result = ESP_FAIL; return false; }
     if (WifiFile_IsInternal(Name)) return true;
-    cJSON *Row = cJSON_CreateObject();
-    if (!Row) { List->Result = ESP_ERR_NO_MEM; return false; }
-    bool Ok = cJSON_AddStringToObject(Row, "name", Name) &&
-        cJSON_AddBoolToObject(Row, "directory", Directory) &&
-        cJSON_AddNumberToObject(Row, "size", (double)Size);
-    char *JSON = Ok ? cJSON_PrintUnformatted(Row) : NULL;
-    cJSON_Delete(Row);
-    if (!JSON) { List->Result = ESP_ERR_NO_MEM; return false; }
-    List->Result = httpd_resp_send_chunk(List->Req, JSON, strlen(JSON)); free(JSON);
-    if (List->Result == ESP_OK) List->Result = httpd_resp_send_chunk(List->Req, "\n", 1);
+    char Tail[64];
+    const int TailLength = snprintf(Tail, sizeof(Tail), "\",\"directory\":%s,\"size\":%llu}\n",
+                                    Directory ? "true" : "false", (unsigned long long)Size);
+    bool Ok = ListPut(List, "{\"name\":\"", 9) && ListPutName(List, Name) && ListPut(List, Tail, TailLength);
     Touch();
-    return List->Result == ESP_OK;
+    return Ok;
 }
 
 static esp_err_t List(httpd_req_t *Req)
@@ -277,10 +308,10 @@ static esp_err_t List(httpd_req_t *Req)
     struct stat Info;
     if (stat(Folder, &Info) != 0 || !S_ISDIR(Info.st_mode)) return Error(Req, "404 Not Found", "Folder unavailable.");
     httpd_resp_set_type(Req, "application/x-ndjson");
-    ListContext Context = { .Req = Req, .Result = ESP_OK };
+    ListContext Context = { .Req = Req, .Result = ESP_OK, .Used = 0 };
     /* One pass: a stat() per entry rescans the folder, which made big folders take minutes. */
     const esp_err_t Listed = SDList_Folder(Folder, ListEntry, &Context);
-    if (Listed != ESP_OK || Context.Result != ESP_OK || Stopping()) return ESP_FAIL;
+    if (Listed != ESP_OK || !ListFlush(&Context) || Stopping()) return ESP_FAIL;
     return httpd_resp_send_chunk(Req, NULL, 0);
 }
 static esp_err_t Download(httpd_req_t *Req)

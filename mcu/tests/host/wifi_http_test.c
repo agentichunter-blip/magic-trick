@@ -98,6 +98,17 @@ int main(void) {
     Reset(); R.uri="/api/folder?path=%2FCovers"; assert(MakeDirectory(&R)==ESP_OK);
     Reset(); R.uri="/api/list?path=%2F"; assert(List(&R)==ESP_OK);
     assert(strstr(Response,"game.gbc") && strstr(Response,"Covers") && !strstr(Response,".cmwifi-"));
+    /* A big folder lists every entry as one valid JSON line, names escaped, in buffered chunks. */
+    { char P[768]; snprintf(P,sizeof(P),"%s/Many",Root); assert(mkdir(P,0700)==0);
+      for(unsigned I=0;I<150;++I){ snprintf(P,sizeof(P),"%s/Many/Game \"%03u\" \\ (USA).gb",Root,I); FILE *F=fopen(P,"wb"); assert(F); fwrite(P,1,I,F); fclose(F); }
+      Reset(); R.uri="/api/list?path=%2FMany"; assert(List(&R)==ESP_OK);
+      unsigned Lines=0; char *Line=Response;
+      for(char *End; (End=strchr(Line,'\n')); Line=End+1){ *End=0; cJSON *J=cJSON_Parse(Line); assert(J);
+        const char *N=cJSON_GetObjectItem(J,"name")->valuestring; unsigned K; assert(sscanf(N,"Game \"%3u\" \\ (USA).gb",&K)==1);
+        assert(cJSON_GetObjectItem(J,"size")->valuedouble==K && cJSON_IsFalse(cJSON_GetObjectItem(J,"directory"))); cJSON_Delete(J); ++Lines; }
+      assert(Lines==150 && *Line==0);
+      for(unsigned I=0;I<150;++I){ snprintf(P,sizeof(P),"%s/Many/Game \"%03u\" \\ (USA).gb",Root,I); unlink(P); }
+      snprintf(P,sizeof(P),"%s/Many",Root); assert(rmdir(P)==0); }
     /* No partial temp files survive any of the failures above. */
     DIR *D=opendir(Root); struct dirent *E; unsigned Entries=0;
     while((E=readdir(D)))if(strcmp(E->d_name,".")&&strcmp(E->d_name,"..")){assert(!WifiFile_IsInternal(E->d_name));++Entries;}

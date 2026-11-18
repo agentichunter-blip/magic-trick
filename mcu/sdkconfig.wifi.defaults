@@ -23,6 +23,10 @@ CONFIG_ESP_WIFI_NVS_ENABLED=n
 # Wi-Fi file uploads: cap data in flight (2 MSS) so the receive path cannot exhaust
 # internal RAM while the SD card writes (heap fell to 520 bytes with 5760).
 CONFIG_LWIP_TCP_WND_DEFAULT=2880
+# Listings and downloads: cap the send queue the same way. With 5760 a big folder
+# listing queued ~5 KB of the ~7 KB left once Wi-Fi Files runs; the Wi-Fi driver then
+# couldn't get a TX buffer, nothing was sent and the Chromatic dropped off the network.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
 # Closed connections leave TIME_WAIT after 2*MSL. The file server closes every
 # connection; at 60 s MSL those records ate the heap during long transfers.
 CONFIG_LWIP_TCP_MSL=2000
