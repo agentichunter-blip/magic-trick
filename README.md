@@ -33,7 +33,7 @@ This is an independent community project with no guaranteed support or release s
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
 - **Recent games** and **last-game startup** (hold B at power-on to skip).
 - **Wi-Fi file transfers** to and from the SD card in a web browser. Files already on the card are skipped, so you can drop a whole folder again after an interruption.
-- **SD card library** in the installer: adds games to the right system folder, downloads box art for them and converts your gameplay clips into previews, over a card reader, Wi-Fi or USB.
+- **SD card library** in the installer: puts each game in the folder for its system, downloads box art for them and converts your gameplay clips into previews, over a card reader, Wi-Fi or USB.
 - **USB file transfers** with [ChroMagician](https://github.com/cursedtoast2/ChroMagician) (Windows and Linux): turn on **USB TRANSFERS** in the menu, with Wi-Fi off. It's the same switch ChroMagician calls **C. MAGICIAN**. USB uploads are slow (a few KB/s), so use Wi-Fi or a card reader for a big library.
 - **Boot animation** with the Magic Trick logo.
 - Files beginning with `[BIOS]` are hidden without being deleted. Demo and Kiosk ROMs are filtered out.

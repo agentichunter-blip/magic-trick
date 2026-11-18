@@ -245,7 +245,8 @@ class App:
         self.label(self.screen, '2. WHAT TO ADD', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
         for key, title, text, buttons in [
                 ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .lnx) or a folder of them. Zip files are '
-                 'fine. Each game goes in its system folder.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
+                 'fine. Game Boy games go in the Game Boy folder, Game Gear games in the Game Gear folder, '
+                 'and so on.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
                 ('covers', 'GET BOX ART', 'Press START. It finds box art for every game on the card that has '
                  'none yet. ' + library.ART_CREDIT, [('START ▶', None)]),
                 ('previews', 'ADD GAMEPLAY CLIPS', 'Pick video clips, 10 seconds or longer, or a folder of them. '
