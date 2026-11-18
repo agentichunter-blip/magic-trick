@@ -80,6 +80,26 @@ def load_pixel_font(path):
         return False
 
 
+def _picker_text(options):
+    """macOS file and folder pickers don't show their title, so put it in the panel's message too
+    (otherwise the SD card picker that follows the games picker looks like the same one reopening)."""
+    if sys.platform == 'darwin' and options.get('title'):
+        options['message'] = options['title']
+    return options
+
+
+def ask_directory(**options):
+    return filedialog.askdirectory(**_picker_text(options))
+
+
+def ask_open_filenames(**options):
+    return filedialog.askopenfilenames(**_picker_text(options))
+
+
+def ask_open_filename(**options):
+    return filedialog.askopenfilename(**_picker_text(options))
+
+
 class PixelButton(tk.Label if tk else object):
     """A flat, retro button that looks the same on every platform (native buttons ignore colours on macOS)."""
     def __init__(self, master, text, command, font, kind='primary', **kw):
@@ -314,10 +334,10 @@ class App:
                 kinds = [('Video clips', ' '.join('*' + e for e in sorted(library.VIDEO_EXTENSIONS))), ('All files', '*')]
             what = 'games' if operation == 'games' else 'gameplay clips'   # used in the picker titles
             if pick == 'folder':
-                chosen = filedialog.askdirectory(title='Choose a folder of ' + what)
+                chosen = ask_directory(title='Choose the folder with your ' + what)
                 sources = [chosen] if chosen else []
             else:
-                sources = list(filedialog.askopenfilenames(title='Choose ' + what, filetypes=kinds))
+                sources = list(ask_open_filenames(title='Choose your ' + what, filetypes=kinds))
             if not sources:
                 return
             if operation == 'previews' and not library.find_ffmpeg():
@@ -348,7 +368,7 @@ class App:
     def library_target(self):
         """Ask how to reach the card. Returns (a function that opens it, a local folder or None)."""
         if self.route == 'folder':
-            chosen = filedialog.askdirectory(title='Choose your SD card')
+            chosen = ask_directory(title='Now choose your SD card (the card itself, not a folder on it)')
             if not chosen:
                 return None, None
             path = Path(chosen)
@@ -459,7 +479,7 @@ class App:
             return self.begin_restore()
         if len(self.ports) != 1:
             messagebox.showinfo('Magic Trick', 'Connect one Chromatic and switch it on first.'); return
-        parent = filedialog.askdirectory(title='Choose where to keep your private device backup')
+        parent = ask_directory(title='Choose where to keep your private device backup')
         if not parent:
             return
         service = core.cloud_service(parent)
@@ -485,7 +505,7 @@ class App:
     def begin_restore(self):
         """Recovery: put back the backup made before Magic Trick was first installed. Works without
         a USB serial port, because the FPGA (which provides it) is repaired first."""
-        chosen = filedialog.askopenfilename(
+        chosen = ask_open_filename(
             title='Choose mcu-backup.bin from your FIRST Magic Trick install',
             filetypes=[('MCU backup', 'mcu-backup.bin'), ('All files', '*')])
         if not chosen:
