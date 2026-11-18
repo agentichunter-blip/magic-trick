@@ -29,7 +29,7 @@ Display > LYNX SCREEN in the menu (MCU setting `lynx-stretch`, sent as system co
 
 ## Boot ROM and game files
 
-The MCU stages a 16-byte info block, the boot ROM and the game file in PSRAM (see `lynx_board_core.sv`). `.lnx` games need the Lynx boot ROM (`lynxboot.img`, 512 bytes, not included) in `CHROMAGIC/BACKUPS/LYNX/` or `CHROMAGIC/BIOS/`. BS93 homebrew (`.o`) runs without it.
+The MCU stages a 16-byte info block, the boot ROM and the game file in PSRAM (see `lynx_board_core.sv`). `.lnx` games don't need the Lynx boot ROM: without it the MCU decrypts the cartridge loader itself (`mcu/main/lynx_hle.c`) and starts it with a small replacement stub (`mcu/tools/lynx_hle/`), including two-stage loaders. If `lynxboot.img` (512 bytes, not included) is next to the game, in `CHROMAGIC/BACKUPS/LYNX/` or in `CHROMAGIC/BIOS/`, it is used instead. BS93 homebrew (`.o`) needs neither.
 
 ## Controls
 

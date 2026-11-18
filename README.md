@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.9">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.10">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Support my work</a>
@@ -14,18 +14,19 @@
 
 # Magic Trick
 
-**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It plays Game Boy, Game Boy Color and Game Gear games from the SD card and switches FPGA cores automatically. It turns the file list into a game library with cover art, looping gameplay previews, Game Genie cheats, a Recent folder and last-game startup, and adds native save states, Wi-Fi file transfers and a boot animation.
+**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It plays Game Boy, Game Boy Color, Game Gear and Atari Lynx games from the SD card and switches FPGA cores automatically. It turns the file list into a game library with cover art, looping gameplay previews, Game Genie cheats, a Recent folder and last-game startup, and adds native save states, Wi-Fi file transfers and a boot animation.
 
 > **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.6`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.7`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear) and `50.3` (Atari Lynx). Status reports "Magic Trick 1.0 beta".
 
 This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo, Sega or Atari. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
 ## Features
 
-- **Three systems:** Game Boy, Game Boy Color and Game Gear (with sound) on FPGA cores. Opening a game for the other system reloads the right core automatically.
-- **Native save states** for Game Boy, Game Boy Color and Game Gear: three slots per game in System → Save States, plus Menu+Select to save and Menu+Start to load the slot you used last; a shortcut shows "State saved" or "State loaded", then returns to the game. Each slot is written to the SD card next to the game (`<game>.state`, `.state2`, `.state3`), so you can load it again after turning the Chromatic off. Game Boy games with MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) or MBC5 are supported, as are Game Gear games. Loading a state keeps the in-game save you had before as `<game>.SAV.before-load-0001.sav`.
+- **Four systems:** Game Boy, Game Boy Color, Game Gear (with sound) and Atari Lynx on FPGA cores. Opening a game for another system loads the right core automatically.
+- **Atari Lynx** (`.lnx`, `.lyx`, `.o`) on a core adapted from MiSTer's: games start without a Lynx BIOS file, run at a steady 60 Hz (games that run faster are slowed to the screen's rate, without changing the sound), and have save states. The **LYNX SCREEN** setting shows the picture letterboxed or stretched to fill the screen. Wi-Fi Files and USB TRANSFERS aren't available while a Lynx game is loaded: play a Game Boy or Game Gear game first.
+- **Native save states** for Game Boy, Game Boy Color, Game Gear and Atari Lynx: three slots per game in System → Save States, plus Menu+Select to save and Menu+Start to load the slot you used last; a shortcut shows "State saved" or "State loaded", then returns to the game. Each slot is written to the SD card next to the game (`<game>.state`, `.state2`, `.state3`), so you can load it again after turning the Chromatic off. Game Boy games with MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) or MBC5 are supported, as are Game Gear games. Loading a state keeps the in-game save you had before as `<game>.SAV.before-load-0001.sav`.
 - **Color temperature** for Game Boy Color and Game Gear games, ported from ModRetro's stock firmware 4.6. In color games the **Color Temp** tab takes the Palette tab's place and goes from Neutral to Warm 5. Like ModRetro's, it warms only bright areas such as white text and title screens, so dark scenes barely change. **Menu+Up** warms and **Menu+Down** cools during play; in Game Boy games the same keys cycle the palette, as on stock firmware. Controls → hot keys lists every shortcut.
 - **Support for revised Chromatic boards**, ported from ModRetro's FPGA 18.9–18.14: the firmware detects the board, configures the charger as ModRetro does (charge current, watchdog off, slower charging when a revised board's battery is cold), sequences cartridge power, and uses board-specific battery levels. Switched off on USB power, the Chromatic stays dark.
 - **In-game saves for Game Gear:** battery and EEPROM saves are kept on the SD card as `<game>.SAV` and loaded before the game starts, including games with 32 KiB of cartridge RAM such as Shining Force – The Sword of Hajya.
@@ -42,17 +43,17 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
-Download **[Magic Trick Installer 1.0.0-beta.9](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.9)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
+Download **[Magic Trick Installer 1.0.0-beta.10](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.10)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
-- **Updates take 10–15 minutes.** FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
+- **Updates take about 20 minutes** when all three FPGA cores change, as in 1.0.0-beta.10. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
-- **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
+- **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching, Atari Lynx games, and the SD card library over a card reader, Wi-Fi and USB). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
 
 ### Build from source
 
 - **MCU:** with ESP-IDF v5.3 activated, run `mcu/tools/build_wifi.sh`. It builds the app (`mcu_fw.bin`) for the Wi-Fi partition table in `mcu/partitions.wifi.csv` (application at `0x260000`) and runs the host tests. More in [docs/building.md](docs/building.md).
 - **FPGA:** see [fpga/cores/README.md](fpga/cores/README.md). Both cores rebuild bit-for-bit from this repository with Gowin EDA V1.9.12.04.
-- **Installing your own build:** the MCU app, both FPGA cores and the partition table have to go on together. Use the installer's code in [`installer/`](installer) as the reference sequence. Never run the multi-region `idf.py flash` command printed by the build: it would overwrite the bootloader.
+- **Installing your own build:** the MCU app, the FPGA cores and the partition table have to go on together. Use the installer's code in [`installer/`](installer) as the reference sequence. Never run the multi-region `idf.py flash` command printed by the build: it would overwrite the bootloader.
 
 ## Game Genie cheats
 
@@ -112,7 +113,7 @@ save state. Existing save behavior is unchanged. The FPGA/core is unchanged.
 
 ## Controls
 
-At the system picker, Game Boy, Game Boy Color and Game Gear are stacked rows. Up/Down moves between them and A opens one. Up at the first row or B returns focus to the tabs. Roots with additional entries use the normal folder list.
+At the system picker, Game Boy, Game Boy Color, Game Gear and Atari Lynx are stacked rows. Up/Down moves between them and A opens one. Up at the first row or B returns focus to the tabs. Roots with additional entries use the normal folder list.
 
 In a folder, tapping Up/Down selects the next cover directly. Holding for 350 milliseconds opens the five-row selector and starts repeating; continuing to hold accelerates scrolling. The selector stays open after release, and taps fine-tune the highlighted game. Press **A** to reveal that game’s cover/video preview, then **A** again to launch. **B** goes back. Videos start after the cover has been unobscured for 1.5 seconds. Missing clips leave the cover visible. Press **Select** from the preview to open cheats.
 

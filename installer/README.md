@@ -6,7 +6,7 @@ Installs Magic Trick firmware 1.0 beta (MCU 1.0.0-beta.7). New in installer 1.0.
 
 One app installs Magic Trick 1.0 beta on a ModRetro Chromatic, updates an earlier Magic Trick 1.0 install, or uninstalls it. Python, esptool, openFPGALoader and all firmware are bundled. No internet connection is needed.
 
-**What you get:** Game Boy, Game Boy Color and Game Gear on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native save states for all three systems (three slots per game, kept on the SD card), Game Gear in-game saves on the SD card, Wi-Fi file transfers and the Magic Trick boot animation.
+**What you get:** Game Boy, Game Boy Color, Game Gear and Atari Lynx on one device, switching cores automatically. Cover art and gameplay previews, Game Genie cheats, Recent games, last-game startup, native save states for all four systems (three slots per game, kept on the SD card), Game Gear in-game saves on the SD card, Wi-Fi file transfers and the Magic Trick boot animation.
 
 ## Before you start
 

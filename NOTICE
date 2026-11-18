@@ -21,6 +21,9 @@ Game Gear core (fpga/cores/game-gear):
 SMS_MiSTer: https://github.com/MiSTer-devel/SMS_MiSTer
 jt89 by Jose Tejada (jotego), GPL-3.0-or-later: https://github.com/jotego/jt89
 
+Atari Lynx core (fpga/cores/lynx):
+AtariLynx_MiSTer, GPL-2.0: https://github.com/MiSTer-devel/AtariLynx_MiSTer
+
 T80 Z80 CPU core, used in synthesized form in the Game Gear FPGA image:
 Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 All rights reserved

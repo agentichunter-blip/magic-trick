@@ -39,14 +39,14 @@ static esp_err_t OpenResult, StartResult;
 static bool CompleteImmediately;
 static bool FolderFixture, SystemFixture, RecentFixture;
 static size_t SystemIndex;
-static bool ThreeSystems, FiveSystems, StrayFile;
+static bool ThreeSystems, FourSystems, FiveSystems, StrayFile;
 static unsigned Depth;
 static PCBackupModeState_t PCMode;
 PCBackupModeState_t PCBackupMode_GetState(void) { return PCMode; }
 static unsigned BackupStarts;
 static esp_err_t BackupStart(void) { ++BackupStarts; return ESP_OK; }
 static char StartedName[80];
-static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (FiveSystems ? 5 : StrayFile ? 4 : ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
+static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (FiveSystems ? 5 : FourSystems ? 4 : StrayFile ? 4 : ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
 static const char *NameAt(size_t Index) {
     if (SystemFixture && StrayFile && !Depth && Index==3) return "MR.TETRIS.gbc";
     if (SystemFixture) {
@@ -63,7 +63,7 @@ static const char *NameAt(size_t Index) {
 }
 static bool IsDirectory(size_t Index) { if (SystemFixture && StrayFile && !Depth && Index==3) return false; return SystemFixture || (FolderFixture && Index == (Depth == 0 ? 1 : 0)); }
 static RomPlatform_t FixturePlatform;
-static RomPlatform_t FolderPlatform(size_t Index) { if (!IsDirectory(Index)) return kRomPlatformUnknown; if (SystemFixture && FiveSystems) return (RomPlatform_t)(kRomPlatformCart - (Depth ? SystemIndex : Index)); if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
+static RomPlatform_t FolderPlatform(size_t Index) { if (!IsDirectory(Index)) return kRomPlatformUnknown; if (SystemFixture && FiveSystems) return (RomPlatform_t)(kRomPlatformCart - (Depth ? SystemIndex : Index)); if (SystemFixture && FourSystems) return (RomPlatform_t)(kRomPlatformLynx - (Depth ? SystemIndex : Index)); if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
 static bool AtRoot(void) { return Depth == 0; }
 static esp_err_t Enter(size_t Index, size_t *pCount) {
     assert(IsDirectory(Index)); if (SystemFixture && !Depth) SystemIndex=Index; ++Depth; return Open(pCount);
@@ -109,6 +109,13 @@ static lv_obj_t *OverlayList(lv_obj_t *Object) {
     return NULL;
 }
 /* Locate a visible system choice by its native image, not a redundant label. */
+static bool VisibleText(lv_obj_t *Object, const char *Wanted) {
+    if (lv_obj_check_type(Object,&lv_label_class) && lv_obj_is_visible(Object) && !strcmp(lv_label_get_text(Object),Wanted))
+        return true;
+    for (unsigned I=0;I<lv_obj_get_child_cnt(Object);++I)
+        if (VisibleText(lv_obj_get_child(Object,I),Wanted)) return true;
+    return false;
+}
 static lv_obj_t *SystemTile(lv_obj_t *Object, unsigned Slot) {
     lv_obj_update_layout(Object);
     /* Picker rows show plain-text system names; identify a row by its label. */
@@ -510,6 +517,16 @@ int main(void) {
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
     ThreeSystems=false;
     Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
+    /* The four systems without a cart: Atari Lynx is the fourth tile. */
+    FourSystems=true;
+    Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
+    assert(VisibleText(Screen,"ATARI LYNX") && !VisibleText(Screen,"CARTRIDGE"));
+    for(unsigned I=0;I<3;++I) { Menu.fnOnButton(kButton_Down,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen); }
+    Snapshot("systems-lynx");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(Depth==1 && Text(Screen,"ATARI LYNX"));
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    FourSystems=false;
     /* All four systems plus the cart folder: five tiles with full names,
      * sorted by system although the catalog lists the cart folder first. */
     FiveSystems=true;
