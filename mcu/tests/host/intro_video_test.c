@@ -13,14 +13,14 @@ static uint16_t Frame[INTRO_WIDTH * INTRO_HEIGHT];
 int main(void) {
     IntroVideo_t V;
     assert(IntroVideo_Open(&V, IntroVideoData, IntroVideoSize));
-    assert(V.FPS == 30 && V.Frames == 144 && V.Colors >= 1);
+    assert(V.FPS == 30 && V.Frames == 160 && V.Colors >= 1);
     for (unsigned C = 0; C < V.Colors; ++C) /* never the OSD transparent key */
         assert((V.Palette[2*C] | (V.Palette[2*C+1] << 8)) != 0xf81f);
     unsigned N = 0;
     while (IntroVideo_Next(&V, Frame)) ++N;
-    assert(N == 144 && V.Cursor == V.End);
+    assert(N == 160 && V.Cursor == V.End);
     /* Independent Python decode of the same data (update when re-encoding). */
-    assert(Crc32((const uint8_t *)Frame, sizeof(Frame)) == 0x9c81e431u);
+    assert(Crc32((const uint8_t *)Frame, sizeof(Frame)) == 0x7d02214du);
     /* Corruption must fail cleanly, never write out of bounds. */
     uint8_t *Copy = malloc(IntroVideoSize); memcpy(Copy, IntroVideoData, IntroVideoSize);
     assert(!IntroVideo_Open(&V, Copy, 8));
@@ -41,6 +41,6 @@ int main(void) {
     assert(IntroVideo_Open(&V, Syn, sizeof(Syn)) && !IntroVideo_Next(&V, Frame));
     Syn[15 + 180] = 89;                                         /* exact fit decodes */
     assert(IntroVideo_Open(&V, Syn, sizeof(Syn)) && IntroVideo_Next(&V, Frame) && Frame[23039] == 0x1234);
-    puts("PASS: boot intro decodes 144 frames exactly; corrupt data rejected");
+    puts("PASS: boot intro decodes 160 frames exactly; corrupt data rejected");
     return 0;
 }

@@ -387,7 +387,7 @@ footer a{color:var(--muted)}
       <div class="device">
         <div class="device-top"><span class="led">Magic Trick</span><span>1.0 beta</span></div>
         <div class="screen cycler" id="hero-screen" aria-live="off">
-          <video class="on" src="media/boot-intro.mp4" poster="media/boot-intro-poster.png" width="160" height="144" muted playsinline preload="auto" aria-label="Magic Trick boot animation: the system names Game Boy, Game Boy Color and Game Gear in plain text dissolve into the MAGIC TRICK logo."></video>
+          <video class="on" src="media/boot-intro.mp4" poster="media/boot-intro-poster.png" width="160" height="144" muted playsinline preload="auto" aria-label="Magic Trick boot animation: the system names Game Boy, Game Boy Color, Game Gear and Atari Lynx in plain text dissolve into the MAGIC TRICK logo."></video>
           <img src="media/screens/list.png" width="160" height="144" alt="Magic Trick game list: five game titles over a colour cover image, with the selected game highlighted in green.">
           <img src="media/screens/genie-lamp.png" width="160" height="144" alt="A game's cover shown under its title (colour-bar test image), with a gold lamp showing that Game Genie cheats are available." loading="lazy">
           <img src="media/screens/recent.png" width="160" height="144" alt="The Game Boy Color folder with Recent at the top, above alphabetical folders 0–F, G–L and M–R." loading="lazy">
@@ -586,14 +586,14 @@ footer a{color:var(--muted)}
 
     <article class="feature flip dev reveal" id="boot-animation">
       <div class="feature-media">
-        <figure class="shot" style="margin:0;position:relative"><span class="dev-ribbon">New in 1.0</span><div class="screen"><video src="media/boot-intro.mp4" poster="media/boot-intro-poster.png" width="160" height="144" muted loop playsinline preload="none" data-autoplay aria-label="Magic Trick boot animation: the system names Game Boy, Game Boy Color and Game Gear in plain text dissolve into the MAGIC TRICK logo."></video></div><figcaption>The actual 160×144 animation from the firmware, 4.8 seconds. Silent on the device.</figcaption></figure>
+        <figure class="shot" style="margin:0;position:relative"><span class="dev-ribbon">New in 1.0</span><div class="screen"><video src="media/boot-intro.mp4" poster="media/boot-intro-poster.png" width="160" height="144" muted loop playsinline preload="none" data-autoplay aria-label="Magic Trick boot animation: the system names Game Boy, Game Boy Color, Game Gear and Atari Lynx in plain text dissolve into the MAGIC TRICK logo."></video></div><figcaption>The actual 160×144 animation from the firmware, 5.3 seconds. Silent on the device.</figcaption></figure>
       </div>
       <div class="feature-copy">
         <div class="tags"><span class="tag now"><i></i>New in 1.0 beta</span><span class="tag comp"><i></i>MCU firmware</span></div>
         <h3>Boot animation</h3>
         <p>Magic Trick now starts with its own animation. It's built into the firmware, plays without an SD card, and replaces the old two-second pause.</p>
         <ul>
-          <li><strong>144 frames at 30 fps,</strong> confirmed on a real Chromatic.</li>
+          <li><strong>160 frames at 30 fps,</strong> confirmed on a real Chromatic.</li>
           <li><strong>Skippable:</strong> press any button. It's skipped when switching systems.</li>
           <li><strong>Silent.</strong> The ESP32 has no audio path.</li>
         </ul>
@@ -828,7 +828,7 @@ footer a{color:var(--muted)}
       <a href="https://www.youtube.com/@RyanSag">YouTube</a>
     </div>
     <p>Built on <a href="https://github.com/cursedtoast2/ChroMagic">CursedToast's ChroMagic</a> and ModRetro's open-source firmware. <a href="https://github.com/agentichunter-blip/magic-trick/blob/main/CREDITS.md">Source &amp; credits</a>.</p>
-    <p>Independent community project, not affiliated with or endorsed by ModRetro, Nintendo or Sega. Game Boy and Game Boy Color are trademarks of Nintendo; Game Gear is a trademark of Sega. Firmware reports Magic Trick 1.0 beta (MCU v1.0.0-beta.6).</p>
+    <p>Independent community project, not affiliated with or endorsed by ModRetro, Nintendo, Sega or Atari. Game Boy and Game Boy Color are trademarks of Nintendo; Game Gear is a trademark of Sega; Atari and Lynx are trademarks of Atari. Firmware reports Magic Trick 1.0 beta (MCU v1.0.0-beta.6).</p>
   </div>
 </footer>
 

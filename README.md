@@ -20,7 +20,7 @@
 
 **Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.6`, FPGA `50.1` (Game Boy / Game Boy Color) and `50.2` (Game Gear). Status reports "Magic Trick 1.0 beta".
 
-This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo or Sega. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
+This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo, Sega or Atari. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
 ## Features
 
@@ -143,7 +143,7 @@ Additional authors are named in the source file headers; those notices are prese
 
 Magic Trick is released under the **GNU GPL v3.0**, the same license as the upstream firmware and FPGA design: see [LICENSE](LICENSE), [mcu/LICENSE](mcu/LICENSE), [fpga/LICENSE](fpga/LICENSE) and [NOTICE](NOTICE). Bundled tools keep their own licenses. `SOURCE_SNAPSHOT.json` records upstream component snapshots; the base ChroMagic commit is `e611a1ef36eb9aa93f706d836f5b0e46129d7137`.
 
-Game Boy and Game Boy Color are trademarks of Nintendo. Game Gear is a trademark of Sega. Chromatic is a trademark of ModRetro. Magic Trick is not affiliated with or endorsed by any of them.
+Game Boy and Game Boy Color are trademarks of Nintendo. Game Gear is a trademark of Sega. Atari and Lynx are trademarks of Atari. Chromatic is a trademark of ModRetro. Magic Trick is not affiliated with or endorsed by any of them.
 
 ## Follow and support
 

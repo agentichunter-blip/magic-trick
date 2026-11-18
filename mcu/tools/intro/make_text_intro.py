@@ -4,7 +4,9 @@ The original intro (MagicTrick_2001_No_Oval_Chromatic_160x144.mp4) opens with
 the Nintendo and Sega logos. This keeps its timing (fade-ins, holds, cut to
 the sparkle at frame 68) but draws the system names as plain text in the
 firmware's own 8x8 banner font (components/osd/system/banner_font.c), so the
-intro carries no third-party logo artwork. Frames 68+ are copied unchanged.
+intro carries no third-party logo artwork. An ATARI LYNX card is added after
+GAME GEAR (16 more frames), and the closing card lists all four systems.
+Frames 68+ of the original follow unchanged.
 
 Usage: make_text_intro.py <original.mp4> <out.mkv>
 Writes a lossless FFV1 file at the source frame rate for encode_intro.py.
@@ -58,16 +60,21 @@ def main():
     src, dst = sys.argv[1], sys.argv[2]
     raw = subprocess.run(['ffmpeg', '-v', 'error', '-i', src, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
                          check=True, capture_output=True).stdout
-    frames = np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3).copy()
-    bg = frames[0, 0, 0].astype(float)
+    original = np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3)
+    bg = original[0, 0, 0].astype(float)
     gb = card(['GAME BOY'], 2, 0)
     gbc = card(['GAME BOY', 'COLOR'], 2, 6)
     gg = card(['GAME', 'GEAR'], 2, 6)
-    trio = card(['GAME BOY', 'GAME BOY COLOR', 'GAME GEAR'], 1, 10)
+    lynx = card(['ATARI', 'LYNX'], 2, 6)
+    four = card(['GAME BOY', 'GAME BOY COLOR', 'GAME GEAR', 'ATARI LYNX'], 1, 8)
     fade = [0.25, 0.5, 0.75, 1.0]
-    # (first frame, last frame, mask, fade in?) mirrors the original scene timing.
-    scenes = [(3, 18, gb, True), (20, 35, gbc, True), (36, 51, gg, True), (52, 67, trio, False)]
-    frames[:68] = bg.astype(np.uint8)
+    # (first frame, last frame, mask, fade in?) mirrors the original scene timing,
+    # with one more 16-frame system card before the closing list.
+    scenes = [(3, 18, gb, True), (20, 35, gbc, True), (36, 51, gg, True), (52, 67, lynx, True),
+              (68, 83, four, False)]
+    text_frames = 84
+    frames = np.concatenate([np.empty((text_frames, H, W, 3), np.uint8), original[68:]])
+    frames[:text_frames] = bg.astype(np.uint8)
     for f0, f1, mask, fades in scenes:
         for f in range(f0, f1 + 1):
             a = fade[f - f0] if fades and f - f0 < len(fade) else 1.0
