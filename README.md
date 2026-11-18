@@ -136,6 +136,7 @@ Magic Trick is a modification of other people's work, and they deserve the credi
 - **[GOWIN Semiconductor](https://www.gowinsemi.com/en/)**: acknowledged in the upstream FPGA notices.
 - **[Espressif ESP-IDF and esptool](https://github.com/espressif)**, **[LVGL](https://lvgl.io/)**, **[openFPGALoader](https://github.com/trabucayre/openFPGALoader)**, **[libusb](https://libusb.info/)**, **Python** and **PyInstaller**: firmware framework, UI library, and the flashing tools bundled in the installer.
 - **[libretro-database](https://github.com/libretro/libretro-database)** contributors: the optional external cheat data used by the cheat pack compiler. No database or generated pack is bundled.
+- **[FFmpeg](https://ffmpeg.org)** (GPL-2.0-or-later build, bundled through [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg)): converts gameplay clips in the installer's SD card library. See [NOTICE](NOTICE) for its source.
 - **[ScreenScraper](https://www.screenscraper.fr)** contributors and **[chipster6502](https://github.com/chipster6502/MiSTer_artwork_pack)**: the box art the installer's SD card library downloads, collected and matched in the MiSTer Artwork Pack. No artwork is bundled.
 
 Additional authors are named in the source file headers; those notices are preserved. See [CREDITS.md](CREDITS.md) for source provenance and exactly what Magic Trick adds. The repository's neutral commit author does not claim authorship of upstream work.

@@ -127,6 +127,23 @@ class Card(unittest.TestCase):
         self.assertEqual(len(pairs[Path('tetris.mp4')]), 2)
         self.assertEqual(unmatched, [Path('Zelda.mp4')])
 
+    def test_preview_from_a_clip(self):
+        ffmpeg = library.find_ffmpeg()
+        if not ffmpeg:
+            self.skipTest('no FFmpeg')
+        import subprocess
+        clip = self.tmp / 'Golf.mp4'
+        subprocess.run([ffmpeg, '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=12:size=320x240:rate=30',
+                        '-pix_fmt', 'yuv420p', str(clip)], check=True, timeout=120)
+        data = library.preview_bytes(ffmpeg, clip)
+        self.assertEqual(len(data), library.VIDEO_BYTES)
+        self.assertEqual(data[:4], b'CMVP')
+        short = self.tmp / 'Short.mp4'
+        subprocess.run([ffmpeg, '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=4:size=320x240:rate=30',
+                        '-pix_fmt', 'yuv420p', str(short)], check=True, timeout=120)
+        with self.assertRaises(ValueError):
+            library.preview_bytes(ffmpeg, short)
+
     def test_cover_matches_the_firmware_tool(self):
         if str(TOOLS) not in sys.path:
             sys.path.insert(0, str(TOOLS))

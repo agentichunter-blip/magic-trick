@@ -679,11 +679,24 @@ def get_covers(target, replace=False, log=print, load_index=PackIndex.load, down
 # ---------------------------------------------------------------- gameplay previews
 
 def find_ffmpeg():
+    """The FFmpeg bundled with the installer (imageio-ffmpeg), else one installed on this computer."""
+    try:
+        import imageio_ffmpeg
+        bundled = imageio_ffmpeg.get_ffmpeg_exe()
+        if bundled and Path(bundled).is_file():
+            return bundled
+    except (ImportError, RuntimeError, OSError):
+        pass
     found = shutil.which('ffmpeg')
     for candidate in ([found] if found else []) + ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']:
         if candidate and Path(candidate).is_file():
             return candidate
     return None
+
+
+def _no_window():
+    """Keep Windows from flashing a console window for each clip."""
+    return {'creationflags': subprocess.CREATE_NO_WINDOW} if sys.platform == 'win32' else {}
 
 
 def preview_bytes(ffmpeg, source):
@@ -692,7 +705,7 @@ def preview_bytes(ffmpeg, source):
            f'fps={FPS},scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease:flags=neighbor,'
            f'pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:black',
            '-frames:v', str(FPS * SECONDS), '-pix_fmt', 'rgb565le', '-f', 'rawvideo', 'pipe:1']
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **_no_window())
     if result.returncode:
         raise ValueError(result.stderr.decode(errors='replace').strip() or 'FFmpeg failed')
     n, rem = divmod(len(result.stdout), FRAME_BYTES)
@@ -725,8 +738,8 @@ def add_previews(target, sources, replace=False, log=print, ffmpeg=None):
     emit('step', key='lib_scan')
     ffmpeg = ffmpeg or find_ffmpeg()
     if not ffmpeg:
-        raise ValueError('Clips need a free program called FFmpeg on this computer. Mac: brew install ffmpeg. '
-                         'Windows: winget install ffmpeg. Linux: install the ffmpeg package.')
+        raise ValueError('The video converter (FFmpeg) is missing from this installer. Download the installer '
+                         'again, or install FFmpeg on this computer.')
     clips = []
     for source in map(Path, sources):
         clips += sorted(p for p in source.rglob('*') if p.suffix.lower() in VIDEO_EXTENSIONS) \

@@ -299,9 +299,8 @@ class App:
             if not sources:
                 return
             if operation == 'previews' and not library.find_ffmpeg():
-                messagebox.showinfo('One more thing needed', 'To turn clips into Chromatic previews, this computer '
-                                    'needs a free program called FFmpeg.\n\nMac: brew install ffmpeg\nWindows: winget '
-                                    'install ffmpeg\nLinux: install the ffmpeg package\n\nThen try again.')
+                messagebox.showinfo('Video converter missing', 'This installer is missing its video converter '
+                                    '(FFmpeg). Download the installer again, or install FFmpeg on this computer.')
                 return
         opener, folder = self.library_target()
         if not opener:
@@ -864,6 +863,10 @@ def self_test():
     from PIL import Image
     png = io.BytesIO(); Image.new('RGB', (40, 30), (200, 30, 30)).save(png, 'PNG')
     assert len(library.cover_bytes(png.getvalue())) == library.COVER_BYTES, 'cover conversion failed'
+    ffmpeg = library.find_ffmpeg()
+    assert ffmpeg, 'bundled FFmpeg missing'
+    out = subprocess.run([ffmpeg, '-hide_banner', '-version'], capture_output=True, text=True, timeout=60).stdout
+    assert out.startswith('ffmpeg version'), 'bundled FFmpeg did not run: ' + out[:200]
     print('Magic Trick installer ' + core.INSTALLER_VERSION + ' (firmware ' + core.RELEASE + '): bundled firmware and dependencies OK')
 
 

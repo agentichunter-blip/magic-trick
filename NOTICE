@@ -47,3 +47,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 Wi-Fi pairing words: EFF short wordlist, CC BY 4.0, Electronic Frontier Foundation.
+
+Installer video conversion (SD card library, gameplay clips):
+FFmpeg 7.1, https://ffmpeg.org, bundled as a binary from imageio-ffmpeg 0.7.0
+(https://github.com/imageio/imageio-ffmpeg, BSD-2-Clause). This FFmpeg build
+includes GPL components (libx264) and is distributed under the GNU GPL,
+version 2 or later. Its source is at https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz
+and its build scripts at https://github.com/imageio/imageio-binaries.
+The installer only runs it as a separate program to resize clips.
