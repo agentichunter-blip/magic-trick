@@ -41,7 +41,7 @@ COVER_BYTES = len(COVER_HEADER) + FRAME_BYTES
 VIDEO_BYTES = VIDEO_HEADER.size + FPS * SECONDS * FRAME_BYTES
 
 USB_SPEED = 3200      # bytes per second written over USB (3.0-3.5 KB/s measured 2026-11-17)
-# Firmware up to 1.0.0-beta.6 stats every entry of a listed folder, which rescans the folder, so a
+# Firmware up to MCU 1.0.0-beta.6 stats every entry of a listed folder, which rescans the folder, so a
 # listing is quadratic: ~25 s for 400 games over USB (measured 2026-11-17). Allow for big folders.
 LIST_TIMEOUT = 600
 WIFI_SPEED = 45000    # bytes per second written over Wi-Fi (37-59 KB/s measured 2026-11-17)
