@@ -31,11 +31,11 @@ STEPS = {
     'table': ('SWITCH OVER', 'Switching the MCU over to the new firmware.', 0.3),
     'mcu_restore': ('RESTORE MCU', 'Putting your saved MCU flash back. This takes a few minutes.', 6),
     'confirm': ('RESTART', 'Restarting your Chromatic and checking that it starts up.', 1),
-    'lib_scan': ('LOOK AT CARD', 'Looking at the games already on the SD card.', 0.5),
-    'lib_copy': ('COPY GAMES', 'Copying your games into the right system folders.', 3),
-    'art_match': ('FIND COVERS', 'Matching your games to the cover pack.', 1),
-    'art_write': ('WRITE COVERS', 'Downloading covers and writing them next to your games.', 3),
-    'vid_write': ('PREVIEWS', 'Converting your clips and writing them next to your games.', 5),
+    'lib_scan': ('READING CARD', 'Looking at what\'s already on your SD card.', 0.5),
+    'lib_copy': ('COPYING GAMES', 'Copying your games into the right folders.', 3),
+    'art_match': ('FINDING BOX ART', 'Matching your games to box art.', 1),
+    'art_write': ('ADDING BOX ART', 'Downloading box art and adding it to your card.', 3),
+    'vid_write': ('ADDING CLIPS', 'Shrinking your clips to fit the screen and adding them to your card.', 5),
 }
 PLANS = {
     'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'table', 'confirm'],
@@ -46,13 +46,12 @@ PLANS = {
     'previews': ['lib_scan', 'vid_write'],
 }
 TITLES = {'install': 'INSTALLING', 'uninstall': 'UNINSTALLING', 'restore': 'RESTORING',
-          'games': 'ADDING GAMES', 'covers': 'COVER ART', 'previews': 'ADDING PREVIEWS'}
+          'games': 'ADDING GAMES', 'covers': 'BOX ART', 'previews': 'ADDING CLIPS'}
 LIBRARY = ('games', 'covers', 'previews')
 # How the library reaches the SD card: key, label, speed note.
-ROUTES = [('folder', 'CARD READER', 'Fastest. Put the SD card in this computer and choose it.'),
-          ('wifi', 'WI-FI', 'About 40 KB/s. On the Chromatic, open Wi-Fi Files for its address and WEB CODE.'),
-          ('usb', 'USB (SLOW)', 'About 3 KB/s: a cover takes ~8 s, a 1 MB game ~5 min, a preview ~12 min. '
-                                'Fine for a few covers, not for a whole library.')]
+ROUTES = [('folder', 'CARD READER', 'Fastest. Take the SD card out of the Chromatic and put it in this computer.'),
+          ('wifi', 'WI-FI', 'No cable needed. On the Chromatic, open Settings, then Wi-Fi Files.'),
+          ('usb', 'USB (SLOW)', 'Very slow. Fine for a few covers, but not for games or clips.')]
 SPINNER = '▖▘▝▗'
 
 
@@ -212,8 +211,8 @@ class App:
         tile.pack(fill='x', pady=(12, 4))
         words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
         self.label(words, 'SD CARD LIBRARY', self.f_pixel, LILAC).pack(anchor='w')
-        self.label(words, 'Add games, cover art and gameplay previews to your SD card, in the folders Magic Trick '
-                   'reads. Doesn\'t change the firmware.', self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(5, 0))
+        self.label(words, 'Add games, box art and gameplay clips to your SD card. Doesn\'t change the firmware, '
+                   'and no backup is needed.', self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(5, 0))
         PixelButton(tile, 'OPEN ▶', self.show_library, self.f_pixel, 'secondary').pack(side='right', padx=16)
         self.refresh_device()
         self.fit_window()
@@ -226,10 +225,13 @@ class App:
         self.status_dot.configure(fg=LILAC); self.status_text.configure(text='SD CARD LIBRARY')
         self.route = getattr(self, 'route', 'folder')
         self.replace = getattr(self, 'replace', False)
-        self.label(self.screen, 'SD CARD LIBRARY', self.f_pixel_big, LILAC).pack(anchor='w', pady=(4, 6))
-        self.label(self.screen, 'Puts games in their system folder and covers and previews next to them, named '
-                   'to match. Files already on the card are kept.', self.f_body_big, INK, wrap=840).pack(anchor='w')
-        self.label(self.screen, 'HOW TO REACH THE CARD', self.f_pixel, MUTED).pack(anchor='w', pady=(14, 4))
+        top = tk.Frame(self.screen, bg=BG); top.pack(fill='x', pady=(4, 6))
+        self.label(top, 'SD CARD LIBRARY', self.f_pixel_big, LILAC).pack(side='left')
+        PixelButton(top, '◀ BACK', self.show_home, self.f_pixel, 'secondary').pack(side='right')
+        self.label(self.screen, 'Add games, box art and gameplay clips to your SD card. Everything goes in the '
+                   'right folder with the right name. Nothing on the card is deleted.', self.f_body_big, INK,
+                   wrap=840).pack(anchor='w')
+        self.label(self.screen, '1. HOW TO REACH YOUR SD CARD', self.f_pixel, ACCENT).pack(anchor='w', pady=(14, 4))
         self.route_rows = {}
         for key, name, note in ROUTES:
             row = tk.Frame(self.screen, bg=BG, cursor='hand2'); row.pack(fill='x', pady=2)
@@ -240,26 +242,27 @@ class App:
                 w.bind('<Button-1>', lambda e, k=key: self.pick_route(k))
             self.route_rows[key] = (mark, name)
         self.draw_routes()
-        self.replace_box = self.label(self.screen, '', self.f_pixel, INK, cursor='hand2')
-        self.replace_box.pack(anchor='w', pady=(10, 6))
-        self.replace_box.bind('<Button-1>', lambda e: self.toggle_replace())
-        self.draw_replace()
+        self.label(self.screen, '2. WHAT TO ADD', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
         for key, title, text, buttons in [
-                ('games', 'ADD GAMES', 'Game Boy, Game Boy Color, Game Gear and Lynx games, or .zip files holding '
-                 'them. Each goes in its system folder.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
-                ('covers', 'GET COVER ART', 'Finds box art for every game without a cover, by name or checksum, '
-                 'and downloads it to this computer first. ' + library.ART_CREDIT, [('START ▶', None)]),
-                ('previews', 'ADD PREVIEWS', 'Your own gameplay clips (at least 10 s), named like the game. '
-                 'Needs FFmpeg on this computer.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')])]:
+                ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .lnx) or a folder of them. Zip files are '
+                 'fine. Each game goes in its system folder.', [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
+                ('covers', 'GET BOX ART', 'Press START. It finds box art for every game on the card that has '
+                 'none yet. ' + library.ART_CREDIT, [('START ▶', None)]),
+                ('previews', 'ADD GAMEPLAY CLIPS', 'Pick video clips, 10 seconds or longer, or a folder of them. '
+                 'Name each clip like its game, for example Tetris.mp4. Unzip downloaded packs first.',
+                 [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')])]:
             tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
             tile.pack(fill='x', pady=4)
-            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=8)
             self.label(words, title, self.f_pixel, INK).pack(anchor='w')
-            self.label(words, text, self.f_body, MUTED, wrap=450).pack(anchor='w', pady=(5, 0))
+            self.label(words, text, self.f_body, MUTED, wrap=450).pack(anchor='w', pady=(3, 0))
             for label, pick in reversed(buttons):
                 PixelButton(tile, label, (lambda k=key, p=pick: self.begin_library(k, p)), self.f_pixel,
                             'primary' if key == 'covers' else 'secondary').pack(side='right', padx=(0, 16))
-        PixelButton(self.screen, '◀ BACK', self.show_home, self.f_pixel, 'secondary').pack(anchor='w', pady=(12, 0))
+        self.replace_box = self.label(self.screen, '', self.f_pixel, MUTED, cursor='hand2')
+        self.replace_box.pack(anchor='w', pady=(8, 0))
+        self.replace_box.bind('<Button-1>', lambda e: self.toggle_replace())
+        self.draw_replace()
         self.fit_window()
 
     def pick_route(self, key):
@@ -276,7 +279,7 @@ class App:
         self.draw_replace()
 
     def draw_replace(self):
-        self.replace_box.configure(text=('[X]' if self.replace else '[ ]') + ' REPLACE COVERS AND PREVIEWS ON THE CARD', fg=GREEN if self.replace else INK)
+        self.replace_box.configure(text=('[X]' if self.replace else '[ ]') + ' REPLACE BOX ART AND CLIPS ALREADY THERE', fg=GREEN if self.replace else MUTED)
 
     def begin_library(self, operation, pick):
         if self.busy:
@@ -287,7 +290,7 @@ class App:
                 kinds = [('Games', '*.gb *.gbc *.gg *.lnx *.lyx *.zip'), ('All files', '*')]
             else:
                 kinds = [('Video clips', ' '.join('*' + e for e in sorted(library.VIDEO_EXTENSIONS))), ('All files', '*')]
-            what = 'games' if operation == 'games' else 'gameplay clips'
+            what = 'games' if operation == 'games' else 'gameplay clips'   # used in the picker titles
             if pick == 'folder':
                 chosen = filedialog.askdirectory(title='Choose a folder of ' + what)
                 sources = [chosen] if chosen else []
@@ -296,8 +299,9 @@ class App:
             if not sources:
                 return
             if operation == 'previews' and not library.find_ffmpeg():
-                messagebox.showinfo('Magic Trick', 'Previews need FFmpeg on this computer.\n\nMac: brew install '
-                                    'ffmpeg\nWindows: winget install ffmpeg\nLinux: install the ffmpeg package.')
+                messagebox.showinfo('One more thing needed', 'To turn clips into Chromatic previews, this computer '
+                                    'needs a free program called FFmpeg.\n\nMac: brew install ffmpeg\nWindows: winget '
+                                    'install ffmpeg\nLinux: install the ffmpeg package\n\nThen try again.')
                 return
         opener, folder = self.library_target()
         if not opener:
@@ -323,23 +327,25 @@ class App:
     def library_target(self):
         """Ask how to reach the card. Returns (a function that opens it, a local folder or None)."""
         if self.route == 'folder':
-            chosen = filedialog.askdirectory(title='Choose your SD card (or its CHROMAGIC folder)')
+            chosen = filedialog.askdirectory(title='Choose your SD card')
             if not chosen:
                 return None, None
             path = Path(chosen)
             root = path.parent if path.name.upper() == 'CHROMAGIC' else path
             if not any(c.name.upper() == 'CHROMAGIC' for c in root.iterdir() if c.is_dir()) and \
-                    not messagebox.askyesno('Magic Trick', 'There\'s no CHROMAGIC folder in ' + str(root) + '.\n\n'
-                                            'Is this your Chromatic\'s SD card? Choose Yes to create it there.'):
+                    not messagebox.askyesno('Is this the right card?', 'This doesn\'t look like a Chromatic SD card '
+                                            '(there\'s no CHROMAGIC folder):\n\n' + str(root) + '\n\nChoose Yes only if '
+                                            'this really is the card from your Chromatic.'):
                 return None, None
             return (lambda: library.FolderTarget(root)), root
         if self.route == 'wifi':
-            address = simpledialog.askstring('Wi-Fi Files', 'On the Chromatic, open Settings > Wi-Fi Files.\n\n'
-                                             'Address it shows (like 192.168.1.23):', parent=self.root)
+            address = simpledialog.askstring('Wi-Fi: step 1 of 2', 'On the Chromatic, open Settings, then Wi-Fi '
+                                             'Files.\n\nType the address it shows.\nIt looks like 192.168.1.23',
+                                             parent=self.root)
             if not address:
                 return None, None
-            code = simpledialog.askstring('Wi-Fi Files', 'Its six-digit WEB CODE (press A on the Chromatic to see '
-                                          'it):', parent=self.root)
+            code = simpledialog.askstring('Wi-Fi: step 2 of 2', 'On the Chromatic, press A to see the WEB CODE.'
+                                          '\n\nType its 6 numbers:', parent=self.root)
             if not code:
                 return None, None
             return (lambda: library.WifiTarget(address, code)), None
@@ -348,13 +354,14 @@ class App:
         except Exception:
             ports = []
         if len(ports) != 1:
-            messagebox.showinfo('Magic Trick', 'Connect one Chromatic with a USB cable and switch it on first.')
+            messagebox.showinfo('Connect your Chromatic', 'Plug your Chromatic into this computer with a USB cable '
+                                'and switch it on. Then try again.')
             return None, None
-        if not messagebox.askyesno('USB is slow', 'USB transfers run at about 3 KB/s:\n\n• a cover: about 8 '
-                                   'seconds\n• a 1 MB game: about 5 minutes\n• a gameplay preview: about 12 '
-                                   'minutes\n\nFor more than a handful, a card reader or Wi-Fi is much faster. '
-                                   'The details show an estimate once the card has been read.\n\nOn the '
-                                   'Chromatic, turn Wi-Fi off and USB TRANSFERS on first. Continue over USB?'):
+        if not messagebox.askyesno('USB is very slow', 'Copying over USB takes a long time:\n\n• one box art: '
+                                   'about 8 seconds\n• one game: about 5 minutes\n• one gameplay clip: about 12 '
+                                   'minutes\n\nFor more than a few files, use a card reader or Wi-Fi.\n\nBefore you '
+                                   'go on, on the Chromatic:\n1. Turn Wi-Fi off.\n2. Turn USB TRANSFERS on.\n\n'
+                                   'Continue over USB?'):
             return None, None
         port = ports[0]
         return (lambda: library.UsbTarget(port)), None
@@ -631,8 +638,7 @@ class App:
     def on_line(self, line):
         """Turn tool output into progress and reassuring notes."""
         if line.startswith('Reading CHROMAGIC/'):
-            self.note = ('Reading ' + line[len('Reading '):].rstrip('…') + ' on the card. Folders with hundreds of '
-                         'games take a minute or so each over Wi-Fi or USB.'); return
+            self.note = 'Reading your SD card. Over Wi-Fi or USB this can take a minute.'; return
         m = re.search(r'^Progress: (\d+) of (\d+)', line)
         if m:
             self.step_fraction = int(m.group(1)) / max(int(m.group(2)), 1); return
@@ -675,16 +681,16 @@ class App:
             word, colour = ('DONE!', GREEN) if error is None else ('STOPPED', RED)
             if error is None:
                 lines = self.library_result
-                extra = {'folder': 'Eject the SD card safely, put it back in the Chromatic and open BACKUPS.',
-                         'wifi': 'Press B on Wi-Fi Files, then open BACKUPS to see them.',
-                         'usb': 'Turn USB TRANSFERS off, then open BACKUPS to see them.'}[self.route]
+                extra = {'folder': 'Next: eject the SD card, put it back in the Chromatic and open BACKUPS.',
+                         'wifi': 'Next: press B on the Chromatic to close Wi-Fi Files, then open BACKUPS.',
+                         'usb': 'Next: turn USB TRANSFERS off on the Chromatic, then open BACKUPS.'}[self.route]
             else:
                 lines = 'It stopped before finishing: ' + error
-                extra = ('Everything written before it stopped is complete and stays on the card. Run it again to '
-                         'carry on; files already there are skipped.')
+                extra = ('Nothing is lost: everything copied before it stopped is complete. Press BACK TO LIBRARY '
+                         'and run it again to carry on. Files already on the card are skipped.')
             if self.operation == 'covers':
                 extra += '\n' + library.ART_CREDIT
-            extra += '\nSHOW DETAILS (or COPY LOG) lists every file and anything that didn\'t match.'
+            extra += '\nCOPY LOG lists every file, and anything that wasn\'t found.'
             self.status_dot.configure(fg=colour); self.status_text.configure(text='ALL DONE' if error is None else 'STOPPED')
         elif error is None and stage != 'complete_unconfirmed':
             word, colour = 'DONE!', GREEN

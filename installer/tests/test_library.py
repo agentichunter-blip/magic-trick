@@ -84,7 +84,7 @@ class Card(unittest.TestCase):
         self.assertEqual((games / 'GG/Sonic.gg').read_bytes(), b'GG' * 100)
         self.assertFalse((games / 'GB/Golf (World).gb').exists())   # already on the card, in a subfolder
         self.assertIn('Added 3 games', result)
-        self.assertIn('1 were already', result)
+        self.assertIn('1 was already on the card, so it was skipped', result)
 
     def test_existing_folder_spelling_is_reused(self):
         self.put('chromagic/backups/gb/a.gb', rom())
@@ -108,8 +108,8 @@ class Card(unittest.TestCase):
         self.assertFalse((art / 'Unknown Homebrew.gb.cma').exists())
         self.assertEqual((art / 'Has Cover.gb.cma').read_bytes(), b'mine')
         self.assertEqual(len(fetched), 2)
-        self.assertIn('Added 2 covers', result)
-        self.assertIn('1 game had no match', result)
+        self.assertIn('Added box art for 2 games', result)
+        self.assertIn('No box art was found for 1 game', result)
 
     def test_replace(self):
         self.put('CHROMAGIC/BACKUPS/GB/Golf (World).gb', rom(seed=3))
@@ -219,10 +219,10 @@ class Wifi(unittest.TestCase):
         files = FakeChromatic.files
         self.assertEqual(len(files['CHROMAGIC/ART/GB/mine.gb.cma']), library.COVER_BYTES)   # by device checksum
         self.assertIn('CHROMAGIC/ART/GB/Golf (World).gb.cma', files)
-        self.assertIn('Added 2 covers', result)
+        self.assertIn('Added box art for 2 games', result)
         # A second run finds both covers and writes nothing.
         target.forget('CHROMAGIC/ART'); target.forget('CHROMAGIC/ART/GB')
-        self.assertIn('Every game already has a cover', library.get_covers(target, log=lambda *a: None, load_index=loader))
+        self.assertIn('already has box art', library.get_covers(target, log=lambda *a: None, load_index=loader))
 
 
 if __name__ == '__main__':

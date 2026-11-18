@@ -30,7 +30,7 @@ PACKS = {
     'GG': [('sega', 'GameGear')],
     'LYNX': [('atari', 'AtariLynx')],
 }
-ART_CREDIT = 'Box art from ScreenScraper (screenscraper.fr), via the MiSTer Artwork Pack by chipster6502.'
+ART_CREDIT = 'Box art: ScreenScraper, via the MiSTer Artwork Pack by chipster6502.'
 
 # Cover and preview formats (docs/media.md; same output as mcu/tools/prepare_previews.py).
 WIDTH, HEIGHT, FPS, SECONDS = 128, 92, 12, 8
@@ -53,6 +53,10 @@ def emit(kind, **data):
         core.emit(kind, **data)
     except ImportError:
         pass
+
+
+def plural(n, word, words=None):
+    return '%d %s' % (n, word if n == 1 else (words or word + 's'))
 
 
 def progress(done, total, what):
@@ -447,8 +451,8 @@ def add_games(target, sources, log=print):
     emit('step', key='lib_scan')
     games = collect_games(sources)
     if not games:
-        raise ValueError('No Game Boy, Game Boy Color, Game Gear or Lynx games found there '
-                         '(.gb, .gbc, .gg, .lnx, .lyx, or .zip files holding them).')
+        raise ValueError('No games found there. Pick .gb, .gbc, .gg, .lnx or .lyx files, or zip files with '
+                         'them inside.')
     on_card = {}
     for path, size, system in card_games(target):
         on_card.setdefault(Path(path).name.lower(), size)
@@ -477,8 +481,11 @@ def add_games(target, sources, log=print):
             skipped += 1
         progress(i + 1, len(todo), 'games')
     by = ', '.join('%d %s' % (n, SYSTEM_NAMES[s]) for s, n in sorted(systems.items()))
-    return 'Added %d game%s%s. %d were already on the card.' % (added, '' if added == 1 else 's',
-                                                                ' (' + by + ')' if by else '', skipped)
+    text = 'Added %s.' % plural(added, 'game') + (' (' + by + ')' if by else '')
+    if skipped:
+        text += (' 1 was already on the card, so it was skipped.' if skipped == 1 else
+                 ' %d were already on the card, so they were skipped.' % skipped)
+    return text
 
 
 # ---------------------------------------------------------------- cover art
@@ -595,13 +602,13 @@ def get_covers(target, replace=False, log=print, load_index=PackIndex.load, down
     emit('step', key='lib_scan')
     games = card_games(target)
     if not games:
-        raise ValueError('No games found in CHROMAGIC/BACKUPS on the card.')
+        raise ValueError('There are no games on this card yet. Add some games first.')
     have = existing(target, ART)
     replace = replace and target.can_replace
     todo = [(p, s, sys_) for p, s, sys_ in games if replace or mirror(p, ART, '.cma').lower() not in have]
     log('%d games on the card; %d need a cover.' % (len(games), len(todo)))
     if not todo:
-        return 'Every game already has a cover. Nothing to do.'
+        return 'Every game on the card already has box art. Nothing to add.'
 
     emit('step', key='art_match')
     indexes, loaded = {}, {}
@@ -661,12 +668,11 @@ def get_covers(target, replace=False, log=print, load_index=PackIndex.load, down
         log('No cover found for %d games:' % len(missing))
         for path in missing:
             log('  ' + path[len(GAMES) + 1:])
-    summary = 'Added %d cover%s.' % (written, '' if written == 1 else 's')
+    summary = 'Added box art for %s.' % plural(written, 'game')
     if missing:
-        summary += ' %d game%s had no match in the cover pack (listed in the details).' % (
-            len(missing), '' if len(missing) == 1 else 's')
+        summary += ' No box art was found for %s (homebrew and rare games often have none).' % plural(len(missing), 'game')
     if failed:
-        summary += ' %d couldn\'t be written.' % len(failed)
+        summary += ' %s couldn\'t be added; try again.' % plural(len(failed), 'one', 'ones')
     return summary
 
 
@@ -719,18 +725,19 @@ def add_previews(target, sources, replace=False, log=print, ffmpeg=None):
     emit('step', key='lib_scan')
     ffmpeg = ffmpeg or find_ffmpeg()
     if not ffmpeg:
-        raise ValueError('Previews need FFmpeg, which isn\'t installed. Mac: "brew install ffmpeg". '
-                         'Windows: "winget install ffmpeg". Linux: install the ffmpeg package.')
+        raise ValueError('Clips need a free program called FFmpeg on this computer. Mac: brew install ffmpeg. '
+                         'Windows: winget install ffmpeg. Linux: install the ffmpeg package.')
     clips = []
     for source in map(Path, sources):
         clips += sorted(p for p in source.rglob('*') if p.suffix.lower() in VIDEO_EXTENSIONS) \
             if source.is_dir() else [source]
     clips = [c for c in clips if not c.name.startswith('.')]
     if not clips:
-        raise ValueError('No video clips found there (.mp4, .mkv, .webm, .mov, .avi, .m4v).')
+        raise ValueError('No video clips found there. Pick .mp4, .mkv, .webm, .mov, .avi or .m4v files. If you '
+                         'downloaded a pack, unzip it first.')
     games = card_games(target)
     if not games:
-        raise ValueError('No games found in CHROMAGIC/BACKUPS on the card. Add the games first.')
+        raise ValueError('There are no games on this card yet. Add the games first, then their clips.')
     pairs, unmatched = match_clips(clips, games)
     have = existing(target, VIDEO)
     replace = replace and target.can_replace
@@ -759,12 +766,13 @@ def add_previews(target, sources, replace=False, log=print, ffmpeg=None):
             done += 1; progress(done, count, 'previews')
     for clip in unmatched:
         log('No game on the card matches the clip %s' % Path(clip).name)
-    summary = 'Added %d preview%s.' % (written, '' if written == 1 else 's')
+    summary = 'Added %s.' % plural(written, 'gameplay clip')
     if unmatched:
-        summary += ' %d clip%s didn\'t match a game (name the clip like the game file).' % (
-            len(unmatched), '' if len(unmatched) == 1 else 's')
+        summary += (' %s didn\'t match any game on the card. Rename %s like the game file (for example '
+                    'Tetris (World).mp4) and try again.' % (plural(len(unmatched), 'clip'),
+                                                            'it' if len(unmatched) == 1 else 'them'))
     if failed:
-        summary += ' %d couldn\'t be converted.' % len(failed)
+        summary += ' %s couldn\'t be read (it must be a video at least 10 seconds long).' % plural(len(failed), 'clip')
     return summary
 
 

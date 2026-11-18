@@ -61,19 +61,25 @@ Choose **Restore backup…** and pick `mcu-backup.bin` from your **first** insta
 
 ## SD card library
 
-**SD card library** puts games, covers and gameplay previews on the card, in the folders and with the names Magic Trick reads. It doesn't touch the firmware, and files already on the card are kept unless you tick **Replace covers and previews**.
+**SD card library** adds games, box art and gameplay clips to your SD card. Everything goes in the right folder with the right name, and nothing on the card is deleted. It doesn't change the firmware, so no backup is needed.
 
-- **Add games:** `.gb`, `.gbc`, `.gg`, `.lnx` and `.lyx` files, or `.zip` files holding them. Each goes in `CHROMAGIC/BACKUPS/<system>/`; a game with the same file name anywhere in `BACKUPS` is skipped. Game Boy Color-only games go to `GBC` even when named `.gb`.
-- **Get cover art:** finds box art for every game without a cover and writes it to `CHROMAGIC/ART/`, next to the game's path. Games are matched by file name, then by checksum, then by title when only one game has that title. Unmatched games are listed in the details. Box art comes from [ScreenScraper](https://www.screenscraper.fr), through the [MiSTer Artwork Pack](https://github.com/chipster6502/MiSTer_artwork_pack) by chipster6502. It's downloaded to your computer when you ask; the installer doesn't include any.
-- **Add previews:** your own gameplay clips, at least 10 seconds long, named like the game file (`Tetris (World).mp4`) or its title (`Tetris.mp4`, used for every version of that game). Needs FFmpeg: `brew install ffmpeg`, `winget install ffmpeg`, or your Linux distribution's package.
+**1. Choose how to reach your SD card**
 
-Three ways to reach the card:
-
-| | Speed | How |
+| | Speed | What to do |
 |---|---|---|
-| **Card reader** | Fastest | Put the SD card in your computer and choose it (or its `CHROMAGIC` folder). |
-| **Wi-Fi** | About 40 KB/s | On the Chromatic open **Settings > Wi-Fi Files**, then type the address and the six-digit WEB CODE it shows. Wi-Fi can't replace files that are already there. |
-| **USB** | About 3 KB/s | Turn Wi-Fi off and **USB TRANSFERS** on. A cover takes about 8 s, a 1 MB game about 5 min and a preview about 12 min, so use it for a handful of files, not a whole library. |
+| **Card reader** | Fastest | Take the SD card out of the Chromatic, put it in your computer and choose it. |
+| **Wi-Fi** | About 40 KB/s | On the Chromatic open **Settings > Wi-Fi Files**. Type the address it shows, then press A and type the 6-number WEB CODE. |
+| **USB** | Very slow, about 3 KB/s | On the Chromatic turn Wi-Fi off and **USB TRANSFERS** on. One box art takes about 8 s, one game about 5 min and one clip about 12 min, so use it for a few files only. |
+
+**2. Choose what to add**
+
+- **Add games:** pick game files (`.gb`, `.gbc`, `.gg`, `.lnx`, `.lyx`), zip files with games inside, or a folder of them. Each game goes in its system folder. A game that's already on the card is skipped. Game Boy Color-only games go to `GBC` even when they end in `.gb`.
+- **Get box art:** press **START**. It finds box art for every game on the card that has none, by file name or by checking the game's contents, so renamed games are found too. Homebrew and rare games often have no box art. Box art comes from [ScreenScraper](https://www.screenscraper.fr), through the [MiSTer Artwork Pack](https://github.com/chipster6502/MiSTer_artwork_pack) by chipster6502. It's downloaded to your computer when you ask; the installer doesn't include any.
+- **Add gameplay clips:** pick video clips 10 seconds or longer, or a folder of them. Name each clip like its game file (`Tetris (World).mp4`) or just its title (`Tetris.mp4`, used for every version of that game). Downloaded clip packs usually come as `.rar` or `.zip` files: unzip them first and pick the folder. Clips need FFmpeg: `brew install ffmpeg`, `winget install ffmpeg`, or your Linux distribution's package.
+
+Box art and clips already on the card are kept. Tick **Replace box art and clips already there** to replace them (card reader and USB only; Wi-Fi can't replace files).
+
+If it stops partway, nothing is lost: run it again and it carries on, skipping what's already there.
 
 From the command line: `app.py --library games|covers|previews TARGET [FILES…] [--replace]`, where `TARGET` is the card's folder, `wifi:ADDRESS:CODE` or `usb:PORT`.
 
