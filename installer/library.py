@@ -40,7 +40,7 @@ VIDEO_HEADER = struct.Struct('<4sBBHHHIII')
 COVER_BYTES = len(COVER_HEADER) + FRAME_BYTES
 VIDEO_BYTES = VIDEO_HEADER.size + FPS * SECONDS * FRAME_BYTES
 
-USB_SPEED = 4000      # bytes per second written over USB (measured 2026-11-12)
+USB_SPEED = 3200      # bytes per second written over USB (3.0-3.5 KB/s measured 2026-11-17)
 # Firmware up to 1.0.0-beta.6 stats every entry of a listed folder, which rescans the folder, so a
 # listing is quadratic: ~25 s for 400 games over USB (measured 2026-11-17). Allow for big folders.
 LIST_TIMEOUT = 600
@@ -235,7 +235,7 @@ class WifiError(Exception):
 
 
 class UsbTarget(Target):
-    """USB file transfers (menu: USB TRANSFERS, with Wi-Fi off). About 4 KB/s for writes."""
+    """USB file transfers (menu: USB TRANSFERS, with Wi-Fi off). About 3 KB/s for writes."""
     name = 'USB'
     speed = USB_SPEED
     BAUD = 2_000_000
@@ -265,7 +265,7 @@ class UsbTarget(Target):
         if ready != 'READY protocol=1 block=1024':
             port.close()
             raise ValueError('The Chromatic didn\'t start a USB transfer session (%r).' % ready)
-        log('Connected over USB. Writes run at about 4 KB/s.')
+        log('Connected over USB. Writes run at about 3 KB/s.')
 
     def _usb_transfers_on(self):
         for baud in (self.BAUD, 115_200):

@@ -51,7 +51,7 @@ LIBRARY = ('games', 'covers', 'previews')
 # How the library reaches the SD card: key, label, speed note.
 ROUTES = [('folder', 'CARD READER', 'Fastest. Put the SD card in this computer and choose it.'),
           ('wifi', 'WI-FI', 'About 90 KB/s. On the Chromatic, open Wi-Fi Files for its address and WEB CODE.'),
-          ('usb', 'USB (SLOW)', 'About 4 KB/s: a cover takes ~6 s, a 1 MB game ~4 min, a preview ~10 min. '
+          ('usb', 'USB (SLOW)', 'About 3 KB/s: a cover takes ~8 s, a 1 MB game ~5 min, a preview ~12 min. '
                                 'Fine for a few covers, not for a whole library.')]
 SPINNER = '▖▘▝▗'
 
@@ -350,8 +350,8 @@ class App:
         if len(ports) != 1:
             messagebox.showinfo('Magic Trick', 'Connect one Chromatic with a USB cable and switch it on first.')
             return None, None
-        if not messagebox.askyesno('USB is slow', 'USB transfers run at about 4 KB/s:\n\n• a cover: about 6 '
-                                   'seconds\n• a 1 MB game: about 4 minutes\n• a gameplay preview: about 10 '
+        if not messagebox.askyesno('USB is slow', 'USB transfers run at about 3 KB/s:\n\n• a cover: about 8 '
+                                   'seconds\n• a 1 MB game: about 5 minutes\n• a gameplay preview: about 12 '
                                    'minutes\n\nFor more than a handful, a card reader or Wi-Fi is much faster. '
                                    'The details show an estimate once the card has been read.\n\nOn the '
                                    'Chromatic, turn Wi-Fi off and USB TRANSFERS on first. Continue over USB?'):
