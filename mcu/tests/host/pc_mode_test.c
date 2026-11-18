@@ -38,6 +38,8 @@ OSD_Result_t Settings_Commit(void) { ++Commits; return kOSD_Result_Ok; }
 void PwrMgr_InhibitSleep(void) { ++SleepCount; }
 void PwrMgr_AllowSleep(void) { assert(SleepCount > 0); --SleepCount; }
 bool VirtualCart_IsActive(void) { return false; }
+static bool LynxCore;
+bool CoreSwitch_IsCore(CoreSystem_t S) { return S == kCoreSystem_Lynx && LynxCore; }
 bool VirtualCart_IsBusy(void) { return false; }
 esp_err_t VirtualCart_Stop(void) { return ESP_OK; }
 bool CartBackup_IsPCModeActive(void) { return PhysicalActive; }
@@ -58,7 +60,11 @@ static void Toggle(void) {
 int main(void) {
     assert(PCBackup_Init() == ESP_OK); PCBackup_TransportReady();
     PCBackup_ConsoleReady(); assert(Baud == 115200 && Clock == UART_SCLK_REF_TICK);
+    /* The Lynx core has no USB: the toggle does nothing while it's loaded. */
+    LynxCore = true; Toggle(); assert(!PCBackup_IsEnabled() && SavedSetting == 0 && SettingsQueued == 0); LynxCore = false;
     Toggle(); assert(PCBackup_IsEnabled() && SavedSetting == 1 && !PhysicalActive && SettingsQueued == 1);
+    /* A saved USB TRANSFERS setting doesn't count while the Lynx core is loaded. */
+    LynxCore = true; assert(!PCBackup_IsEnabled()); LynxCore = false; assert(PCBackup_IsEnabled());
     Run(1); assert(PhysicalActive && Baud == 2000000 && Clock == UART_SCLK_DEFAULT && SleepCount == 1);
     int calls = EnterCalls; Run(44); assert(EnterCalls == calls + 44 && PhysicalActive && SleepCount == 1);
     Toggle(); assert(SettingsQueued == 2);

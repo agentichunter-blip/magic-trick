@@ -1,4 +1,6 @@
 #include "cart_backup.h"
+#include "lynx_step.h"
+#include "core_switch.h"
 #include "sd_publish.h"
 
 #include "cart_backup_ui.h"
@@ -1273,11 +1275,26 @@ bool CartBackup_IsPCModeActive(void)
 
 esp_err_t CartBackup_SetPCMode(bool Enabled)
 {
+    /* The Atari Lynx core's cartridge engine is a stub: it answers a ping but
+     * rejects Enter/Exit (ESP_ERR_INVALID_RESPONSE), so starting Wi-Fi Files in
+     * a Lynx game stopped the game and then failed, leaving a frozen picture
+     * (2026-11-18). PC mode only matters to the cartridge link; Wi-Fi Files just
+     * needs the game stopped, which PCBackup already does. Track it in software. */
+    if (CoreSwitch_IsCore(kCoreSystem_Lynx))
+    {
+        portENTER_CRITICAL(&StateLock);
+        const bool Changed = PCModeActive != Enabled;
+        PCModeActive = Enabled;
+        portEXIT_CRITICAL(&StateLock);
+        if (Changed) LYNX_STEP("pcmode %s (software, Lynx core)", Enabled ? "on" : "off");
+        return ESP_OK;
+    }
     if (!BeginRun(false))
     {
         return ESP_ERR_INVALID_STATE;
     }
 
+    LYNX_STEP("pcmode bulk");
     esp_err_t Result = CartBulk_Begin();
     bool BulkOpen = Result == ESP_OK;
     const bool SoftwareOwnsSession = CartBackup_IsPCModeActive();
@@ -1286,6 +1303,7 @@ esp_err_t CartBackup_SetPCMode(bool Enabled)
     {
         Result = TransactionOk(kCartLinkOp_Ping, 0, 0, &Response);
     }
+    LYNX_STEP("pcmode ping %s", esp_err_to_name(Result));
     bool HardwareActive = Result == ESP_OK &&
                           PingReportsMaintenanceActive(&Response);
     if (Result == ESP_OK && Enabled && HardwareActive &&

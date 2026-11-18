@@ -18,3 +18,5 @@ OSD_Result_t PCBackupMode_OnTransition(void *pArg);
 PCBackupModeState_t PCBackupMode_GetState(void);
 OSD_Result_t PCBackupMode_ApplySetting(const SettingValue_t *pValue);
 void PCBackupMode_RegisterOnUpdateCb(fnOnUpdateCb_t Callback);
+/* True while USB transfers can't work (the Atari Lynx core has no USB). */
+void PCBackupMode_RegisterUnavailable(bool (*IsUnavailable)(void));

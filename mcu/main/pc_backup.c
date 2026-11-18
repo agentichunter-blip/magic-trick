@@ -1,4 +1,6 @@
 #include "pc_backup.h"
+#include "lynx_step.h"
+#include "core_switch.h"
 #include "pc_sd.h"
 
 #include "cart_backup.h"
@@ -184,11 +186,17 @@ static esp_err_t EnableLocked(void)
     }
     if (VirtualCart_IsActive())
     {
-        ESP_RETURN_ON_ERROR(VirtualCart_Stop(), TAG,
-                            "stop virtual cartridge for PC mode");
+        LYNX_STEP("pc stop game");
+        const esp_err_t Stopped = VirtualCart_Stop();
+        LYNX_STEP("pc stopped %s", esp_err_to_name(Stopped));
+        ESP_RETURN_ON_ERROR(Stopped, TAG, "stop virtual cartridge for PC mode");
     }
+    LYNX_STEP("pc fpga version");
     ReadFPGAVersionLocked();
-    return CartBackup_SetPCMode(true);
+    LYNX_STEP("pc mode on");
+    const esp_err_t Result = CartBackup_SetPCMode(true);
+    LYNX_STEP("pc mode %s", esp_err_to_name(Result));
+    return Result;
 }
 
 static esp_err_t ApplyModeLocked(void)
@@ -791,8 +799,11 @@ static int FlashCommand(int argc, char **argv)
     return Result == ESP_OK ? 0 : 1;
 }
 
+static bool LynxCoreLoaded(void) { return CoreSwitch_IsCore(kCoreSystem_Lynx); }
+
 esp_err_t PCBackup_Init(void)
 {
+    PCBackupMode_RegisterUnavailable(LynxCoreLoaded);
     Gate = xSemaphoreCreateMutexStatic(&GateStorage);
     if (Gate == NULL)
     {
@@ -816,7 +827,10 @@ bool PCBackup_IsEnabled(void)
     portENTER_CRITICAL(&WirelessLock);
     const bool Wireless = WirelessOwned;
     portEXIT_CRITICAL(&WirelessLock);
-    return Wireless || PCBackupMode_GetState() == kPCBackupModeState_On;
+    /* USB TRANSFERS has no effect while the Lynx core (which has no USB) is
+     * loaded: otherwise the keepalive keeps asserting PC mode during a Lynx game
+     * and Wi-Fi Files reports "BUSY: STOP USB TRANSFERS". */
+    return Wireless || (PCBackupMode_GetState() == kPCBackupModeState_On && !LynxCoreLoaded());
 }
 
 esp_err_t PCBackup_BeginWireless(void)

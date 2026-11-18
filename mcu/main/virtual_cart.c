@@ -1,4 +1,5 @@
 #include "gg_cheats.h"
+#include "lynx_step.h"
 #include "core_switch.h"
 #include "virtual_cart.h"
 #include "native_state_control.h"
@@ -2176,11 +2177,14 @@ esp_err_t VirtualCart_Stop(void)
         if (Result != ESP_OK) goto Cleanup;
         BulkOpen = true;
     }
+    LYNX_STEP("stop persist");
     Result = PersistActiveDataForTransition();
+    LYNX_STEP("stop persisted %s", esp_err_to_name(Result));
     if (Result != ESP_OK) goto Cleanup;
     Quiesced = Active;
 
     Result = VirtualCommand(kVirtualCommandStop, NULL, &Response);
+    LYNX_STEP("stop command %s", esp_err_to_name(Result));
     if (Result == ESP_OK)
     {
         SetActive(false);

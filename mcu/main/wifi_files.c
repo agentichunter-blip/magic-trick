@@ -1,4 +1,8 @@
 #include "wifi_files.h"
+#include "lynx_step.h"
+#include "core_switch.h"
+#define LYNX_HEAP(Tag) LYNX_STEP("%s heap=%u min=%u largest=%u", Tag, (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), \
+    (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))
 #include "wifi_files_ui.h"
 #include "wifi_file_store.h"
 #include "wifi_network.h"
@@ -445,14 +449,19 @@ static void TransferTask(void *Arg)
     bool Lease = false, Wifi = false;
     const char *Failure = "COULD NOT START";
     esp_err_t Result = PCBackup_BeginWireless();
+    LYNX_STEP("wifi lease %s", esp_err_to_name(Result));
+    LYNX_HEAP("lease");
     if (Result != ESP_OK) { Failure = "BUSY: STOP USB TRANSFERS"; goto Cleanup; }
     Lease = true;
     if (Stopping()) goto Cleanup;
     printf("WIFI_FILES before_sd heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     Result = SDCard_Mount(&Card);
+    LYNX_STEP("wifi sd %s", esp_err_to_name(Result));
     if (Result != ESP_OK) { Failure = "SD CARD UNAVAILABLE"; goto Cleanup; }
     printf("WIFI_FILES before_radio heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     Result=WifiNetwork_Start(false);
+    LYNX_STEP("wifi radio %s", esp_err_to_name(Result));
+    LYNX_HEAP("radio");
     if(Result != ESP_OK) goto Cleanup;
     Wifi=true;
     unsigned char Random[22]; esp_fill_random(Random,sizeof(Random));
@@ -463,9 +472,12 @@ static void TransferTask(void *Arg)
     portENTER_CRITICAL(&Lock); memcpy(Status.AccessCode,Code,sizeof(Code)); portEXIT_CRITICAL(&Lock);
     PairFailures=0; PairBlockedUntil=0;
     Result = CartBackup_SetPCMode(true);
+    LYNX_STEP("wifi pcmode %s", esp_err_to_name(Result));
     if (Result != ESP_OK) goto Cleanup;
     printf("WIFI_FILES before_http heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     Result = StartServer();
+    LYNX_STEP("wifi server %s", esp_err_to_name(Result));
+    LYNX_HEAP("server");
     if (Result != ESP_OK) goto Cleanup;
     portENTER_CRITICAL(&Lock);
     Status.Ready = true; LastActivity = esp_timer_get_time();
@@ -516,6 +528,15 @@ Cleanup:
 }
 static void Start(void)
 {
+    /* With the Atari Lynx core loaded, Wi-Fi Files started, but the menu then stopped
+     * responding and froze on screen (2026-11-18; long static images leave a fading ghost
+     * on the LCD). Until that's understood, Wi-Fi needs a Game Boy or Game Gear core. */
+    if (CoreSwitch_IsCore(kCoreSystem_Lynx))
+    {
+        LYNX_STEP("wifi refused: Lynx core");
+        Message("LYNX MODE: PLAY A GB GAME FIRST");
+        return;
+    }
     portENTER_CRITICAL(&Lock);
     if(Status.Busy)
     {
@@ -525,6 +546,7 @@ static void Start(void)
     Status.Busy=true; StopRequested=false;
     snprintf(Status.Message,sizeof(Status.Message),"SAVING / STARTING...");
     portEXIT_CRITICAL(&Lock);
+    LYNX_STEP("wifi start");
     if (xTaskCreate(TransferTask, "wifi_files", 6144, NULL, 3, NULL) != pdPASS)
     {
         portENTER_CRITICAL(&Lock); Status.Busy = false; portEXIT_CRITICAL(&Lock);

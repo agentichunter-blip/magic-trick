@@ -27,6 +27,9 @@ typedef struct {
 
 static const char *TAG = "PCBackupMode";
 static PCBackupModeContext_t Context;
+static bool (*Unavailable)(void);
+
+void PCBackupMode_RegisterUnavailable(bool (*IsUnavailable)(void)) { Unavailable = IsUnavailable; }
 
 OSD_Result_t PCBackupMode_Draw(void *pArg)
 {
@@ -47,13 +50,15 @@ OSD_Result_t PCBackupMode_Draw(void *pArg)
         lv_obj_set_align(Context.pState, LV_ALIGN_TOP_LEFT);
     }
 
+    /* The Lynx core has no USB (it doesn't fit with save states). */
+    const bool Lynx = Unavailable != NULL && Unavailable();
 #ifdef CONFIG_CHROMAGIC_WIFI_FILES
-    if(WifiFilesUI_IsBusy())
+    if(WifiFilesUI_IsBusy() || Lynx)
     {
         lv_obj_add_flag(Context.pToggle,LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_pos(Context.pState,77,44);lv_obj_set_width(Context.pState,65);
         lv_obj_set_style_text_color(Context.pState,lv_color_white(),0);
-        lv_label_set_text_static(Context.pState,"TURN OFF WI-FI\nTO USE\nUSB TRANSFERS");
+        lv_label_set_text_static(Context.pState,Lynx?"NO USB WHILE\nA LYNX GAME\nIS LOADED":"TURN OFF WI-FI\nTO USE\nUSB TRANSFERS");
         return kOSD_Result_Ok;
     }
     lv_obj_clear_flag(Context.pToggle,LV_OBJ_FLAG_HIDDEN);
@@ -109,6 +114,7 @@ OSD_Result_t PCBackupMode_OnButton(Button_t Button, ButtonState_t State,
 #ifdef CONFIG_CHROMAGIC_WIFI_FILES
     if(WifiFilesUI_IsBusy())return kOSD_Result_Ok;
 #endif
+    if(Unavailable != NULL && Unavailable())return kOSD_Result_Ok;
     if ((Button == kButton_A || Button == kButton_B) &&
         State == kButtonState_Pressed)
     {
