@@ -534,7 +534,7 @@ static void Start(void)
     if (CoreSwitch_IsCore(kCoreSystem_Lynx))
     {
         LYNX_STEP("wifi refused: Lynx core");
-        Message("LYNX MODE: PLAY A GB GAME FIRST");
+        Message("PLAY A GB GAME FIRST");
         return;
     }
     portENTER_CRITICAL(&Lock);
