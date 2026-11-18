@@ -50,7 +50,7 @@ TITLES = {'install': 'INSTALLING', 'uninstall': 'UNINSTALLING', 'restore': 'REST
 LIBRARY = ('games', 'covers', 'previews')
 # How the library reaches the SD card: key, label, speed note.
 ROUTES = [('folder', 'CARD READER', 'Fastest. Put the SD card in this computer and choose it.'),
-          ('wifi', 'WI-FI', 'About 90 KB/s. On the Chromatic, open Wi-Fi Files for its address and WEB CODE.'),
+          ('wifi', 'WI-FI', 'About 40 KB/s. On the Chromatic, open Wi-Fi Files for its address and WEB CODE.'),
           ('usb', 'USB (SLOW)', 'About 3 KB/s: a cover takes ~8 s, a 1 MB game ~5 min, a preview ~12 min. '
                                 'Fine for a few covers, not for a whole library.')]
 SPINNER = '▖▘▝▗'

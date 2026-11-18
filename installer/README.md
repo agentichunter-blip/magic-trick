@@ -72,7 +72,7 @@ Three ways to reach the card:
 | | Speed | How |
 |---|---|---|
 | **Card reader** | Fastest | Put the SD card in your computer and choose it (or its `CHROMAGIC` folder). |
-| **Wi-Fi** | About 90 KB/s | On the Chromatic open **Settings > Wi-Fi Files**, then type the address and the six-digit WEB CODE it shows. Wi-Fi can't replace files that are already there. |
+| **Wi-Fi** | About 40 KB/s | On the Chromatic open **Settings > Wi-Fi Files**, then type the address and the six-digit WEB CODE it shows. Wi-Fi can't replace files that are already there. |
 | **USB** | About 3 KB/s | Turn Wi-Fi off and **USB TRANSFERS** on. A cover takes about 8 s, a 1 MB game about 5 min and a preview about 12 min, so use it for a handful of files, not a whole library. |
 
 From the command line: `app.py --library games|covers|previews TARGET [FILES…] [--replace]`, where `TARGET` is the card's folder, `wifi:ADDRESS:CODE` or `usb:PORT`.

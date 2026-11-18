@@ -44,7 +44,7 @@ USB_SPEED = 3200      # bytes per second written over USB (3.0-3.5 KB/s measured
 # Firmware up to 1.0.0-beta.6 stats every entry of a listed folder, which rescans the folder, so a
 # listing is quadratic: ~25 s for 400 games over USB (measured 2026-11-17). Allow for big folders.
 LIST_TIMEOUT = 600
-WIFI_SPEED = 90000    # bytes per second written over Wi-Fi
+WIFI_SPEED = 45000    # bytes per second written over Wi-Fi (37-59 KB/s measured 2026-11-17)
 
 
 def emit(kind, **data):
@@ -216,6 +216,11 @@ class WifiTarget(Target):
         self._request('POST', 'folder', rel)
 
     def put(self, rel, data, replace=False):
+        # The server refuses an existing name before reading the body and closes the connection, which
+        # reaches us as a reset rather than a 409, so check the (cached) folder listing first.
+        folder, name = rel.rsplit('/', 1)
+        if any(n.lower() == name.lower() for n, _, _ in self.list(folder)):
+            raise FileExistsError(rel)
         try:
             self._request('PUT', 'file', rel, body=data, headers={'Content-Type': 'application/octet-stream'})
         except WifiError as exc:
