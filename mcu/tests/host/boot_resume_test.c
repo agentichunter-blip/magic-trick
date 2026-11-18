@@ -7,6 +7,7 @@
 #include "button.h"
 #include "cart_link.h"
 #include "cart_bulk.h"
+#include "cart_store.h"
 #include "fpga_tx.h"
 #include "nvs.h"
 #include "freertos/task.h"
@@ -57,6 +58,13 @@ static bool PulseRejected;
 static uint16_t Held;
 static bool Bulk, Entered, ReadFailed, ExitFailed, UnstableHeader;
 static uint8_t EmptyValue;
+/* A dedicated Magic Trick cart and its directory (games on it). */
+static bool MagicCart; static size_t CartGames; static unsigned DirectoryReads;
+esp_err_t CartStore_AutoBootPath(char *pPath, size_t Size) {
+    assert(!Bulk && SwitchTarget); ++DirectoryReads;
+    if(CartGames!=1) return CartGames ? ESP_ERR_INVALID_SIZE : ESP_ERR_NOT_FOUND;
+    snprintf(pPath,Size,"/cart/Sonic.gg"); return ESP_OK;
+}
 static unsigned HeaderReads, Enters, Exits;
 esp_err_t CartBulk_Begin(void) { assert(!Bulk); Bulk=true; return ESP_OK; }
 void CartBulk_End(void) { assert(Bulk); Bulk=false; }
@@ -72,6 +80,7 @@ esp_err_t CartBulk_ReadBlock(uint16_t Address,uint8_t Data[kCartBulkBlockSize]) 
     if(ReadFailed) return ESP_FAIL;
     memset(Data,EmptyValue,kCartBulkBlockSize);
     if(Present || (UnstableHeader && HeaderReads%2==0)) Data[0x120]=0x42;
+    if(Present && MagicCart) memcpy(Data+0x134,"MAGIC TRICK",12);
     return ESP_OK;
 }
 void PwrMgr_InhibitSleep(void) { ++SleepLocks; }
@@ -82,7 +91,7 @@ bool OSD_IsVisible(void) { return Visible; }
 bool VirtualCart_IsActive(void) { return Active; }
 bool VirtualCart_IsBusy(void) { return Busy; }
 esp_err_t VirtualCart_Start(const char *Path) {
-    assert((!Present || SwitchResult==ESP_OK) && !PC && !PCActive && !Busy && !Visible && !(Held & kButtonBits_B));
+    assert((!Present || MagicCart || SwitchResult==ESP_OK) && !PC && !PCActive && !Busy && !Visible && !(Held & kButtonBits_B));
     ++Starts; strcpy(StartedPath,Path);
     if(FailStart) return ESP_ERR_NO_MEM;
     Busy=true; return ESP_OK;
@@ -127,7 +136,7 @@ static void Reset(void) {
     PC=PCActive=Visible=Active=Busy=Present=UnknownCart=BadReply=false;
     NoButtons=RequestFailed=FailLoad=FailStart=ManualMenu=ManualLoad=false;
     Starts=Pings=ButtonRequests=MenuOpens=Sequence=Clock=0; Held=0;
-    BAt=InsertAt=~0u; BReleaseAt=15; AckAt=0; PulseRejected=false; ReadFailed=ExitFailed=UnstableHeader=false; EmptyValue=0xf0; HeaderReads=Enters=Exits=0; strcpy(Stored,Game); StartedPath[0]=0;
+    BAt=InsertAt=~0u; BReleaseAt=15; AckAt=0; PulseRejected=false; ReadFailed=ExitFailed=UnstableHeader=false; EmptyValue=0xf0; HeaderReads=Enters=Exits=0; MagicCart=false; CartGames=1; DirectoryReads=0; strcpy(Stored,Game); StartedPath[0]=0;
 }
 static void Run(void) {
     const BootResumeCartridge_t Cartridge=BootResume_CheckCartridge();
@@ -196,6 +205,22 @@ int main(void) {
     Reset();strcpy(SwitchPath,Game);SwitchResult=ESP_OK;SwitchTarget=false;
     Skipped();assert(MenuOpens==1 && !SwitchPath[0]);
     Reset();SwitchResult=ESP_FAIL;Skipped();assert(MenuOpens==1);
+    /* A dedicated Magic Trick cart boots its one game after the B window,
+     * instead of the last SD game or the cart's explanation program. */
+    Reset(); Present=MagicCart=true; Run();
+    assert(Starts==1 && Active && !MenuOpens && !strcmp(StartedPath,"/cart/Sonic.gg"));
+    assert(DirectoryReads==1 && Clock>=1000 && Pings==1 && !SleepLocks);
+    Reset(); Present=MagicCart=true; BAt=1; Skipped(); assert(MenuOpens==1 && !DirectoryReads);
+    Reset(); Present=MagicCart=true; CartGames=3; Skipped(); assert(MenuOpens==1 && DirectoryReads==1);
+    Reset(); Present=MagicCart=true; CartGames=0; Skipped(); assert(MenuOpens==1);
+    Reset(); Present=MagicCart=true; FailLoad=true; Run(); assert(Starts==1 && MenuOpens==1 && !SleepLocks);
+    Reset(); Present=MagicCart=true; PC=true; Skipped(); assert(!MenuOpens && !DirectoryReads);
+    Reset(); MagicCart=true; Run(); assert(Starts==1 && !strcmp(StartedPath,Game) && !DirectoryReads); /* empty slot */
+    Reset(); Present=MagicCart=true; BootResumeCartridge_t Magic=BootResume_CheckCartridge();
+    assert(Magic.Present && Magic.MagicTrick); MagicCart=false;
+    Magic=BootResume_CheckCartridge(); assert(Magic.Present && !Magic.MagicTrick);
+    Present=false; Magic=BootResume_CheckCartridge(); assert(!Magic.Present && !Magic.MagicTrick);
+
     /* A physical game may already be running after UI setup. Use the early
      * result without entering maintenance/reset again, even if the bus would
      * now fail. This reproduces the former late Tetris copyright-screen reset. */
@@ -222,5 +247,5 @@ int main(void) {
     Reset(); PC=true; Cartridge=BootResume_CheckCartridge(); PC=false;
     BootResume_Run(&Cartridge); assert(!Pings && !Enters && !Starts && MenuOpens==1 && !SleepLocks);
 
-    puts("PASS: persistent last game; early cartridge probe avoids late reset; cartridge priority and recheck; fresh B bypass; missing/corrupt settings; failed load fallback; PC/manual interaction priority");
+    puts("PASS: persistent last game; dedicated cart auto-boot; early cartridge probe avoids late reset; cartridge priority and recheck; fresh B bypass; missing/corrupt settings; failed load fallback; PC/manual interaction priority");
 }

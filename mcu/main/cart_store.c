@@ -8,6 +8,7 @@
 #include "esp_console.h"
 #include "esp_rom_crc.h"
 #include "esp_vfs.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -203,10 +204,21 @@ static esp_err_t ReadFn(void *pContext)
     return CartBulk_ReadCart(p->Offset, p->pData, p->Blocks);
 }
 
+/* A cart transaction now and then times out while other start-up work
+ * shares the FPGA link (seen at power-on auto-boot). Each attempt opens a
+ * fresh cart session; callers check the data's CRC either way. */
 static esp_err_t ReadCart(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
 {
     ReadRequest_t Request = {Offset, pData, Blocks};
-    return WithCart(ReadFn, &Request);
+    esp_err_t Result = ESP_FAIL;
+    for (unsigned Attempt = 0; Attempt < 4; ++Attempt)
+    {
+        if (Attempt) vTaskDelay(pdMS_TO_TICKS(20 * Attempt));
+        Result = WithCart(ReadFn, &Request);
+        if (Result == ESP_OK || Result == ESP_ERR_INVALID_ARG) break;
+        printf("CARTSTORE read_retry=%u error=%s offset=0x%lx\n", Attempt + 1, esp_err_to_name(Result), (unsigned long)Offset);
+    }
+    return Result;
 }
 
 static esp_err_t ScanFn(void *pContext)
@@ -290,6 +302,25 @@ size_t CartStore_Refresh(bool Force)
 }
 
 size_t CartStore_Count(void) { return EntryCount; }
+
+esp_err_t CartStore_AutoBootPath(char *pPath, size_t Size)
+{
+    if (!pPath || !Size) return ESP_ERR_INVALID_ARG;
+    pPath[0] = 0;
+    if (!CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
+    size_t Count = CartStore_Refresh(true);
+    for (unsigned Attempt = 0; Count == 0 && !Scanned && Attempt < 3; ++Attempt)
+    {
+        vTaskDelay(pdMS_TO_TICKS(50));
+        Count = CartStore_Refresh(true); /* a failed scan, not an empty directory */
+    }
+    if (Count != 1) return Count ? ESP_ERR_INVALID_SIZE : ESP_ERR_NOT_FOUND;
+    CartStoreEntry_t Entry;
+    if (!CartStore_Entry(0, &Entry)) return ESP_ERR_NOT_FOUND;
+    const int Length = snprintf(pPath, Size, "%s/%s", CART_STORE_ROOT, Entry.Name);
+    if (Length <= 0 || (size_t)Length >= Size) { pPath[0] = 0; return ESP_ERR_INVALID_SIZE; }
+    return ESP_OK;
+}
 
 bool CartStore_Entry(size_t Index, CartStoreEntry_t *pEntry)
 {
@@ -717,6 +748,72 @@ static esp_err_t CheckErased(uint32_t Offset, uint32_t Blocks, uint8_t *pBlock)
     return ESP_OK;
 }
 
+/* Program Size bytes of pFile at cartridge Offset, then verify by CRC.
+ * Each block is blank, partly written by an interrupted run, or already
+ * right: program it only where that just clears bits (NOR programming can't
+ * set a 0 back to 1), so a retry resumes safely. */
+static esp_err_t ProgramFile(FILE *pFile, uint32_t Offset, uint32_t Size, uint8_t Mode, uint8_t *pBlock,
+                             const char *pTag, uint32_t *pCrc)
+{
+    const uint32_t Blocks = (Size + kBlock - 1u) / kBlock;
+    uint8_t *pCart = malloc(kBlock);
+    esp_err_t Result = pCart ? ESP_OK : ESP_ERR_NO_MEM;
+    uint32_t Crc = 0, Programmed = 0, Kept = 0;
+    for (uint32_t b = 0; Result == ESP_OK && b < Blocks; ++b)
+    {
+        const uint32_t At = Offset + b * kBlock;
+        memset(pBlock, 0xff, kBlock);
+        const size_t Count = Size - b * kBlock < kBlock ? Size - b * kBlock : kBlock;
+        if (fread(pBlock, 1, Count, pFile) != Count) { Result = ESP_FAIL; break; }
+        Crc = esp_rom_crc32_le(Crc, pBlock, Count);
+        for (int Attempt = 0; Result == ESP_OK; ++Attempt)
+        {
+            Result = CartBulk_ReadCart(At, pCart, 1);
+            if (Result != ESP_OK) break;
+            if (!memcmp(pCart, pBlock, kBlock)) { if (Attempt == 0) ++Kept; break; }
+            bool Programmable = true;
+            for (size_t j = 0; j < kBlock && Programmable; ++j) Programmable = (pBlock[j] & ~pCart[j]) == 0;
+            if (!Programmable)
+            {
+                printf("%s not_erased offset=0x%lx\n", pTag, (unsigned long)At);
+                Result = ESP_ERR_INVALID_STATE;
+                break;
+            }
+            if (Attempt == 3) { Result = ESP_ERR_TIMEOUT; break; }
+            if (Attempt > 0) printf("%s retry offset=0x%lx attempt=%d\n", pTag, (unsigned long)At, Attempt);
+            const esp_err_t ProgramResult = CartBulk_ProgramCart(At, pBlock, Mode);
+            if (ProgramResult == ESP_OK && Attempt == 0) ++Programmed;
+            if (ProgramResult != ESP_OK)
+            {
+                printf("%s program_error offset=0x%lx error=%s\n", pTag, (unsigned long)At, esp_err_to_name(ProgramResult));
+                (void)CartBulk_ReadRangeAbort();
+                (void)Writes(kReset, 1); /* back to read mode */
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            /* Any outcome: read back and decide again. */
+        }
+        if (Result != ESP_OK) printf("%s FAIL stage=program offset=0x%lx error=%s\n",
+                                     pTag, (unsigned long)At, esp_err_to_name(Result));
+        if ((b & 63u) == 63u) printf("%s progress=%lu/%lu\n", pTag, (unsigned long)(b + 1), (unsigned long)Blocks);
+    }
+    free(pCart);
+    if (Result == ESP_OK) printf("%s blocks programmed=%lu kept=%lu\n", pTag, (unsigned long)Programmed, (unsigned long)Kept);
+    uint32_t Check = 0;
+    for (uint32_t b = 0; Result == ESP_OK && b < Blocks; ++b)
+    {
+        Result = CartBulk_ReadCart(Offset + b * kBlock, pBlock, 1);
+        const size_t Count = Size - b * kBlock < kBlock ? Size - b * kBlock : kBlock;
+        Check = esp_rom_crc32_le(Check, pBlock, Count);
+    }
+    if (Result == ESP_OK && Check != Crc)
+    {
+        printf("%s FAIL verify crc=%08lx cart=%08lx\n", pTag, (unsigned long)Crc, (unsigned long)Check);
+        Result = ESP_ERR_INVALID_CRC;
+    }
+    *pCrc = Crc;
+    return Result;
+}
+
 static bool GameName(const char *pName)
 {
     const char *pDot = strrchr(pName, '.');
@@ -804,65 +901,9 @@ static esp_err_t AddFn(void *pContext)
             break;
         }
         printf("CARTADD file=\"%s\" size=%lu offset=0x%lx\n", pName, (unsigned long)Size, (unsigned long)End);
-        /* Each block is blank, partly written by an interrupted cartadd, or
-         * already right: program it only where that just clears bits (NOR
-         * programming can't set a 0 back to 1), so a retry resumes safely. */
-        uint8_t *pCart = malloc(kBlock);
-        if (!pCart) Result = ESP_ERR_NO_MEM;
-        uint32_t Crc = 0, Programmed = 0, Kept = 0;
-        for (uint32_t b = 0; Result == ESP_OK && b < Blocks; ++b)
-        {
-            const uint32_t Offset = End + b * kBlock;
-            memset(pBlock, 0xff, kBlock);
-            const size_t Count = Size - b * kBlock < kBlock ? Size - b * kBlock : kBlock;
-            if (fread(pBlock, 1, Count, pFile) != Count) { Result = ESP_FAIL; break; }
-            Crc = esp_rom_crc32_le(Crc, pBlock, Count);
-            for (int Attempt = 0; Result == ESP_OK; ++Attempt)
-            {
-                Result = CartBulk_ReadCart(Offset, pCart, 1);
-                if (Result != ESP_OK) break;
-                if (!memcmp(pCart, pBlock, kBlock)) { if (Attempt == 0) ++Kept; break; }
-                bool Programmable = true;
-                for (size_t j = 0; j < kBlock && Programmable; ++j) Programmable = (pBlock[j] & ~pCart[j]) == 0;
-                if (!Programmable)
-                {
-                    printf("CARTADD not_erased offset=0x%lx\n", (unsigned long)Offset);
-                    Result = ESP_ERR_INVALID_STATE;
-                    break;
-                }
-                if (Attempt == 3) { Result = ESP_ERR_TIMEOUT; break; }
-                if (Attempt > 0) printf("CARTADD retry offset=0x%lx attempt=%d\n", (unsigned long)Offset, Attempt);
-                const esp_err_t ProgramResult = CartBulk_ProgramCart(Offset, pBlock, Mode);
-                if (ProgramResult == ESP_OK && Attempt == 0) ++Programmed;
-                if (ProgramResult != ESP_OK)
-                {
-                    printf("CARTADD program_error offset=0x%lx error=%s\n", (unsigned long)Offset, esp_err_to_name(ProgramResult));
-                    (void)CartBulk_ReadRangeAbort();
-                    (void)Writes(kReset, 1); /* back to read mode */
-                    vTaskDelay(pdMS_TO_TICKS(50));
-                }
-                /* Any outcome: read back and decide again. */
-            }
-            if (Result != ESP_OK) printf("CARTADD FAIL stage=program offset=0x%lx error=%s\n",
-                                         (unsigned long)Offset, esp_err_to_name(Result));
-            if ((b & 63u) == 63u) printf("CARTADD progress=%lu/%lu\n", (unsigned long)(b + 1), (unsigned long)Blocks);
-        }
-        free(pCart);
-        if (Result == ESP_OK) printf("CARTADD blocks programmed=%lu kept=%lu\n", (unsigned long)Programmed, (unsigned long)Kept);
+        uint32_t Crc = 0;
+        Result = ProgramFile(pFile, End, Size, Mode, pBlock, "CARTADD", &Crc);
         fclose(pFile);
-        /* Verify against the file's CRC. */
-        uint32_t Check = 0;
-        for (uint32_t b = 0; Result == ESP_OK && b < Blocks; ++b)
-        {
-            Result = CartBulk_ReadCart(End + b * kBlock, pBlock, 1);
-            const size_t Count = Size - b * kBlock < kBlock ? Size - b * kBlock : kBlock;
-            Check = esp_rom_crc32_le(Check, pBlock, Count);
-        }
-        if (Result == ESP_OK && Check != Crc)
-        {
-            printf("CARTADD FAIL verify crc=%08lx cart=%08lx\n", (unsigned long)Crc, (unsigned long)Check);
-            Result = ESP_ERR_INVALID_CRC;
-        }
         if (Result != ESP_OK) break;
 
         /* Program the directory slot (an empty slot only clears bits). */
@@ -962,6 +1003,169 @@ static int PeekCommand(int argc, char **argv)
     return Result != ESP_OK;
 }
 
+/* ---------------------------------------------- whole-cart service commands
+ * Back up, erase and rewrite a cartridge's flash (e.g. to turn a cart into a
+ * dedicated Magic Trick cart and back). The cart's save memory is separate
+ * and untouched. */
+
+typedef struct { uint32_t Start, Blocks; } DumpRequest_t;
+
+/* cartdump [start] [blocks]: every 1 KiB block as one console line,
+ * "CARTDUMP <offset> <crc32> <hex|FF>" (FF: the whole block reads 0xFF). */
+static esp_err_t DumpFn(void *pContext)
+{
+    DumpRequest_t *p = pContext;
+    uint8_t *pBlock = malloc(kBlock);
+    if (!pBlock) return ESP_ERR_NO_MEM;
+    uint32_t Capacity = 0;
+    uint8_t Mode = 0;
+    esp_err_t Result = IdentifyChip(&Capacity, &Mode, pBlock);
+    if (Result != ESP_OK) { free(pBlock); return Result; }
+    const uint32_t Total = Capacity / kBlock;
+    if (p->Start >= Total) { free(pBlock); return ESP_ERR_INVALID_ARG; }
+    const uint32_t Blocks = p->Blocks && p->Blocks < Total - p->Start ? p->Blocks : Total - p->Start;
+    printf("CARTDUMP BEGIN capacity=%lu start=%lu blocks=%lu\n", (unsigned long)Capacity, (unsigned long)p->Start,
+           (unsigned long)Blocks);
+    static const char kHex[] = "0123456789abcdef";
+    char *pLine = malloc(kBlock * 2 + 1);
+    if (!pLine) { free(pBlock); return ESP_ERR_NO_MEM; }
+    uint32_t Crc = 0;
+    for (uint32_t b = 0; Result == ESP_OK && b < Blocks; ++b)
+    {
+        const uint32_t Offset = (p->Start + b) * kBlock;
+        Result = CartBulk_ReadCart(Offset, pBlock, 1);
+        if (Result != ESP_OK) break;
+        Crc = esp_rom_crc32_le(Crc, pBlock, kBlock);
+        bool Blank = true;
+        for (size_t j = 0; j < kBlock && Blank; ++j) Blank = pBlock[j] == 0xff;
+        if (Blank) strcpy(pLine, "FF");
+        else
+        {
+            for (size_t j = 0; j < kBlock; ++j)
+            { pLine[2 * j] = kHex[pBlock[j] >> 4]; pLine[2 * j + 1] = kHex[pBlock[j] & 15]; }
+            pLine[kBlock * 2] = 0;
+        }
+        printf("CARTDUMP %06lx %08lx %s\n", (unsigned long)Offset,
+               (unsigned long)esp_rom_crc32_le(0, pBlock, kBlock), pLine);
+    }
+    free(pLine);
+    free(pBlock);
+    if (Result == ESP_OK) printf("CARTDUMP DONE crc=%08lx\n", (unsigned long)Crc);
+    return Result;
+}
+
+static int DumpCommand(int argc, char **argv)
+{
+    if (!CartStore_CanReadCart()) { printf("CARTDUMP FAIL needs_gb_core\n"); return 1; }
+    DumpRequest_t Request = {argc > 1 ? (uint32_t)strtoul(argv[1], NULL, 0) / kBlock : 0,
+                             argc > 2 ? (uint32_t)strtoul(argv[2], NULL, 0) : 0};
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    const esp_err_t Result = WithCart(DumpFn, &Request);
+    xSemaphoreGive(Lock);
+    printf("CARTDUMP %s error=%s\n", Result == ESP_OK ? "PASS" : "FAIL", esp_err_to_name(Result));
+    return Result != ESP_OK;
+}
+
+static const uint16_t kChipErase[][2] = {{0x0aaa, 0xaa}, {0x0555, 0x55}, {0x0aaa, 0x80},
+                                         {0x0aaa, 0xaa}, {0x0555, 0x55}, {0x0aaa, 0x10}};
+
+/* carterase yes: chip erase, then check every block reads 0xFF. */
+static esp_err_t EraseFn(void *pContext)
+{
+    (void)pContext;
+    uint8_t *pBlock = malloc(kBlock);
+    if (!pBlock) return ESP_ERR_NO_MEM;
+    uint32_t Capacity = 0;
+    uint8_t Mode = 0;
+    esp_err_t Result = IdentifyChip(&Capacity, &Mode, pBlock);
+    if (Result == ESP_OK)
+    {
+        printf("CARTERASE capacity=%lu\n", (unsigned long)Capacity);
+        Result = Writes(kChipErase, sizeof(kChipErase) / sizeof(kChipErase[0]));
+    }
+    /* Busy until DQ7 polling reads 1 (data 0xFF) twice in a row; IS29 chips
+     * take up to about a minute, SST ones well under a second. */
+    const int64_t Start = esp_timer_get_time();
+    unsigned Settled = 0;
+    while (Result == ESP_OK && Settled < 2)
+    {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        Result = CartBulk_ReadBlock(0, pBlock);
+        if (Result != ESP_OK) break;
+        Settled = pBlock[0] == 0xff ? Settled + 1 : 0;
+        if (esp_timer_get_time() - Start > 120000000) Result = ESP_ERR_TIMEOUT;
+    }
+    (void)Writes(kReset, 1);
+    if (Result == ESP_OK)
+        printf("CARTERASE erased ms=%lld; checking\n", (long long)((esp_timer_get_time() - Start) / 1000));
+    for (uint32_t b = 0; Result == ESP_OK && b < Capacity / kBlock; ++b)
+    {
+        Result = CheckErased(b * kBlock, 1, pBlock);
+        if ((b & 255u) == 255u) printf("CARTERASE checked=%lu/%lu\n", (unsigned long)(b + 1), (unsigned long)(Capacity / kBlock));
+    }
+    free(pBlock);
+    return Result;
+}
+
+static int EraseCommand(int argc, char **argv)
+{
+    if (argc != 2 || strcmp(argv[1], "yes")) { printf("CARTERASE FAIL usage: carterase yes (erases the whole cartridge flash)\n"); return 1; }
+    if (!CartStore_CanReadCart()) { printf("CARTERASE FAIL needs_gb_core\n"); return 1; }
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    CacheValid = false;
+    const esp_err_t Result = WithCart(EraseFn, NULL);
+    xSemaphoreGive(Lock);
+    printf("CARTERASE %s error=%s\n", Result == ESP_OK ? "PASS" : "FAIL", esp_err_to_name(Result));
+    (void)CartStore_Refresh(true);
+    return Result != ESP_OK;
+}
+
+/* cartwrite </sdcard/image>: program a whole-cart image from offset 0 onto
+ * erased flash (or resume an interrupted write), then verify. */
+static esp_err_t WriteFn(void *pContext)
+{
+    const char *pPath = pContext;
+    uint8_t *pBlock = malloc(kBlock);
+    if (!pBlock) return ESP_ERR_NO_MEM;
+    uint32_t Capacity = 0;
+    uint8_t Mode = 0;
+    esp_err_t Result = IdentifyChip(&Capacity, &Mode, pBlock);
+    FILE *pFile = Result == ESP_OK ? fopen(pPath, "rb") : NULL;
+    if (Result == ESP_OK && !pFile) Result = ESP_ERR_NOT_FOUND;
+    struct stat Stat;
+    const uint32_t Size = pFile && fstat(fileno(pFile), &Stat) == 0 ? (uint32_t)Stat.st_size : 0;
+    if (Result == ESP_OK && (Size == 0 || Size > Capacity)) Result = ESP_ERR_INVALID_SIZE;
+    uint32_t Crc = 0;
+    if (Result == ESP_OK)
+    {
+        printf("CARTWRITE capacity=%lu mode=0x%02x size=%lu\n", (unsigned long)Capacity, Mode, (unsigned long)Size);
+        Result = ProgramFile(pFile, 0, Size, Mode, pBlock, "CARTWRITE", &Crc);
+    }
+    if (pFile) fclose(pFile);
+    if (Result == ESP_OK) printf("CARTWRITE crc=%08lx\n", (unsigned long)Crc);
+    free(pBlock);
+    return Result;
+}
+
+static int WriteCommand(int argc, char **argv)
+{
+    if (argc != 2) { printf("CARTWRITE FAIL usage: cartwrite </sdcard/image>\n"); return 1; }
+    if (!CartStore_CanReadCart()) { printf("CARTWRITE FAIL needs_gb_core\n"); return 1; }
+    sdmmc_card_t *pCard = NULL;
+    esp_err_t Result = SDCard_Mount(&pCard);
+    if (Result == ESP_OK)
+    {
+        xSemaphoreTake(Lock, portMAX_DELAY);
+        CacheValid = false;
+        Result = WithCart(WriteFn, argv[1]);
+        xSemaphoreGive(Lock);
+        (void)SDCard_Unmount(pCard);
+    }
+    printf("CARTWRITE %s error=%s\n", Result == ESP_OK ? "PASS" : "FAIL", esp_err_to_name(Result));
+    (void)CartStore_Refresh(true);
+    return Result != ESP_OK;
+}
+
 esp_err_t CartStore_RegisterConsoleCommands(void)
 {
     const esp_console_cmd_t Commands[] = {
@@ -969,6 +1173,9 @@ esp_err_t CartStore_RegisterConsoleCommands(void)
         {.command = "cartdir", .help = "List the Magic Trick games on the inserted cartridge", .func = DirCommand},
         {.command = "cartadd", .help = "Add SD games to the cartridge's free (erased) flash",
          .hint = "</sdcard/...> [...]", .func = AddCommand},
+        {.command = "cartdump", .help = "Print the cartridge flash as hex lines (backup)", .hint = "[start] [blocks]", .func = DumpCommand},
+        {.command = "carterase", .help = "Erase the whole cartridge flash (not its save memory)", .hint = "yes", .func = EraseCommand},
+        {.command = "cartwrite", .help = "Write a whole-cart image from the SD card onto erased flash", .hint = "</sdcard/image>", .func = WriteCommand},
     };
     for (size_t i = 0; i < sizeof(Commands) / sizeof(Commands[0]); ++i)
         ESP_RETURN_ON_ERROR(esp_console_cmd_register(&Commands[i]), TAG, "register");

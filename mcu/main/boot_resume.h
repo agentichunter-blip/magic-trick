@@ -5,6 +5,10 @@
 typedef struct {
     esp_err_t Result;
     bool Present;
+    /* A dedicated Magic Trick cart (header title "MAGIC TRICK", written by
+     * tools/mtcart.py): its single game boots instead of the cart's own
+     * explanation program. */
+    bool MagicTrick;
 } BootResumeCartridge_t;
 
 /* Probe once as soon as UART/QSPI are ready, before UI setup and startup waits.

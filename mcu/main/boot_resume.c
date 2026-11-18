@@ -3,8 +3,12 @@
 #ifdef ESP_PLATFORM
 #include "diag_log.h"
 #define LYNX_DIAG(...) do { if (CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append(__VA_ARGS__); } while (0)
+/* Dedicated-cart boot steps: also kept in NVS ("diaglog" reads them back),
+ * since a USB console reconnect restarts the MCU and loses the power-on log. */
+#define CART_DIAG(...) do { printf(__VA_ARGS__); printf("\n"); DiagLog_Append(__VA_ARGS__); } while (0)
 #else
 #define LYNX_DIAG(...) do { } while (0)
+#define CART_DIAG(...) do { printf(__VA_ARGS__); printf("\n"); } while (0)
 #endif
 #include <string.h>
 #include <strings.h>
@@ -14,6 +18,7 @@
 #include "cart_backup.h"
 #include "cart_bulk.h"
 #include "cart_link.h"
+#include "cart_store.h"
 #include "fpga_tx.h"
 #include "osd.h"
 #include "pc_backup.h"
@@ -44,7 +49,14 @@ static bool OpenBusHeader(const uint8_t *Block)
     return true;
 }
 
-static esp_err_t CheckPhysicalHeader(bool *Present)
+/* tools/mtcart.py titles a dedicated cart's explanation program this way. */
+static bool MagicTrickHeader(const uint8_t *Block)
+{
+    static const char kTitle[] = "MAGIC TRICK";
+    return !memcmp(Block + 0x134, kTitle, sizeof(kTitle));
+}
+
+static esp_err_t CheckPhysicalHeader(bool *Present, bool *pMagicTrick)
 {
     uint8_t *Block = malloc(kCartBulkBlockSize);
     if (!Block) return ESP_ERR_NO_MEM;
@@ -59,6 +71,7 @@ static esp_err_t CheckPhysicalHeader(bool *Present)
         if (Result == ESP_OK && Reply.Status) Result = ESP_ERR_INVALID_RESPONSE;
     }
     if (Result == ESP_OK) Result = CartBulk_ReadBlock(0, Block);
+    if (Result == ESP_OK && pMagicTrick) *pMagicTrick = MagicTrickHeader(Block);
     if (Result == ESP_OK && OpenBusHeader(Block))
     {
         const uint8_t First = Block[0x100];
@@ -80,11 +93,13 @@ static esp_err_t CheckPhysicalHeader(bool *Present)
     }
     if (Bulk) CartBulk_End();
     free(Block);
-    printf("BOOT_RESUME header=%s error=%s\n", *Present ? "cartridge" : "open_bus", esp_err_to_name(Result));
+    if (!*Present && pMagicTrick) *pMagicTrick = false;
+    printf("BOOT_RESUME header=%s error=%s\n", !*Present ? "open_bus" :
+           pMagicTrick && *pMagicTrick ? "magic_trick" : "cartridge", esp_err_to_name(Result));
     return Result;
 }
 
-static esp_err_t CartridgePresent(bool *Present)
+static esp_err_t CartridgePresent(bool *Present, bool *pMagicTrick)
 {
     CartLinkResponse_t Reply = {0};
     esp_err_t Result = ESP_ERR_TIMEOUT;
@@ -98,15 +113,15 @@ static esp_err_t CartridgePresent(bool *Present)
         return ESP_ERR_INVALID_RESPONSE;
     if (Reply.Data[1] & 1u) return ESP_ERR_INVALID_STATE; /* maintenance in progress */
     *Present = (Reply.Data[1] & 2u) != 0;
-    return *Present ? CheckPhysicalHeader(Present) : ESP_OK;
+    return *Present ? CheckPhysicalHeader(Present, pMagicTrick) : ESP_OK;
 }
 
 BootResumeCartridge_t BootResume_CheckCartridge(void)
 {
-    BootResumeCartridge_t Cartridge = {ESP_ERR_INVALID_STATE, true};
+    BootResumeCartridge_t Cartridge = {ESP_ERR_INVALID_STATE, true, false};
     if (Interrupted()) return Cartridge;
     PwrMgr_InhibitSleep();
-    Cartridge.Result = CartridgePresent(&Cartridge.Present);
+    Cartridge.Result = CartridgePresent(&Cartridge.Present, &Cartridge.MagicTrick);
     PwrMgr_AllowSleep();
     return Cartridge;
 }
@@ -237,8 +252,50 @@ bool BootResume_PlayIntro(const BootResumeCartridge_t *Cartridge,
     return true;
 }
 
+typedef enum { kWindowClear, kWindowInterrupted, kWindowSkip } SkipWindow_t;
+
+/* A one-second opportunity to hold B; use fresh real FPGA levels even when
+ * the menu is hidden. Manual interaction and PC mode take priority too. */
+static SkipWindow_t SkipWindow(const char *pTag)
+{
+    for (unsigned Sample=0; Sample<10; ++Sample)
+    {
+        uint16_t Held;
+        if (Interrupted()) return kWindowInterrupted;
+        if (!FreshButtons(&Held)) { printf("%s skip=buttons_unknown\n", pTag); return kWindowSkip; }
+        if (Held & kButtonBits_B) { printf("%s skip=held_b\n", pTag); return kWindowSkip; }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    return kWindowClear;
+}
+
+/* A dedicated Magic Trick cart is in: boot its game (staged by this GB core,
+ * which then switches cores) instead of leaving its explanation program up.
+ * Returns true when the menu should open instead (B held, several games,
+ * or a failed load). */
+static bool BootCartGame(void)
+{
+    if (!CoreSwitch_IsCore(kCoreSystem_GB)) { CART_DIAG("BOOT_CART skip=core"); return true; }
+    const SkipWindow_t Window = SkipWindow("BOOT_CART");
+    if (Window != kWindowClear) CART_DIAG("BOOT_CART window=%s", Window == kWindowSkip ? "skip" : "interrupted");
+    if (Window == kWindowInterrupted) return false;
+    if (Window == kWindowSkip) return true;
+    char Path[LAST_GAME_PATH_SIZE];
+    esp_err_t Result = CartStore_AutoBootPath(Path, sizeof(Path));
+    if (Result != ESP_OK) { CART_DIAG("BOOT_CART skip=%s", Result == ESP_ERR_INVALID_SIZE ? "several_games" : esp_err_to_name(Result)); return true; }
+    if (Interrupted()) { CART_DIAG("BOOT_CART interrupted"); return false; }
+    CART_DIAG("BOOT_CART start=%s", Path);
+    Result = VirtualCart_Start(Path);
+    if (Result != ESP_OK) { CART_DIAG("BOOT_CART start_error=%s", esp_err_to_name(Result)); return true; }
+    while (VirtualCart_IsBusy()) vTaskDelay(pdMS_TO_TICKS(50));
+    if (!VirtualCart_IsActive()) { CART_DIAG("BOOT_CART load_failed"); return true; }
+    CART_DIAG("BOOT_CART complete");
+    return false;
+}
+
 void BootResume_Run(const BootResumeCartridge_t *Cartridge)
 {
+    SkipWindow_t Window;
     char Path[LAST_GAME_PATH_SIZE];
     uint8_t Hops = 1;
     CoreSystem_t Target = kCoreSystem_None;
@@ -273,25 +330,23 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
     bool Present = Cartridge ? Cartridge->Present : true;
     esp_err_t Result = Cartridge ? Cartridge->Result : ESP_ERR_INVALID_STATE;
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=cartridge_unknown\n"); goto Fallback; }
+    if (Present && Cartridge && Cartridge->MagicTrick) {
+        CART_DIAG("BOOT_CART magic_trick_cart");
+        if (BootCartGame()) goto Fallback;
+        goto Done;
+    }
     if (Present) { printf("BOOT_RESUME skip=cartridge\n"); goto Done; }
     Result = LastGame_Read(Path);
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=no_last_game\n"); goto Fallback; }
 
-    /* A one-second opportunity to hold B; use fresh real FPGA levels even when
-     * the menu is hidden. Manual interaction and PC mode take priority too. */
-    for (unsigned Sample=0; Sample<10; ++Sample)
-    {
-        uint16_t Held;
-        if (Interrupted()) goto Done;
-        if (!FreshButtons(&Held)) { printf("BOOT_RESUME skip=buttons_unknown\n"); goto Fallback; }
-        if (Held & kButtonBits_B) { printf("BOOT_RESUME skip=held_b\n"); goto Fallback; }
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
+    Window = SkipWindow("BOOT_RESUME");
+    if (Window == kWindowInterrupted) goto Done;
+    if (Window == kWindowSkip) goto Fallback;
     /* Only an initially empty slot reaches this point. Recheck before queuing
      * the load in case a cartridge was inserted during setup or the B window.
      * A cartridge detected at early startup never receives this second probe. */
     if (Interrupted()) goto Done;
-    Result = CartridgePresent(&Present);
+    Result = CartridgePresent(&Present, NULL);
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=cartridge_unknown\n"); goto Fallback; }
     if (Present) { printf("BOOT_RESUME skip=cartridge\n"); goto Done; }
     uint16_t Held;

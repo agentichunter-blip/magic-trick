@@ -2108,6 +2108,7 @@ Cleanup:
         printf("VIRTUAL_CART=FAIL error=%s\n", esp_err_to_name(Result));
 #ifdef ESP_PLATFORM
         if (Info.Lynx || CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("lynx load FAIL %s %s", esp_err_to_name(Result), pPath);
+        else if (CartStore_IsCartPath(pPath)) DiagLog_Append("cart load FAIL %s %s", esp_err_to_name(Result), pPath);
 #endif
         RomBrowserUI_SetError(Result);
     }

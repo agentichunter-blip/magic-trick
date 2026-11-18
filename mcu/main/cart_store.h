@@ -47,6 +47,12 @@ typedef struct {
     uint32_t Crc;
 } CartStoreEntry_t;
 
+/* Power-on boot of a dedicated cart: "/cart/<name>" when the cartridge's
+ * directory holds exactly one game (ESP_ERR_INVALID_SIZE for several,
+ * ESP_ERR_NOT_FOUND for none). Reads the cartridge, so GB core only.
+ * (Host tests that link boot_resume.c provide their own.) */
+esp_err_t CartStore_AutoBootPath(char *pPath, size_t Size);
+
 #ifdef ESP_PLATFORM
 esp_err_t CartStore_Init(void);
 esp_err_t CartStore_RegisterConsoleCommands(void);
