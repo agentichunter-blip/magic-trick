@@ -149,7 +149,11 @@ class FakeChromatic(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
 
     def path_arg(self):
-        return unquote(self.path.split('?path=', 1)[1]) if '?path=' in self.path else None
+        if '?path=' not in self.path:
+            return None
+        rel = unquote(self.path.split('?path=', 1)[1])
+        assert rel.startswith('/'), 'the device rejects paths without a leading / (400)'
+        return rel[1:]
 
     def authorised(self):
         if self.headers.get('X-ChroMagic-Token') != self.token:

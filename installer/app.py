@@ -630,6 +630,9 @@ class App:
 
     def on_line(self, line):
         """Turn tool output into progress and reassuring notes."""
+        if line.startswith('Reading CHROMAGIC/'):
+            self.note = ('Reading ' + line[len('Reading '):].rstrip('…') + ' on the card. Folders with hundreds of '
+                         'games take a minute or so each over Wi-Fi or USB.'); return
         m = re.search(r'^Progress: (\d+) of (\d+)', line)
         if m:
             self.step_fraction = int(m.group(1)) / max(int(m.group(2)), 1); return

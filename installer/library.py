@@ -41,6 +41,9 @@ COVER_BYTES = len(COVER_HEADER) + FRAME_BYTES
 VIDEO_BYTES = VIDEO_HEADER.size + FPS * SECONDS * FRAME_BYTES
 
 USB_SPEED = 4000      # bytes per second written over USB (measured 2026-11-12)
+# Firmware up to 1.0.0-beta.6 stats every entry of a listed folder, which rescans the folder, so a
+# listing is quadratic: ~25 s for 400 games over USB (measured 2026-11-17). Allow for big folders.
+LIST_TIMEOUT = 600
 WIFI_SPEED = 90000    # bytes per second written over Wi-Fi
 
 
@@ -74,6 +77,8 @@ class Target:
     def list(self, rel):
         """[(name, is_dir, size)] for a folder, or [] if it doesn't exist."""
         if rel not in self._listings:
+            if self.speed and rel.count('/') >= 2:
+                print('Reading %s…' % rel, flush=True)   # big folders take a while over Wi-Fi and USB
             self._listings[rel] = self._list(rel)
         return self._listings[rel]
 
@@ -177,15 +182,15 @@ class WifiTarget(Target):
                               headers={'Content-Type': 'application/json'}, auth=False)
         self.token = json.loads(reply)['token']
 
-    def _request(self, method, route, rel=None, body=None, headers=None, auth=True):
+    def _request(self, method, route, rel=None, body=None, headers=None, auth=True, timeout=None):
         url = self.base + '/api/' + route
         if rel is not None:
-            url += '?path=' + urllib.parse.quote(rel, safe='')
+            url += '?path=' + urllib.parse.quote('/' + rel, safe='')   # the device wants a leading /
         req = urllib.request.Request(url, data=body, method=method, headers=dict(headers or {}))
         if auth:
             req.add_header('X-ChroMagic-Token', self.token)
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as r:
                 return r.read()
         except urllib.error.HTTPError as exc:
             try:
@@ -199,7 +204,7 @@ class WifiTarget(Target):
 
     def _list(self, rel):
         try:
-            text = self._request('GET', 'list', rel).decode('utf-8')
+            text = self._request('GET', 'list', rel, timeout=LIST_TIMEOUT).decode('utf-8')
         except WifiError as exc:
             if exc.status == 404:
                 return []
@@ -314,7 +319,7 @@ class UsbTarget(Target):
             parent, name = rel.rsplit('/', 1) if '/' in rel else ('', rel)
             if not any(n == name and d for n, d, _ in self.list(parent)):
                 return []
-        self._timeout(60)
+        self._timeout(LIST_TIMEOUT)
         self._send(b'\x02' + ('/' + rel).encode())
         out = []
         while True:
