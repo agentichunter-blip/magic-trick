@@ -344,7 +344,7 @@ class App:
                 messagebox.showinfo('Video converter missing', 'This installer is missing its video converter '
                                     '(FFmpeg). Download the installer again, or install FFmpeg on this computer.')
                 return
-        opener, folder = self.library_target()
+        opener, folder = self.library_target(sources)
         if not opener:
             return
         replace = self.replace
@@ -365,14 +365,25 @@ class App:
         self.library_result = ''
         self.run(operation, work, folder)
 
-    def library_target(self):
-        """Ask how to reach the card. Returns (a function that opens it, a local folder or None)."""
+    def library_target(self, sources=()):
+        """Ask how to reach the card. Returns (a function that opens it, a local folder or None).
+        sources: the games or clips just picked, so the card can't be mistaken for their folder."""
         if self.route == 'folder':
-            chosen = ask_directory(title='Now choose your SD card (the card itself, not a folder on it)')
+            where = {'initialdir': '/Volumes'} if sys.platform == 'darwin' and Path('/Volumes').is_dir() else {}
+            chosen = ask_directory(title='Now choose your SD card (the card itself, not a folder on it)', **where)
             if not chosen:
                 return None, None
             path = Path(chosen)
             root = path.parent if path.name.upper() == 'CHROMAGIC' else path
+            for source in sources:
+                picked = Path(source)
+                picked = picked if picked.is_dir() else picked.parent
+                if root.resolve() == picked.resolve() or picked.resolve() in root.resolve().parents:
+                    messagebox.showinfo('That\'s not the SD card', 'That\'s the folder you picked your files from, '
+                                        'not the SD card:\n\n' + str(root) + '\n\nStart again and, when asked for '
+                                        'the SD card, choose the card itself (it\'s listed under Locations on a Mac, '
+                                        'or as a drive on Windows).')
+                    return None, None
             if not any(c.name.upper() == 'CHROMAGIC' for c in root.iterdir() if c.is_dir()) and \
                     not messagebox.askyesno('Is this the right card?', 'This doesn\'t look like a Chromatic SD card '
                                             '(there\'s no CHROMAGIC folder):\n\n' + str(root) + '\n\nChoose Yes only if '
