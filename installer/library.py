@@ -169,6 +169,23 @@ class FolderTarget(Target):
         data = self._path(rel).read_bytes()
         return rom_crcs(rel, data)
 
+    def close(self):
+        """On a Mac, files written to a FAT card get hidden ._ twins holding their metadata (such as
+        the provenance tag macOS adds to files a downloaded app writes). Remove the ones under
+        CHROMAGIC with macOS's own dot_clean; the Chromatic and Wi-Fi Files would list them."""
+        if sys.platform != 'darwin':
+            return
+        top = self._path(GAMES).parent   # the CHROMAGIC folder
+        if not top.is_dir():
+            return
+        try:
+            subprocess.run(['dot_clean', '-m', str(top)], capture_output=True, timeout=120)
+            stray = top.parent / ('._' + top.name)
+            if stray.is_file():
+                stray.unlink()
+        except (OSError, subprocess.SubprocessError):
+            pass   # cosmetic: the games are written either way
+
 
 class WifiTarget(Target):
     """The Chromatic's Wi-Fi Files server (Settings > Wi-Fi Files). Needs the address and WEB CODE it shows."""

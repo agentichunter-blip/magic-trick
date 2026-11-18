@@ -180,6 +180,32 @@ class Card(unittest.TestCase):
         self.assertEqual(library.cover_bytes(source.read_bytes()), dest.read_bytes())
 
 
+class MacMetadata(unittest.TestCase):
+    """On a Mac, ._ metadata twins under CHROMAGIC are removed when the card target closes."""
+    def test_dot_clean_on_close(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / 'CHROMAGIC' / 'BACKUPS').mkdir(parents=True)
+            (root / '._CHROMAGIC').write_bytes(b'x')
+            target = library.FolderTarget(d)
+            with unittest.mock.patch.object(library.sys, 'platform', 'darwin'), \
+                    unittest.mock.patch.object(library.subprocess, 'run') as run:
+                target.close()
+            run.assert_called_once()
+            self.assertEqual(run.call_args[0][0], ['dot_clean', '-m', str(root / 'CHROMAGIC')])
+            self.assertFalse((root / '._CHROMAGIC').exists())
+
+    def test_nothing_elsewhere(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / '._CHROMAGIC').write_bytes(b'x')   # no CHROMAGIC folder: leave the card alone
+            for platform in ('darwin', 'win32', 'linux'):
+                with unittest.mock.patch.object(library.sys, 'platform', platform), \
+                        unittest.mock.patch.object(library.subprocess, 'run') as run:
+                    library.FolderTarget(d).close()
+                run.assert_not_called()
+            self.assertTrue((Path(d) / '._CHROMAGIC').exists())
+
+
 class FakeChromatic(BaseHTTPRequestHandler):
     """Just enough of mcu/main/wifi_files.c: session, list, folder, file PUT (no overwrite), checksum."""
     files, token = {}, 'tok'
