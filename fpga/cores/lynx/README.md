@@ -27,6 +27,12 @@ An Atari Lynx for the Chromatic, built from [AtariLynx_MiSTer](https://github.co
 
 Display > LYNX SCREEN in the menu (MCU setting `lynx-stretch`, sent as system control bit 15; the other cores ignore it). Original letterboxes the 160x102 picture with 21 black rows above and below. Stretch fills all 144 panel rows: each panel row covers 17/24 of a Lynx row, so a row inside one Lynx row shows it unchanged and a row straddling two shows both mixed by coverage in quarters (pure colours stay exact). Everything looks 41% taller. The bridge starts stretched frames later so that Lynx row 101 is ready at panel row 142. The change applies from the next frame; while the menu is open the panel repeats the old picture.
 
+## Sideways games
+
+Some games are played with the Lynx held on its side. The MCU picks the rotation when it loads a game (`LynxRotation()` in `mcu/main/virtual_cart.c`): header byte 58 if it is 1 (left) or 2 (right), otherwise a table of CRC32s of the first 4 KB after the header (`LynxRom_KnownRotation()` in `mcu/main/lynx_rom.h`; most No-Intro dumps carry no rotation byte). Known games: Gauntlet - The Third Encounter and Klax (left); Centipede, Lexis, NFL Football and Raiden (right). It passes the rotation in info block byte 8, bits 3:2.
+
+For a rotated game the bridge keeps two whole 160x102 frames (pens in a 32768x4 array whose first buffer shares the normal ring, palette per frame in palette slots 48/49) and shows the finished one turned to 102x160, scaled by 9/10 to 92x144 with a 2x2 coverage mix, centred with 34 black columns each side. Display lags one Lynx frame. LYNX SCREEN has no effect on rotated games. `lynx_board_core.sv` turns the D-pad so Up is up on the Chromatic's screen. Sim: `LYNX_ROT=1|2` in `tests/sim`.
+
 ## Boot ROM and game files
 
 The MCU stages a 16-byte info block, the boot ROM and the game file in PSRAM (see `lynx_board_core.sv`). `.lnx` games don't need the Lynx boot ROM: without it the MCU decrypts the cartridge loader itself (`mcu/main/lynx_hle.c`) and starts it with a small replacement stub (`mcu/tools/lynx_hle/`), including two-stage loaders. If `lynxboot.img` (512 bytes, not included) is next to the game, in `CHROMAGIC/BACKUPS/LYNX/` or in `CHROMAGIC/BIOS/`, it is used instead. BS93 homebrew (`.o`) needs neither.
