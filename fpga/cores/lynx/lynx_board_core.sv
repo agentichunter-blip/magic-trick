@@ -28,6 +28,7 @@ module lynx_board_core(
  output running, // loaded and out of reset
  output [15:0] audio_l, audio_r,
  output reg bad_image=0,
+ output reg [1:0] rotation=0, // info flags bits 3:2: 0 none, 1 left, 2 right (lynx_video_bridge.sv)
  // save states (lynx_state_engine.sv)
  input save_req, load_req, output state_loaded, output state_busy,
  output [63:0] ss_din, input [63:0] ss_dout, output [25:0] ss_adr,
@@ -60,6 +61,15 @@ module lynx_board_core(
  // the cache cannot report ready for it before the next edge (it compares
  // against its registered address), so no address compare is needed here.
  reg pending=0;
+ // Rotated games: the picture is turned upright on the panel, so the D-pad
+ // turns with it. Left (picture turned clockwise): up->Lynx left, right->up,
+ // down->right, left->down. Right (anticlockwise): up->right, left->up,
+ // down->left, right->down.
+ wire b_up=buttons[0], b_down=buttons[1], b_left=buttons[2], b_right=buttons[3];
+ wire joy_up=rotation==2'd1 ? b_right : rotation==2'd2 ? b_left : b_up;
+ wire joy_down=rotation==2'd1 ? b_left : rotation==2'd2 ? b_right : b_down;
+ wire joy_left=rotation==2'd1 ? b_up : rotation==2'd2 ? b_down : b_left;
+ wire joy_right=rotation==2'd1 ? b_down : rotation==2'd2 ? b_up : b_right;
  wire [23:0] load_address_pos=(state==S_INFO ? 24'd0 : state==S_BIOS ? BIOS_BASE : FILE_BASE)+{4'd0,offset};
  wire fetched=pending && rom_ready;
  always @(posedge clk) begin
@@ -81,7 +91,7 @@ module lynx_board_core(
        info[offset[3:0]]<=rom_data;
        if(offset==13) begin
         offset<=0;
-        file_size<=info_size; lock60<=info[8][1];
+        file_size<=info_size; lock60<=info[8][1]; rotation<=info[8][3:2]==2'd3 ? 2'd0 : info[8][3:2];
         bank0size<={info[10],info[9]}; has_header<=info[11][0]; bs93<=info[11][1];
         load_address<={rom_data,info[12]};
         state<=(info[0]==8'h4c && info[1]==8'h58 && info[2]==8'h43 && info[3]==8'h31 &&
@@ -125,7 +135,7 @@ module lynx_board_core(
   .bios_wraddr(bios_addr), .bios_wrdata(bios_data), .bios_wr(bios_wr),
   .pen_we(pen_we), .pen(pen), .pen_x(pen_x), .pen_y(pen_y), .palette(palette),
   .audio_l(audio_l), .audio_r(audio_r),
-  .JoyUP(buttons[0]), .JoyDown(buttons[1]), .JoyLeft(buttons[2]), .JoyRight(buttons[3]),
+  .JoyUP(joy_up), .JoyDown(joy_down), .JoyLeft(joy_left), .JoyRight(joy_right),
   .Option1(buttons[7]), .Option2(buttons[8]), .KeyB(buttons[5]), .KeyA(buttons[4]),
   .KeyPause(buttons[6]),
   .save_state(save_req), .load_state(load_req), .state_loaded(state_loaded), .state_busy(state_busy),

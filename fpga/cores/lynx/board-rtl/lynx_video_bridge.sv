@@ -24,6 +24,16 @@
 // starts so that Lynx row 101 is ready at panel row 142, the first that needs it.
 // Lynx frames that arrive while a panel frame is still being emitted are not
 // shown (only possible above ~64 Hz, i.e. with the 60 Hz lock off).
+// Rotated games (rotation=1/2, set by the MCU from the .lnx header or its list
+// of sideways games) are drawn for a Lynx held on its side. Here the picture
+// is turned upright instead: rotation 1 ("left", e.g. Gauntlet, Klax) turns it
+// clockwise, 2 ("right", e.g. Centipede, Raiden) anticlockwise, and the
+// 102x160 result is scaled by 9/10 to 92x144 (34 black columns each side),
+// each panel pixel mixing 2x2 Lynx pixels by coverage in quarters. A panel row
+// needs a whole Lynx frame, so the pens go to two full frame buffers instead of
+// the ring: the Lynx writes one while the panel shows the other, and a panel
+// frame starts as soon as a Lynx frame is complete (one frame of latency). Its
+// palette is the one in effect at the frame's first pixel.
 // While the core is paused (menu) or produces no frames, the bridge repeats the
 // previous picture from the PSRAM framebuffer (lcd_repeat) at 60 Hz so the menu
 // overlay keeps drawing.
@@ -39,6 +49,7 @@ module lynx_video_bridge #(
  input wire xclk,xreset,hclk,hreset,enable,
  input wire paused,
  input wire stretch,         // any clock domain; applied from the next frame
+ input wire [1:0] rotation,  // xclk, constant while a game runs: 0 none, 1 left, 2 right
  input wire pen_we, input wire [3:0] pen, input wire [7:0] pen_x, input wire [6:0] pen_y,
  input wire [191:0] palette,
  output wire overflow,
@@ -54,14 +65,20 @@ module lynx_video_bridge #(
  function [12:0] pen_index(input [5:0] slot, input [7:0] x);
   pen_index={slot,7'd0}+{2'd0,slot,5'd0}+{5'd0,x};
  endfunction
- reg [3:0] bank0[0:4095], bank1[0:4095];
+ // Rotated: two frame buffers, pen (x,y) at {buffer, y*160+x}; the ring and
+ // buffer 0 share the same block RAM. Palettes: ring slots 0-47, frame
+ // buffers slots 48/49.
+ function [13:0] frame_index(input [6:0] y, input [7:0] x);
+  frame_index={y,7'd0}+{2'd0,y,5'd0}+{6'd0,x};
+ endfunction
+ wire rotated=rotation!=2'd0;
+ reg wbuf=0;                 // frame buffer the Lynx writes (rotated)
+ reg [3:0] pens[0:32767];
  reg [11:0] pal_ram[0:1023];
- wire [12:0] wr_index=pen_index(slot_of(pen_y),pen_x);
- always @(posedge xclk) if(pen_we) begin
-  if(!wr_index[12]) bank0[wr_index[11:0]]<=pen;
-  else bank1[wr_index[11:0]]<=pen;
- end
- // Palette copy: 16 entries over 16 cycles from the row's first pixel.
+ wire [14:0] wr_index=rotated ? {wbuf,frame_index(pen_y,pen_x)} : {2'b00,pen_index(slot_of(pen_y),pen_x)};
+ always @(posedge xclk) if(pen_we) pens[wr_index]<=pen;
+ // Palette copy: 16 entries over 16 cycles from the row's first pixel
+ // (rotated: the frame's first pixel).
  reg copying=0; reg [3:0] copy_i=0; reg [5:0] copy_slot=0;
  always @(posedge xclk) begin
   if(copying) begin
@@ -69,7 +86,9 @@ module lynx_video_bridge #(
    copy_i<=copy_i+1'b1;
    if(copy_i==15) copying<=0;
   end
-  if(pen_we && pen_x==0) begin copying<=1; copy_i<=0; copy_slot<=slot_of(pen_y); end
+  if(pen_we && pen_x==0 && (!rotated || pen_y==0)) begin
+   copying<=1; copy_i<=0; copy_slot<=rotated ? {5'b11000,wbuf} : slot_of(pen_y);
+  end
  end
 
  // ---------------- Lynx frame timing ----------------
@@ -93,6 +112,7 @@ module lynx_video_bridge #(
    else begin
     if(since0!=24'hffffff) since0<=since0+1'b1;
     if(first_pixel) begin since0<=0;in_frame<=1;triggered<=0;end
+    else if(rotated) begin if(last_pixel && in_frame) start_live<=1; end // whole frame stored
     else if(in_frame && !triggered && since0>=start_delay) begin triggered<=1;start_live<=1;end
     if(last_pixel && in_frame) begin
      in_frame<=0;
@@ -132,13 +152,41 @@ module lynx_video_bridge #(
   else weight_a=3'd4;
  end
  reg [12:0] rd_index=0;
- reg [3:0] q0,q1; reg [11:0] pal_q; reg [9:0] pal_addr=0;
+ reg [3:0] q_pen; reg [11:0] pal_q; reg [9:0] pal_addr=0;
  reg [11:0] color_a=0;
+ // Rotated read position: panel row r covers rotated rows [10r/9, 10r/9+10/9),
+ // i.e. ra=floor(10r/9) and ra+1, ra's share wr in quarters (rj = 10r mod 9);
+ // likewise columns ca/ca+1 with wc for panel column 34+p.
+ reg rot_f=0, rot_left=0, dbuf=0; // latched per frame; dbuf = buffer shown
+ reg [7:0] ra=0; reg [3:0] rj=0; reg [6:0] ca=0; reg [3:0] cj=0;
+ reg [7:0] xa=0, xb=0;       // Lynx x of rotated rows ra, ra+1 (this panel row)
+ reg [13:0] ya=0, yb=0;      // y*160 of rotated columns ca, ca+1
+ reg [14:0] rd_rot=0;
+ reg [17:0] m0=0;            // 2-row mix of column ca (6 bits per channel)
+ reg [11:0] c0=0, c2=0;
+ function [2:0] quarter(input [3:0] j); // round((9-j)/10*4): share of the first tap
+  case(j) 4'd0: quarter=3'd4; 4'd1,4'd2: quarter=3'd3; 4'd3,4'd4,4'd5: quarter=3'd2;
+   4'd6,4'd7: quarter=3'd1; default: quarter=3'd0; endcase
+ endfunction
+ function [5:0] vmix(input [3:0] a, input [3:0] b, input [2:0] w); // a*w+b*(4-w)
+  vmix={2'b00,a}*{3'b000,w}+{2'b00,b}*{3'b000,3'd4-w};
+ endfunction
+ function [4:0] hmix(input [5:0] a, input [5:0] b, input [2:0] w); // (a*w+b*(4-w))/16 -> 5 bits
+  reg [7:0] t;
+  begin t={2'b00,a}*{5'd0,w}+{2'b00,b}*{5'd0,3'd4-w}; hmix=t[7:3]|{4'd0,t[7]}; end
+ endfunction
+ wire [2:0] wr_q=quarter(rj), wc_q=quarter(cj);
+ wire [7:0] ra_b=ra==8'd159 ? ra : ra+1'b1;
+ wire [6:0] ca_b=ca==7'd101 ? ca : ca+1'b1;
+ function [13:0] y160(input [6:0] y); y160={y,7'd0}+{2'd0,y,5'd0}; endfunction
+ wire [17:0] m_now={vmix(c2[11:8],pal_q[11:8],wr_q),vmix(c2[7:4],pal_q[7:4],wr_q),vmix(c2[3:0],pal_q[3:0],wr_q)};
+ // m0/m_now: {G,B,R} 6-bit sums (GBR444 channel order kept)
+ wire [14:0] rgb_rot={hmix(m0[11:6],m_now[11:6],wc_q),hmix(m0[17:12],m_now[17:12],wc_q),hmix(m0[5:0],m_now[5:0],wc_q)};
+ wire rot_visible=col>=8'd34 && col<8'd126;
  always @(posedge xclk) begin
-  q0<=bank0[rd_index[11:0]]; q1<=bank1[rd_index[11:0]];
+  q_pen<=pens[rot_f ? rd_rot : {2'b00,rd_index}];
   pal_q<=pal_ram[pal_addr];
  end
- wire [3:0] q_pen=rd_index[12] ? q1 : q0;
  // a*w + b*(4-w) for one 4-bit channel, then 4-bit-scale -> 5 bits: a pure
  // colour c becomes {c,c[3]} as before, a mix keeps its half step.
  function [4:0] mix(input [3:0] a, input [3:0] b, input [2:0] w);
@@ -157,7 +205,8 @@ module lynx_video_bridge #(
  always @(posedge xclk or posedge xreset) begin
   if(xreset) begin busy<=0;live<=0;have_picture<=0;row<=0;row_t<=0;col<=0;pix_t<=0;
    idle_t<=0;event_valid<=0;event_data<=0;rd_index<=0;pal_addr<=0;
-   stretch_f<=0;acc<=0;k<=0;color_a<=0;weight_q<=4;end
+   stretch_f<=0;acc<=0;k<=0;color_a<=0;weight_q<=4;
+   rot_f<=0;rot_left<=0;dbuf<=0;wbuf<=0;ra<=0;rj<=0;ca<=0;cj<=0;end
   else begin
    event_valid<=0;
    if(!busy) begin
@@ -165,17 +214,49 @@ module lynx_video_bridge #(
     if(!enable) begin idle_t<=0;have_picture<=0;end
     else if(start_live && !paused) begin
      busy<=1;live<=1;have_picture<=1;row<=0;row_t<=0;idle_t<=0;
-     stretch_f<=stretch_sync[1];acc<=0;k<=0;
+     stretch_f<=stretch_sync[1] && !rotated;acc<=0;k<=0;
+     // Rotated: show the frame just completed, write the next into the other.
+     rot_f<=rotated;rot_left<=rotation==2'd1;ra<=0;rj<=0;
+     if(rotated) begin dbuf<=wbuf;wbuf<=!wbuf;end
     end else if((paused && idle_t>=REPEAT_XCLK) || idle_t>=TIMEOUT_XCLK) begin
      // Repeat the last picture (black if there never was one).
-     busy<=1;live<=0;row<=0;row_t<=0;idle_t<=0;
+     busy<=1;live<=0;row<=0;row_t<=0;idle_t<=0;rot_f<=0;
     end
    end else begin
     row_t<=row_t+1'b1;
     if(row_t==0) begin
      // Row start; bit 15 marks the first row (lcd_vsync).
      event_valid<=1;event_data<={2'b01,2'b00,row==0,15'd0};
-     col<=0;pix_t<=0;
+     col<=0;pix_t<=0;ca<=0;cj<=0;
+     // left: x = rotated row; right: x = 159 - rotated row
+     xa<=rot_left ? ra : 8'd159-ra; xb<=rot_left ? ra_b : 8'd159-ra_b;
+    end else if(row_t>=8 && col<160 && rot_f) begin
+     // Rotated pixel: taps (ra,ca) (ra+1,ca) (ra,ca+1) (ra+1,ca+1), one RAM
+     // read each from pix_t 1, palette reads one cycle later.
+     pix_t<=pix_t==PIXEL_XCLK-1 ? 4'd0 : pix_t+1'b1;
+     case(pix_t)
+      // left: y = 101 - rotated column; right: y = rotated column
+      0: begin ya<=y160(rot_left ? 7'd101-ca : ca); yb<=y160(rot_left ? 7'd101-ca_b : ca_b); end
+      1: rd_rot<={dbuf,ya+{6'd0,xa}};
+      2: rd_rot<={dbuf,ya+{6'd0,xb}};
+      3: begin rd_rot<={dbuf,yb+{6'd0,xa}}; pal_addr<={5'b11000,dbuf,q_pen}; end
+      4: begin rd_rot<={dbuf,yb+{6'd0,xb}}; pal_addr<={5'b11000,dbuf,q_pen}; end
+      5: begin c2<=pal_q; pal_addr<={5'b11000,dbuf,q_pen}; end
+      6: begin m0<={vmix(c2[11:8],pal_q[11:8],wr_q),vmix(c2[7:4],pal_q[7:4],wr_q),vmix(c2[3:0],pal_q[3:0],wr_q)};
+          pal_addr<={5'b11000,dbuf,q_pen}; end
+      7: c2<=pal_q;
+      // 8: pal_q = tap 3 -> m_now
+      8: begin
+       event_valid<=1;
+       if(!live) event_data<={3'b0,have_picture,1'b0,15'd0};
+       else event_data<={3'b0,1'b0,1'b0,rot_visible ? rgb_rot : 15'd0};
+       if(rot_visible) begin
+        if(cj==4'd8) begin cj<=0; ca<=ca+7'd2; end else begin cj<=cj+1'b1; ca<=ca+1'b1; end
+       end
+      end
+      PIXEL_XCLK-1: col<=col+1'b1;
+      default: ;
+     endcase
     end else if(row_t>=8 && col<160) begin
      pix_t<=pix_t==PIXEL_XCLK-1 ? 4'd0 : pix_t+1'b1;
      case(pix_t)
@@ -204,6 +285,7 @@ module lynx_video_bridge #(
      else row<=row+1'b1;
      if(acc>=6'd14) begin acc<=acc-6'd14; k<=k+1'b1; end // acc+34 wraps past 48
      else acc<=acc+6'd34;
+     if(rj==4'd8) begin rj<=0; ra<=ra+8'd2; end else begin rj<=rj+1'b1; ra<=ra+1'b1; end
     end
    end
   end
@@ -220,7 +302,7 @@ module lynx_video_bridge #(
   end
   if(!busy && enable && start_live && !paused) panel_frame<=lynx_frame;
   if(paused) panel_frame<=-2; // a frame cut by a pause or save state is not checked
-  if(busy && live && panel_frame>=0 && lynx_row && row_t>=8 && col<160 && (pix_t==0 || (pix_t==2 && weight_a!=4))) begin : chk
+  if(busy && live && !rot_f && panel_frame>=0 && lynx_row && row_t>=8 && col<160 && (pix_t==0 || (pix_t==2 && weight_a!=4))) begin : chk
    integer ky; reg ok;
    ky=pix_t==0 ? lynx_k : lynx_k+1;
    if(lynx_frame==panel_frame) ok=(ky<cur_y || (ky==cur_y && col<=cur_x)) && cur_y-ky<48;

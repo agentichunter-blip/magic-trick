@@ -89,6 +89,7 @@ enum {
     kLynxScreenBlock = 80,
     kLynxFlagBios = 0x01,
     kLynxFlagLock60 = 0x02,
+    kLynxFlagRotationShift = 2, /* bits 3:2: 0 none, 1 left, 2 right */
     kGGStatusFrozen = 0x02,
     kGGStatusFault = 0x04,
     kGGStatusLoaded = 0x10,
@@ -627,6 +628,27 @@ static esp_err_t ReplayStaged(uint32_t ReplayCrc, uint32_t Size)
     return ESP_OK;
 }
 
+/* Sideways games: the core turns the picture upright and the D-pad with it
+ * (lynx_video_bridge.sv). From the .lnx header, else the list of known
+ * headerless dumps in lynx_rom.h. */
+static uint8_t LynxRotation(FILE *pRom, const VirtualCartInfo_t *pInfo)
+{
+    const LynxRomInfo_t *pLynx = &pInfo->LynxRom;
+    if (pLynx->Bs93) return kLynxRotationNone;
+    if (pLynx->Header && (pLynx->Rotation == kLynxRotationLeft || pLynx->Rotation == kLynxRotationRight))
+        return pLynx->Rotation;
+    const long Start = pLynx->Header ? kLynxHeaderSize : 0;
+    if (pLynx->Size < (uint32_t)Start + kLynxRotationProbe || fseek(pRom, Start, SEEK_SET)) return kLynxRotationNone;
+    uint8_t Chunk[256];
+    uint32_t Crc = 0;
+    for (unsigned Done = 0; Done < kLynxRotationProbe; Done += sizeof(Chunk))
+    {
+        if (fread(Chunk, 1, sizeof(Chunk), pRom) != sizeof(Chunk)) return kLynxRotationNone;
+        Crc = StateFile_Crc32(Crc, Chunk, sizeof(Chunk));
+    }
+    return LynxRom_KnownRotation(Crc);
+}
+
 static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const char *pPath, UploadMode_t Mode, uint32_t ReplayCrc)
 {
     /* Block 0: info block, then the boot ROM at 0x200. */
@@ -664,7 +686,9 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
     const uint32_t Size = pInfo->LynxRom.Size;
     Info[4] = (uint8_t)Size; Info[5] = (uint8_t)(Size >> 8);
     Info[6] = (uint8_t)(Size >> 16); Info[7] = (uint8_t)(Size >> 24);
-    Info[8] = (Bios ? kLynxFlagBios : 0) | (LynxLock60 ? kLynxFlagLock60 : 0);
+    const uint8_t Rotation = LynxRotation(pRom, pInfo);
+    if (Rotation) printf("LYNX_ROTATION=%s\n", Rotation == kLynxRotationLeft ? "left" : "right");
+    Info[8] = (Bios ? kLynxFlagBios : 0) | (LynxLock60 ? kLynxFlagLock60 : 0) | Rotation << kLynxFlagRotationShift;
     /* The core takes the header's results from here (lynx_board_core.sv). */
     Info[9] = (uint8_t)pInfo->LynxRom.Bank0; Info[10] = (uint8_t)(pInfo->LynxRom.Bank0 >> 8);
     Info[11] = (pInfo->LynxRom.Header ? 1 : 0) | (pInfo->LynxRom.Bs93 ? 2 : 0);

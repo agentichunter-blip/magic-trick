@@ -110,7 +110,47 @@ bool RomBrowserUI_SetComplete(void) { assert(!Mounted && !Bulk); ++Completed; re
 void RomBrowserUI_SetError(esp_err_t Error) { assert(Error!=ESP_OK && !Mounted && !Bulk); ++Errors; }
 esp_err_t RomBrowser_CloseMenu(void) { assert(Completed && !Mounted && !Bulk); ++Closed; return ESP_OK; }
 
+/* Sideways Lynx games: header byte 58 wins; headerless dumps by the CRC of
+ * their first 4 KiB; homebrew and unknown games are not turned. */
+static uint8_t RotationOf(const uint8_t *pData, size_t Size) {
+    FILE *File=tmpfile(); assert(File && fwrite(pData,1,Size,File)==Size);
+    VirtualCartInfo_t Info; memset(&Info,0,sizeof(Info)); Info.Lynx=true;
+    assert(LynxRom_Inspect(File,&Info.LynxRom)==ESP_OK);
+    const uint8_t Rotation=LynxRotation(File,&Info); fclose(File); return Rotation;
+}
+static void TestLynxRotation(void) {
+    static uint8_t Cart[128*1024+64];
+    memset(Cart,0x5a,sizeof(Cart));
+    assert(RotationOf(Cart+64,128*1024)==kLynxRotationNone);
+    memcpy(Cart,"LYNX",4); Cart[4]=0; Cart[5]=2; /* 512-byte pages */
+    Cart[58]=kLynxRotationRight; assert(RotationOf(Cart,sizeof(Cart))==kLynxRotationRight);
+    Cart[58]=kLynxRotationLeft; assert(RotationOf(Cart,sizeof(Cart))==kLynxRotationLeft);
+    Cart[58]=7; assert(RotationOf(Cart,sizeof(Cart))==kLynxRotationNone);
+    uint8_t Bs93[64]={0}; memcpy(Bs93+6,"BS93",4); Bs93[2]=2;
+    assert(RotationOf(Bs93,sizeof(Bs93))==kLynxRotationNone);
+    assert(LynxRom_KnownRotation(0x20aa76d2u)==kLynxRotationLeft && LynxRom_KnownRotation(0x33c4180au)==kLynxRotationRight);
+    /* A real dump, when the set is on this machine (LYNX_ROM_DIR). */
+    const char *Dir=getenv("LYNX_ROM_DIR");
+    if(Dir) {
+        static const struct { const char *Name; uint8_t Want; } Games[]={
+            {"Centipede (USA) (Proto).lnx",kLynxRotationRight},{"Klax (USA, Europe).lnx",kLynxRotationLeft},
+            {"Gauntlet - The Third Encounter (USA, Europe).lnx",kLynxRotationLeft},{"Raiden (USA) (v3.0).lnx",kLynxRotationRight},
+            {"Lexis (USA, Europe).lnx",kLynxRotationRight},{"NFL Football (USA, Europe).lnx",kLynxRotationRight},
+            {"Blue Lightning (USA, Europe).lnx",kLynxRotationNone}};
+        for(size_t I=0;I<sizeof(Games)/sizeof(Games[0]);++I) {
+            char Full[512]; snprintf(Full,sizeof(Full),"%s/%s",Dir,Games[I].Name);
+            FILE *File=fopen(Full,"rb"); assert(File);
+            VirtualCartInfo_t Info; memset(&Info,0,sizeof(Info)); Info.Lynx=true;
+            assert(LynxRom_Inspect(File,&Info.LynxRom)==ESP_OK);
+            assert(LynxRotation(File,&Info)==Games[I].Want); fclose(File);
+        }
+        puts("PASS: Lynx rotation of the real sideways dumps");
+    }
+    puts("PASS: Lynx rotation from the header, the known-dump list, none for homebrew");
+}
+
 int main(void) {
+    TestLynxRotation();
     char Path[]="/tmp/chromagic-load-XXXXXX"; int FD=mkstemp(Path); assert(FD>=0);
     uint8_t ROM[32768]={0}; memcpy(ROM+0x104,NintendoLogo,sizeof(NintendoLogo));
     memcpy(ROM+0x134,"LOAD TEST",9);

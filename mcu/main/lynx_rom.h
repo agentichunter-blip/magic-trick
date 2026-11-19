@@ -24,6 +24,29 @@ typedef struct {
     char Title[33];
 } LynxRomInfo_t;
 
+/* Sideways games (played with the Lynx on its side) whose dumps have no
+ * header to say so, by the CRC-32 of the cartridge image's first 4 KiB (after
+ * any .lnx header): unique across the No-Intro set. 1 = left (the picture is
+ * turned clockwise to stand upright), 2 = right (anticlockwise), as in the
+ * header's byte 58. */
+enum { kLynxRotationNone = 0, kLynxRotationLeft = 1, kLynxRotationRight = 2, kLynxRotationProbe = 4096 };
+
+static inline uint8_t LynxRom_KnownRotation(uint32_t crc_first_4k)
+{
+    switch (crc_first_4k) {
+    case 0x20aa76d2u: /* Gauntlet - The Third Encounter (USA, Europe) */
+    case 0x20af0f2eu: /* Klax (USA, Europe) */
+        return kLynxRotationLeft;
+    case 0x33c4180au: /* Centipede (USA) (Proto) */
+    case 0x61d92e3bu: /* Lexis (USA, Europe) */
+    case 0x0cf623e5u: /* NFL Football (USA, Europe) */
+    case 0x6b29440du: /* Raiden (USA) (v3.0) */
+        return kLynxRotationRight;
+    default:
+        return kLynxRotationNone;
+    }
+}
+
 static inline esp_err_t LynxRom_Inspect(FILE *rom, LynxRomInfo_t *info)
 {
     if (!rom || !info) return ESP_ERR_INVALID_ARG;

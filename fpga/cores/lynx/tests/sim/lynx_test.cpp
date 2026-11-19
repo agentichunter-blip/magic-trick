@@ -164,7 +164,8 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 4; i++) psram_write(base + i, magic[i]);
     uint32_t n = file.size();
     for (int i = 0; i < 4; i++) psram_write(base + 4 + i, (n >> (8 * i)) & 255);
-    psram_write(base + 8, (lock ? 2 : 0) | (bios.size() == 512 ? 1 : 0));
+    int rot = getenv("LYNX_ROT") ? atoi(getenv("LYNX_ROT")) & 3 : 0; // 1 left, 2 right
+    psram_write(base + 8, (lock ? 2 : 0) | (bios.size() == 512 ? 1 : 0) | rot << 2);
     // Header results, as the MCU (lynx_rom.h) supplies them.
     bool lnx = n > 64 && !memcmp(file.data(), "LYNX", 4), bs93 = n > 10 && !memcmp(file.data() + 6, "BS93", 4);
     unsigned bank0 = lnx ? (file[4] | file[5] << 8) : bs93 ? 0 : n / 256;

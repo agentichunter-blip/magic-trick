@@ -166,7 +166,7 @@ module emu_system_top
     assign virtual_xwritedata=state_owns_bus ? state_x_write_data : bridge_xwritedata;
     assign virtual_xlength=state_owns_bus ? 11'd8 : bridge_xlength;
     wire pen_we;wire [3:0] pen;wire [7:0] pen_x;wire [6:0] pen_y;wire [191:0] palette;
-    wire running,bad_image;
+    wire running,bad_image;wire [1:0] lynx_rotation;
     wire [15:0] audio_left,audio_right,lynx_left_raw,lynx_right_raw;
     wire save_req,load_req,state_loaded,state_busy,ss_rnw,ss_ena,ss_done;
     wire [63:0] ss_din,ss_dout;wire [25:0] ss_adr;
@@ -179,7 +179,7 @@ module emu_system_top
         .rom_read(core_rom_read),.rom_address(core_rom_address),.rom_data(rom_byte),
         .rom_ready(rom_ready && !state_owns_rom),
         .pen_we(pen_we),.pen(pen),.pen_x(pen_x),.pen_y(pen_y),.palette(palette),
-        .running(running),.audio_l(audio_left),.audio_r(audio_right),.bad_image(bad_image),
+        .running(running),.audio_l(audio_left),.audio_r(audio_right),.bad_image(bad_image),.rotation(lynx_rotation),
         .save_req(save_req),.load_req(load_req),.state_loaded(state_loaded),.state_busy(state_busy),
         .ss_din(ss_din),.ss_dout(ss_dout),.ss_adr(ss_adr),.ss_rnw(ss_rnw),.ss_ena(ss_ena),.ss_done(ss_done));
     lynx_state_engine state_engine(.clk(xclk),.reset(core_reset_x),
@@ -200,7 +200,7 @@ module emu_system_top
     assign virtual_state_status={2'b00,engine_loaded,engine_fault,engine_frozen,engine_busy};
     lynx_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(running),.paused(core_pause),
-        .stretch(lynxStretch),
+        .stretch(lynxStretch),.rotation(lynx_rotation),
         .pen_we(pen_we),.pen(pen),.pen_x(pen_x),.pen_y(pen_y),.palette(palette),
         .overflow(video_overflow),.lcd_pixel(gb_lcd_clkena),.lcd_data(gb_lcd_data),
         .lcd_repeat(gb_lcd_repeat),
