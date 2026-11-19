@@ -443,7 +443,7 @@ static esp_err_t Run(void)
     esp_err_t Result;
     LastPing = esp_timer_get_time();
     sdmmc_card_t *Card = NULL;
-    esp_err_t Mount = SDCard_Mount(&Card);
+    esp_err_t Mount = SDCard_MountPhysical(&Card);
     Upload = NULL; Temporary[0] = 0;
     (void)uart_flush_input(UART_NUM_0);
     printf("PCSD READY protocol=1 block=1024\n");
@@ -515,7 +515,7 @@ static esp_err_t WithCard(esp_err_t (*Fn)(const char **), const char **ppDetail)
 {
     sdmmc_card_t *Card = NULL;
     *ppDetail = NULL;
-    esp_err_t Result = SDCard_Mount(&Card);
+    esp_err_t Result = SDCard_MountPhysical(&Card);
     if (Result != ESP_OK)
     {
         if (Result != ESP_ERR_INVALID_STATE) *ppDetail = CONNECT_DETAIL_NO_SD;
@@ -534,7 +534,7 @@ static esp_err_t WithCard(esp_err_t (*Fn)(const char **), const char **ppDetail)
 bool PCSD_CardPresent(bool *pPresent)
 {
     sdmmc_card_t *Card = NULL;
-    const esp_err_t Result = SDCard_Mount(&Card);
+    const esp_err_t Result = SDCard_MountPhysical(&Card);
     if (Result == ESP_ERR_INVALID_STATE) return false;   /* busy: unknown */
     *pPresent = Result == ESP_OK;
     if (Result == ESP_OK) (void)SDCard_Unmount(Card);

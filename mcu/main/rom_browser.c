@@ -178,6 +178,9 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
     CloseCatalog();
     TraceCatalog("mount", ESP_OK);
 
+    /* Read the cartridge's directory first: with no microSD card, a cartridge
+     * carrying Magic Trick games gets the internal store (sd_card.h). */
+    (void)CartStore_Refresh(false);
     sdmmc_card_t *pCard = NULL;
     esp_err_t Result = SDCard_Mount(&pCard);
     if (Result != ESP_OK)
@@ -188,7 +191,8 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
 
     TraceCatalog("directory", ESP_OK);
 
-    if (CartView) {
+    /* No microSD card: the cartridge's games are the whole library. */
+    if (CartView || SDCard_IsVirtual()) {
         const size_t Count = CartStore_Refresh(false);
         for (size_t I = 0; Result == ESP_OK && I < Count; ++I) {
             CartStoreEntry_t Entry;

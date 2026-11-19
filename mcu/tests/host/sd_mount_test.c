@@ -1,5 +1,33 @@
 #include <assert.h>
+#include <stdint.h>
+#define CART_STORE_TEST_HAS_GAMES
+#include <stdbool.h>
+bool CartStore_HasGames(void);
 #include "../../main/sd_card.c"
+
+/* The internal store (no card, cartridge with Magic Trick games). */
+static bool HasGames, StoreMounts;
+static int StoreMountCount, StoreUnmountCount, Registers;
+static esp_err_t StoreResult;
+bool CartStore_HasGames(void) { return HasGames; }
+esp_flash_t *esp_flash_default_chip;
+static esp_partition_t TestPartition;
+esp_err_t esp_partition_register_external(esp_flash_t *chip, size_t offset, size_t size, const char *label,
+    esp_partition_type_t type, esp_partition_subtype_t subtype, const esp_partition_t **out) {
+    assert(offset == 0x110000 && offset + size == 0x25F000 && !strcmp(label, "mtstore"));
+    ++Registers; *out = &TestPartition; return ESP_OK;
+}
+esp_err_t esp_vfs_fat_spiflash_mount_rw_wl(const char *path, const char *label, const esp_vfs_fat_mount_config_t *c, wl_handle_t *h) {
+    assert(!strcmp(path, "/sdcard") && !strcmp(label, "mtstore") && c->format_if_mount_failed);
+    if (StoreResult != ESP_OK) return StoreResult;
+    assert(!StoreMounts); StoreMounts = true; ++StoreMountCount; *h = 7; return ESP_OK;
+}
+esp_err_t esp_vfs_fat_spiflash_unmount_rw_wl(const char *path, wl_handle_t h) {
+    assert(StoreMounts && h == 7); StoreMounts = false; ++StoreUnmountCount; return ESP_OK;
+}
+esp_err_t esp_vfs_fat_info(const char *p, uint64_t *t, uint64_t *f) { *t = *f = 0; return ESP_OK; }
+BYTE ff_diskio_get_pdrv_wl(wl_handle_t h) { return 1; }
+int mkdir(const char *path, mode_t mode) { (void)path; (void)mode; return 0; }
 
 static esp_err_t MountResult, CommandResult, CommandError;
 static bool Responds, MissingResponseFlag;
@@ -76,5 +104,27 @@ int main(void) {
     assert(SDCard_Mount(&card) == ESP_OK && card == &Card && LastWait == 4750);
     assert(!PreviewOwnsGate && !SDCard_PreviewShouldYield() && !ReleasePreviewWhenAsked);
     assert(SDCard_Unmount(card) == ESP_OK);
+
+    /* No card: the internal store only with Magic Trick games on the cartridge,
+     * never for previews or bulk transfers, and only when no card answers. */
+    Responds = false; MountResult = ESP_ERR_TIMEOUT;
+    assert(SDCard_Mount(&card) == ESP_ERR_NOT_FOUND && !StoreMounts);
+    HasGames = true;
+    assert(SDCard_MountPhysical(&card) == ESP_ERR_NOT_FOUND && !StoreMounts);
+    assert(SDCard_MountPreview(&card) == ESP_ERR_NOT_FOUND && !StoreMounts);
+    assert(SDCard_Mount(&card) == ESP_OK && card == &StoreCard && StoreMounts && SDCard_IsVirtual());
+    assert(SDCard_Mount(&other) == ESP_ERR_INVALID_STATE); /* gate still held */
+    assert(SDCard_Unmount(card) == ESP_OK && !StoreMounts && !SDCard_IsVirtual());
+    assert(SDCard_Mount(&card) == ESP_OK && SDCard_IsVirtual() && Registers == 1);
+    assert(SDCard_Unmount(card) == ESP_OK);
+    StoreResult = ESP_FAIL; /* store fails: the card error stands, gate released */
+    assert(SDCard_Mount(&card) == ESP_ERR_NOT_FOUND && !SDCard_IsVirtual());
+    StoreResult = ESP_OK;
+    Responds = true; /* a card that answers but fails is never replaced */
+    assert(SDCard_Mount(&card) == ESP_ERR_TIMEOUT && !StoreMounts);
+    Responds = false; MountResult = ESP_OK; /* card back: the card wins */
+    assert(SDCard_Mount(&card) == ESP_OK && card == &Card && !SDCard_IsVirtual());
+    assert(SDCard_Unmount(card) == ESP_OK);
+    assert(StoreMountCount == 2 && StoreUnmountCount == 2);
     return 0;
 }

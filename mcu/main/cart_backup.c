@@ -1654,7 +1654,7 @@ static esp_err_t RunBackup(void)
     char ErrorDetail[32] = {0};
 
     CartBackupUI_SetProgress(0, "CHECKING SD");
-    Result = SDCard_Mount(&pCard);
+    Result = SDCard_MountPhysical(&pCard);
     if (Result != ESP_OK)
     {
         snprintf(ErrorDetail, sizeof(ErrorDetail), "%s",

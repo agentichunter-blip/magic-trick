@@ -48,6 +48,10 @@ static const char kNvsFreshKey[] = "fresh";
  * first 1 KiB (e.g. restoring the Game Gear ROM mirror after a save or
  * state import). Written by the GB core while staging. */
 static const char kStagedCopy[] = CART_STORE_SIDECAR_ROOT "/.staged.bin";
+/* With no microSD card: only the Game Gear ROM-mirror bytes (StageMirror). */
+static const char kStagedMirror[] = CART_STORE_SIDECAR_ROOT "/.mirror.bin";
+enum { kMirrorMagic = 0x314d544d /* "MTM1" */ };
+typedef struct { uint32_t Magic, EntryCrc, Size, Start, Length; } MirrorHeader_t;
 
 static SemaphoreHandle_t Lock;
 static StaticSemaphore_t LockStorage;
@@ -82,12 +86,16 @@ typedef struct {
     uint8_t Overflow;
     uint8_t AddressCount;
     uint8_t UniqueCount;
+    uint8_t Rotation; /* Lynx: info block rotation bits (0 none) */
+    uint8_t Reserved[3];
     struct { uint32_t Address; uint8_t Unique; uint8_t Pad[3]; } Addresses[kMaxAddresses];
     uint8_t Head[kCartStoreHeadSize];
     uint8_t Unique[kMaxUnique][kBlock];
 } StageRecord_t;
 
 static StageRecord_t *Record;      /* staging or replay in progress */
+static CartStoreEntry_t StagedEntry; /* the entry being staged (GB core) */
+static bool LoadRecord(void);
 static bool RecordLoaded;
 
 /* ---------------------------------------------------------------- format */
@@ -303,6 +311,24 @@ size_t CartStore_Refresh(bool Force)
 
 size_t CartStore_Count(void) { return EntryCount; }
 
+bool CartStore_HasGames(void)
+{
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    bool Has = Scanned && EntryCount > 0;
+    if (!Scanned)
+    {
+        nvs_handle_t Handle;
+        size_t Length = 0;
+        if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) == ESP_OK)
+        {
+            Has = nvs_get_blob(Handle, kNvsDirKey, NULL, &Length) == ESP_OK && Length >= sizeof(CartStoreEntry_t);
+            nvs_close(Handle);
+        }
+    }
+    xSemaphoreGive(Lock);
+    return Has;
+}
+
 esp_err_t CartStore_AutoBootPath(char *pPath, size_t Size)
 {
     if (!pPath || !Size) return ESP_ERR_INVALID_ARG;
@@ -396,18 +422,22 @@ esp_err_t CartStore_StageBegin(const char *pPath)
     Record->Size = Entry.Size;
     Record->EntryCrc = Entry.Crc;
     memset(Record->Head, 0xff, sizeof(Record->Head));
+    StagedEntry = Entry;
     xSemaphoreTake(Lock, portMAX_DELAY);
     esp_err_t Result = ReadCart(Entry.Offset, Record->Head, 1);
-    /* The SD copy (the caller has the SD mounted). */
+    /* The SD copy (the caller has the SD mounted). With no card (the internal
+     * store) only the CRC is checked here; StageMirror keeps what's needed. */
+    const bool KeepCopy = !SDCard_IsVirtual();
+    (void)unlink(KeepCopy ? kStagedMirror : kStagedCopy);
     uint8_t *pChunk = Result == ESP_OK ? malloc(kCacheBlocks * kBlock) : NULL;
-    FILE *pCopy = pChunk ? fopen(kStagedCopy, "wb") : NULL;
-    if (Result == ESP_OK && (!pChunk || !pCopy)) Result = ESP_FAIL;
+    FILE *pCopy = pChunk && KeepCopy ? fopen(kStagedCopy, "wb") : NULL;
+    if (Result == ESP_OK && (!pChunk || (KeepCopy && !pCopy))) Result = ESP_FAIL;
     uint32_t Crc = 0;
     for (uint32_t Done = 0; Result == ESP_OK && Done < Entry.Size; Done += kCacheBlocks * kBlock)
     {
         const uint32_t Want = Entry.Size - Done < kCacheBlocks * kBlock ? Entry.Size - Done : kCacheBlocks * kBlock;
         Result = ReadCart(Entry.Offset + Done, pChunk, (Want + kBlock - 1) / kBlock);
-        if (Result == ESP_OK && fwrite(pChunk, 1, Want, pCopy) != Want) Result = ESP_FAIL;
+        if (Result == ESP_OK && pCopy && fwrite(pChunk, 1, Want, pCopy) != Want) Result = ESP_FAIL;
         Crc = esp_rom_crc32_le(Crc, pChunk, Want);
     }
     if (pCopy && fclose(pCopy) != 0 && Result == ESP_OK) Result = ESP_FAIL;
@@ -421,6 +451,55 @@ esp_err_t CartStore_StageBegin(const char *pPath)
         FreeRecord();
     }
     return Result;
+}
+
+esp_err_t CartStore_StageMirror(uint32_t Start, uint32_t Length)
+{
+    if (!Record || !StagedEntry.Size) return ESP_ERR_INVALID_STATE;
+    uint8_t *pBlock = malloc(kBlock);
+    FILE *pFile = pBlock ? fopen(kStagedMirror, "wb") : NULL;
+    esp_err_t Result = pFile ? ESP_OK : ESP_FAIL;
+    const MirrorHeader_t Header = {kMirrorMagic, StagedEntry.Crc, StagedEntry.Size, Start, Length};
+    if (Result == ESP_OK && fwrite(&Header, sizeof(Header), 1, pFile) != 1) Result = ESP_FAIL;
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    for (uint32_t Done = 0; Result == ESP_OK && Done < Length; Done += kBlock)
+    {
+        /* Whole blocks, as RestoreGGRomMirror writes them (sizes are 1 KiB multiples). */
+        const uint32_t Offset = (Start + Done) % StagedEntry.Size;
+        Result = ReadCart(StagedEntry.Offset + Offset, pBlock, 1);
+        if (Result == ESP_OK && fwrite(pBlock, 1, kBlock, pFile) != kBlock) Result = ESP_FAIL;
+    }
+    xSemaphoreGive(Lock);
+    if (pFile && fclose(pFile) != 0 && Result == ESP_OK) Result = ESP_FAIL;
+    free(pBlock);
+    if (Result != ESP_OK) (void)unlink(kStagedMirror);
+    printf("CARTSTORE mirror=%s start=0x%lx bytes=%lu\n", esp_err_to_name(Result), (unsigned long)Start, (unsigned long)Length);
+    return Result;
+}
+
+void CartStore_StageSetRotation(uint8_t Rotation)
+{
+    if (Record) Record->Rotation = Rotation;
+}
+
+uint8_t CartStore_ReplayRotation(void)
+{
+    return Record ? Record->Rotation : 0;
+}
+
+FILE *CartStore_OpenMirror(uint32_t Start, uint32_t *pLength)
+{
+    if (!LoadRecord()) return NULL;
+    FILE *pFile = fopen(kStagedMirror, "rb");
+    MirrorHeader_t Header;
+    if (pFile && fread(&Header, sizeof(Header), 1, pFile) == 1 && Header.Magic == kMirrorMagic &&
+        Header.EntryCrc == Record->EntryCrc && Header.Size == Record->Size && Header.Start == Start)
+    {
+        if (pLength) *pLength = Header.Length;
+        return pFile;
+    }
+    if (pFile) fclose(pFile);
+    return NULL;
 }
 
 void CartStore_StageBlock(uint32_t Address, const uint8_t *pData)
@@ -938,7 +1017,7 @@ static int AddCommand(int argc, char **argv)
     if (argc < 2) { printf("CARTADD FAIL usage: cartadd </sdcard/...> [...]\n"); return 1; }
     if (!CartStore_CanReadCart()) { printf("CARTADD FAIL needs_gb_core\n"); return 1; }
     sdmmc_card_t *pCard = NULL;
-    esp_err_t Result = SDCard_Mount(&pCard);
+    esp_err_t Result = SDCard_MountPhysical(&pCard);
     AddRequest_t Request = {argc - 1, &argv[1]};
     if (Result == ESP_OK)
     {
@@ -1152,7 +1231,7 @@ static int WriteCommand(int argc, char **argv)
     if (argc != 2) { printf("CARTWRITE FAIL usage: cartwrite </sdcard/image>\n"); return 1; }
     if (!CartStore_CanReadCart()) { printf("CARTWRITE FAIL needs_gb_core\n"); return 1; }
     sdmmc_card_t *pCard = NULL;
-    esp_err_t Result = SDCard_Mount(&pCard);
+    esp_err_t Result = SDCard_MountPhysical(&pCard);
     if (Result == ESP_OK)
     {
         xSemaphoreTake(Lock, portMAX_DELAY);

@@ -15,7 +15,8 @@
  * tools/mtcart.py builds and reads the same format.
  *
  * Games appear as files "/cart/<name>" (read-only VFS). Saves and states for
- * them live in /sdcard/CHROMAGIC/CART/.
+ * them live in /sdcard/CHROMAGIC/CART/: on the microSD card, or with no card
+ * in the MCU's internal store (sd_card.h, SDCard_IsVirtual).
  *
  * Only the GB/GBC core reads ModRetro carts (the Game Gear core reads 0xFF,
  * the Lynx core has no cartridge engine). So a Game Gear or Lynx game is
@@ -29,6 +30,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define CART_STORE_ROOT "/cart"
 #define CART_STORE_SIDECAR_ROOT "/sdcard/CHROMAGIC/CART"
@@ -65,6 +67,9 @@ esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, size_t Size);
  * Returns the entry count (0: no cartridge or no Magic Trick directory). */
 size_t CartStore_Refresh(bool Force);
 size_t CartStore_Count(void);
+/* Whether the cartridge carries Magic Trick games, from the directory last
+ * read (or the copy in NVS). Never touches the cartridge. */
+bool CartStore_HasGames(void);
 bool CartStore_Entry(size_t Index, CartStoreEntry_t *pEntry);
 
 /* True in the core that reads the cartridge (GB/GBC). */
@@ -75,7 +80,18 @@ bool CartStore_CanReadCart(void);
 bool CartStore_PsramHazard(uint32_t Address);
 esp_err_t CartStore_StageBegin(const char *pPath);
 void CartStore_StageBlock(uint32_t Address, const uint8_t *pData);
+/* With no microSD card the GB core keeps no full copy of the game; for a
+ * Game Gear game it keeps the bytes at file offsets (Start + k) % Size,
+ * k < Length (what a save or state import overwrites in the PSRAM ROM
+ * mirror), and the target core reads them back with CartStore_OpenMirror. */
+esp_err_t CartStore_StageMirror(uint32_t Start, uint32_t Length);
+/* Lynx rotation found while staging (the target core can't read the game). */
+void CartStore_StageSetRotation(uint8_t Rotation);
 esp_err_t CartStore_StageCommit(uint32_t RomCrc);
+uint8_t CartStore_ReplayRotation(void);
+/* The kept mirror bytes of the staged game (positioned at the first), or
+ * NULL; *pLength is the byte count. */
+FILE *CartStore_OpenMirror(uint32_t Start, uint32_t *pLength);
 bool CartStore_ReplayReady(const char *pPath, uint32_t *pRomCrc, uint32_t *pSize);
 size_t CartStore_ReplayCount(void);
 bool CartStore_ReplayBlock(size_t Index, uint32_t *pAddress, const uint8_t **ppData);
@@ -94,6 +110,13 @@ static inline esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, siz
 }
 static inline size_t CartStore_Refresh(bool Force) { (void)Force; return 0; }
 static inline size_t CartStore_Count(void) { return 0; }
+#ifndef CART_STORE_TEST_HAS_GAMES
+static inline bool CartStore_HasGames(void) { return false; }
+#endif
+static inline esp_err_t CartStore_StageMirror(uint32_t Start, uint32_t Length) { (void)Start; (void)Length; return ESP_ERR_NOT_SUPPORTED; }
+static inline void CartStore_StageSetRotation(uint8_t Rotation) { (void)Rotation; }
+static inline uint8_t CartStore_ReplayRotation(void) { return 0; }
+static inline FILE *CartStore_OpenMirror(uint32_t Start, uint32_t *pLength) { (void)Start; (void)pLength; return NULL; }
 static inline bool CartStore_Entry(size_t Index, CartStoreEntry_t *pEntry) { (void)Index; (void)pEntry; return false; }
 static inline bool CartStore_CanReadCart(void) { return true; }
 static inline esp_err_t CartStore_StageBegin(const char *pPath) { (void)pPath; return ESP_ERR_NOT_SUPPORTED; }

@@ -16,7 +16,7 @@ idf_component_register(
     INCLUDE_DIRS "."
     REQUIRES
         images esp_driver_uart esp_driver_spi esp_driver_gpio esp_driver_sdmmc
-        nvs_flash fatfs sdmmc vfs
+        nvs_flash fatfs sdmmc vfs wear_levelling esp_partition spi_flash
         common battery button osd menu_mgr settings mutex
         console crc mbedtls json esp_wifi esp_netif esp_event esp_http_server esp_app_format
 )

@@ -471,7 +471,7 @@ static void TransferTask(void *Arg)
     Lease = true;
     if (Stopping()) goto Cleanup;
     printf("WIFI_FILES before_sd heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
-    Result = SDCard_Mount(&Card);
+    Result = SDCard_MountPhysical(&Card);
     LYNX_STEP("wifi sd %s", esp_err_to_name(Result));
     if (Result != ESP_OK) { Failure = "SD CARD UNAVAILABLE"; goto Cleanup; }
     printf("WIFI_FILES before_radio heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));

@@ -687,7 +687,10 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
     const uint32_t Size = pInfo->LynxRom.Size;
     Info[4] = (uint8_t)Size; Info[5] = (uint8_t)(Size >> 8);
     Info[6] = (uint8_t)(Size >> 16); Info[7] = (uint8_t)(Size >> 24);
-    const uint8_t Rotation = LynxRotation(pRom, pInfo);
+    /* A cartridge game replayed in the Lynx core: the GB core found the
+     * rotation while staging (only the file's first 1 KiB is readable here). */
+    const uint8_t Rotation = Mode == kUploadReplay ? CartStore_ReplayRotation() : LynxRotation(pRom, pInfo);
+    if (Mode == kUploadCapture) CartStore_StageSetRotation(Rotation);
     if (Rotation) printf("LYNX_ROTATION=%s\n", Rotation == kLynxRotationLeft ? "left" : "right");
     Info[8] = (Bios ? kLynxFlagBios : 0) | (LynxLock60 ? kLynxFlagLock60 : 0) | Rotation << kLynxFlagRotationShift;
     /* The core takes the header's results from here (lynx_board_core.sv). */
@@ -1985,6 +1988,10 @@ static esp_err_t RunLoad(const char *pPath)
             /* The target core cannot read the cartridge: stage the game in
              * PSRAM from here; it survives the FPGA reload. */
             Result = CartStore_StageBegin(pPath);
+            /* No microSD card: keep just the ROM-mirror bytes a Game Gear save
+             * or state import overwrites (RestoreGGRomMirror). */
+            if (Result == ESP_OK && Info.GameGear && SDCard_IsVirtual())
+                Result = CartStore_StageMirror(kGGStateRomAddress, kStateFileGameGearPayload);
             if (Result == ESP_OK)
                 Result = Info.Lynx ? UploadLynx(pRom, &Info, pPath, kUploadCapture, 0)
                                    : UploadGGOnce(pRom, &Info, kUploadCapture, 0);
@@ -2612,6 +2619,22 @@ static esp_err_t WaitGGStatus(uint32_t Want, uint32_t Mask, bool FaultEnds,
 static esp_err_t RestoreGGRomMirror(void)
 {
     if (!ActiveRomPath[0] || ActiveInfo.RomSize == 0) return ESP_ERR_INVALID_STATE;
+    /* A cartridge game loaded with no microSD card: the bytes kept at staging. */
+    uint32_t MirrorLength = 0;
+    FILE *pMirror = CartStore_IsCartPath(ActiveRomPath) ? CartStore_OpenMirror(kGGStateRomAddress, &MirrorLength) : NULL;
+    if (pMirror)
+    {
+        esp_err_t Result = MirrorLength >= kStateFileGameGearPayload ? ESP_OK : ESP_ERR_INVALID_SIZE;
+        for (uint32_t Offset = kGGStateRomAddress;
+             Result == ESP_OK && Offset < kGGStateRomAddress + kStateFileGameGearPayload;
+             Offset += kCartBulkBlockSize)
+        {
+            if (fread(TransferBuffer, 1, kCartBulkBlockSize, pMirror) != kCartBulkBlockSize) Result = ESP_FAIL;
+            else Result = CartBulk_WritePSRAMBlock(kRomBase + Offset, TransferBuffer);
+        }
+        (void)fclose(pMirror);
+        return Result;
+    }
     FILE *pRom = fopen(ActiveRomPath, "rb");
     if (pRom == NULL) return ESP_FAIL;
     esp_err_t Result = ESP_OK;
