@@ -52,9 +52,32 @@ def run(args, log, timeout=120):
     log('\n'.join(line for line in output.replace('\r', '\n').splitlines()
                   if line.strip() and '%' not in line))
     if result.returncode:
-        raise ProgrammerError('FPGA programmer failed. Check USB drivers and the installation log; do not erase the device.',
-                              output)
+        code = result.returncode & 0xFFFFFFFF
+        log('openFPGALoader %s exited with code %d (0x%08X)%s.' % (
+            ' '.join(args), result.returncode, code, '' if output.strip() else ' and printed nothing'))
+        raise ProgrammerError(failure_message(code, output), output)
     return output
+
+
+# Windows reports a program that couldn't start with an NTSTATUS exit code and no output.
+WINDOWS_START_FAILURES = {
+    0xC0000135: 'a file it needs (a DLL) is missing',
+    0xC000007B: 'one of its files is damaged or the wrong type',
+    0xC0000022: 'Windows or antivirus software blocked it',
+    0xC0000005: 'it crashed',
+}
+
+
+def failure_message(code, output):
+    reason = WINDOWS_START_FAILURES.get(code) if sys.platform == 'win32' else None
+    if reason:
+        return ('The FPGA programmer bundled with the installer couldn\'t start: %s. Extract the whole download '
+                'again to a normal folder (not inside the zip), allow it in your antivirus, then try again.' % reason)
+    if sys.platform == 'win32' and not output.strip():
+        return ('The FPGA programmer stopped without saying why (exit code 0x%08X). This is usually the USB driver: '
+                'install ModRetro\'s Chromatic Firmware Updater and run its USB driver setup once, unplug and '
+                'replug the Chromatic, then try again.' % code)
+    return 'FPGA programmer failed. Check USB drivers and the installation log; do not erase the device.'
 
 
 def preflight(log):

@@ -746,3 +746,13 @@ class AlmostDone(unittest.TestCase):
             self.assertFalse(ok)
             self.assertEqual(json.loads(path.read_text())['stage'], 'complete_unconfirmed')
 
+
+
+class ProgrammerMessages(unittest.TestCase):
+    def test_windows_start_failure_is_named(self):
+        with patch.object(fpga.sys, 'platform', 'win32'):
+            self.assertIn('a DLL) is missing', fpga.failure_message(0xC0000135, ''))
+            self.assertIn('USB driver', fpga.failure_message(1, ''))
+            self.assertIn('Check USB drivers', fpga.failure_message(1, 'some output'))
+        with patch.object(fpga.sys, 'platform', 'darwin'):
+            self.assertIn('Check USB drivers', fpga.failure_message(0xC0000135, ''))
