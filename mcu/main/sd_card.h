@@ -2,6 +2,7 @@
 
 #include "esp_err.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include "sdmmc_cmd.h"
 
 #ifndef SDCARD_MOUNT_POINT
@@ -19,6 +20,9 @@ esp_err_t SDCard_MountPhysical(sdmmc_card_t **ppCard);
  * saves and states for those games live in ~1.3 MB of the MCU flash
  * (0x110000-0x25F000, free in every layout the installer writes). */
 bool SDCard_IsVirtual(void);
+/* Call right after fopen for writing: on the internal store, buffers 4 KiB
+ * so the file is written in whole flash erase blocks (no-op on a card). */
+void SDCard_TuneWrite(FILE *pFile);
 /* Best-effort preview mount; never waits for a foreground storage owner. */
 esp_err_t SDCard_MountPreview(sdmmc_card_t **ppCard);
 

@@ -29,6 +29,7 @@ esp_err_t SDCard_Unmount(sdmmc_card_t *pCard) {
     Mounted = false; ++Unmounts; return ESP_OK;
 }
 bool SDCard_IsVirtual(void) { return false; }
+void SDCard_TuneWrite(FILE *pFile) { (void)pFile; }
 bool OSD_IsVisible(void) { return false; }
 esp_err_t FPGA_Tx_PulseButtons(uint16_t Buttons) { assert(false); return ESP_FAIL; }
 esp_err_t VirtualCart_Start(const char *pPath) {

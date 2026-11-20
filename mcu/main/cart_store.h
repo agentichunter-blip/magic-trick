@@ -78,6 +78,13 @@ bool CartStore_CanReadCart(void);
 /* Staging across the core switch: Stage* run in the GB core alongside the
  * normal PSRAM upload; Replay* in the target core instead of the upload. */
 bool CartStore_PsramHazard(uint32_t Address);
+/* One cartridge session (core held in reset) for all of a staging's reads,
+ * so the cartridge's own game doesn't run between them; takes over the hold
+ * from power-on/core-switch start-up (BootResume) when there is one.
+ * Release (Exit true) before a core reload: the FPGA ignores one while the
+ * cartridge is held. */
+esp_err_t CartStore_HoldCart(void);
+void CartStore_ReleaseCart(bool Exit);
 esp_err_t CartStore_StageBegin(const char *pPath);
 void CartStore_StageBlock(uint32_t Address, const uint8_t *pData);
 /* With no microSD card the GB core keeps no full copy of the game; for a
@@ -119,6 +126,8 @@ static inline uint8_t CartStore_ReplayRotation(void) { return 0; }
 static inline FILE *CartStore_OpenMirror(uint32_t Start, uint32_t *pLength) { (void)Start; (void)pLength; return NULL; }
 static inline bool CartStore_Entry(size_t Index, CartStoreEntry_t *pEntry) { (void)Index; (void)pEntry; return false; }
 static inline bool CartStore_CanReadCart(void) { return true; }
+static inline esp_err_t CartStore_HoldCart(void) { return ESP_ERR_NOT_SUPPORTED; }
+static inline void CartStore_ReleaseCart(bool Exit) { (void)Exit; }
 static inline esp_err_t CartStore_StageBegin(const char *pPath) { (void)pPath; return ESP_ERR_NOT_SUPPORTED; }
 static inline void CartStore_StageBlock(uint32_t Address, const uint8_t *pData) { (void)Address; (void)pData; }
 static inline esp_err_t CartStore_StageCommit(uint32_t RomCrc) { (void)RomCrc; return ESP_ERR_NOT_SUPPORTED; }

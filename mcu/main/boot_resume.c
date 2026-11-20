@@ -149,6 +149,13 @@ void BootResume_ReleaseCartridge(void)
     printf("BOOT_RESUME cartridge_release=%s status=%u\n", esp_err_to_name(Result), (unsigned)Reply.Status);
 }
 
+bool BootResume_TakeHeldCartridge(void)
+{
+    const bool Held = HeldForIntro;
+    HeldForIntro = false;
+    return Held;
+}
+
 static bool FreshButtons(uint16_t *Held)
 {
     const uint32_t Before = Button_GetSnapshot(Held);
@@ -324,7 +331,13 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
     CoreSystem_t Target = kCoreSystem_None;
     const esp_err_t PendingResult = CoreSwitch_TakePendingTarget(Path, &Hops, &Target);
     LYNX_DIAG("boot pending=%s hops=%u path=%s", esp_err_to_name(PendingResult), (unsigned)Hops, Path);
-    if (Interrupted()) { LYNX_DIAG("boot interrupted"); return; }
+    /* main kept the start-up hold for a core switch: a cartridge game staged
+     * here takes it over (CartStore_HoldCart), anything else lets the
+     * cartridge go now. */
+    if (!(PendingResult == ESP_OK && CartStore_IsCartPath(Path) && CoreSwitch_IsCore(Target) &&
+          CartStore_CanReadCart()))
+        BootResume_ReleaseCartridge();
+    if (Interrupted()) { LYNX_DIAG("boot interrupted"); BootResume_ReleaseCartridge(); return; }
     PwrMgr_InhibitSleep();
     if (PendingResult == ESP_OK) {
         if (!CoreSwitch_IsCore(Target)) {
@@ -385,7 +398,9 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
     printf("BOOT_RESUME complete\n");
     goto Done;
 Fallback:
+    BootResume_ReleaseCartridge();
     OpenMenu();
 Done:
+    BootResume_ReleaseCartridge(); /* no-op unless a cart staging never took it */
     PwrMgr_AllowSleep();
 }

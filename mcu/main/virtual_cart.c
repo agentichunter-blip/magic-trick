@@ -1202,6 +1202,7 @@ static esp_err_t PersistActiveRtc(void)
     }
 
     FILE *pRtc = fopen(Temp, "wb");
+    SDCard_TuneWrite(pRtc);
     if (pRtc == NULL)
     {
         return ESP_FAIL;
@@ -1452,6 +1453,7 @@ static esp_err_t GGCartCopy(void)
     ESP_RETURN_ON_ERROR(RecoverSavePublish(ActiveSavePath), TAG, "recover save publication");
     if (unlink(Temp) != 0 && errno != ENOENT) return ESP_FAIL;
     FILE *pSave = fopen(Temp, "wb");
+    SDCard_TuneWrite(pSave);
     if (pSave == NULL) return ESP_FAIL;
     esp_err_t Result = ESP_OK;
     uint32_t Copied = 0;
@@ -1609,6 +1611,7 @@ static esp_err_t PersistActiveSave(void)
     }
 
     FILE *pSave = fopen(Temp, "wb");
+    SDCard_TuneWrite(pSave);
     if (pSave == NULL)
     {
         return ESP_FAIL;
@@ -1905,7 +1908,7 @@ static esp_err_t RunLoad(const char *pPath)
     bool RtcPresent = false;
     bool RtcSupported = false;
     CheatPlan_t Cheats = {0};
-    bool Replay = false, ViaGB = false;
+    bool Replay = false, ViaGB = false, CartHeld = false;
     uint32_t ReplayCrc = 0, ReplaySize = 0;
 
     Result = SDCard_Mount(&pCard);
@@ -1923,6 +1926,16 @@ static esp_err_t RunLoad(const char *pPath)
     Replay = FromCart && !CartStore_CanReadCart() &&
         CoreSwitch_IsCore(CoreSwitch_SystemForPath(pPath)) && CartStore_ReplayReady(pPath, &ReplayCrc, &ReplaySize);
     ViaGB = FromCart && !CartStore_CanReadCart() && !Replay;
+    /* A Game Gear or Lynx game read here is staged for another core: hold the
+     * cartridge from now on (its directory lookup and every read run inside
+     * that one session; see CartStore_HoldCart). */
+    if (FromCart && CartStore_CanReadCart() &&
+        (CoreSwitch_SystemForPath(pPath) == kCoreSystem_GG || CoreSwitch_SystemForPath(pPath) == kCoreSystem_Lynx))
+    {
+        Result = CartStore_HoldCart();
+        if (Result != ESP_OK) goto Cleanup;
+        CartHeld = true;
+    }
     const char *extension=strrchr(pPath,'.');
     Info.GameGear=extension && !strcasecmp(extension,".gg");
     Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;
@@ -2109,6 +2122,9 @@ Cleanup:
             Result = UnmountResult;
         }
     }
+    /* The FPGA ignores a core reload while the cartridge is held, so let it
+     * go just before the request (the reload follows within ~20 ms). */
+    if (CartHeld) CartStore_ReleaseCart(true);
     if (SwitchRequested && Result == ESP_OK)
         Result = ViaGB ? CoreSwitch_RequestVia(pPath, kCoreSystem_GB) : CoreSwitch_Request(pPath);
     /* Completion clears the browser's error tracking. Publish it only after
@@ -2415,6 +2431,7 @@ static esp_err_t ExportStateToSd(unsigned Slot)
                         "state temporary path");
     if (unlink(Temp) != 0 && errno != ENOENT) return ESP_FAIL;
     FILE *pFile = fopen(Temp, "wb");
+    SDCard_TuneWrite(pFile);
     if (pFile == NULL) return ESP_FAIL;
 
     uint8_t Header[kStateFileHeaderSize] = {0};

@@ -14,6 +14,7 @@ void vTaskDelay(TickType_t t){(void)t;}
 TickType_t xTaskGetTickCount(void){return 0;}
 #endif
 esp_err_t SDCard_Mount(sdmmc_card_t **p){assert(!Mounted);Mounted=true;*p=&Card;return ESP_OK;}
+void SDCard_TuneWrite(FILE *p){(void)p;}
 esp_err_t SDCard_Unmount(sdmmc_card_t *p){assert(Mounted && p==&Card);
 #ifdef NATIVE_TEST_UNMOUNT_HOOK
  NativeUnmountHook();

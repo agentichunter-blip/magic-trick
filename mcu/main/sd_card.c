@@ -6,6 +6,8 @@
 #include "esp_vfs_fat.h"
 #include "diskio_sdmmc.h"
 #include "diskio_wl.h"
+#include "diskio_impl.h"
+#include "ff.h"
 #include "cart_store.h"
 #include "esp_flash.h"
 #include "esp_partition.h"
@@ -19,6 +21,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -64,6 +67,63 @@ static esp_err_t MountTransaction(int Slot, sdmmc_command_t *Command)
     return Result;
 }
 
+/* FAT on 512-byte sectors over 4 KiB flash erase blocks: a write smaller
+ * than a block makes wear levelling read, erase and rewrite the whole block,
+ * so writing 57 KiB in small pieces took ~35 s. The store is formatted with
+ * its data area and clusters on erase-block boundaries (the stock format
+ * aligns nothing) and writers buffer 4 KiB (SDCard_TuneWrite), so a file is
+ * written one whole block, one erase, at a time. The marker file says the
+ * volume has this layout; an older or broken one is formatted again. */
+#ifndef SDCARD_STORE_MARKER
+#define SDCARD_STORE_MARKER SDCARD_MOUNT_POINT "/.mtstore2"
+#endif
+static const char *const kStoreMarker = SDCARD_STORE_MARKER;
+
+static esp_err_t FormatStore(void)
+{
+    wl_handle_t Handle = WL_INVALID_HANDLE;
+    esp_err_t Result = wl_mount(StorePartition, &Handle);
+    if (Result != ESP_OK) return Result;
+    BYTE Drive = 0xFF;
+    Result = ff_diskio_get_drive(&Drive);
+    if (Result == ESP_OK) Result = ff_diskio_register_wl_partition(Drive, Handle);
+    if (Result == ESP_OK)
+    {
+        const char Path[] = {(char)('0' + Drive), ':', 0};
+        enum { kWork = 4096 };
+        void *pWork = malloc(kWork);
+        /* One FAT, 64 root entries, 4 KiB clusters, data aligned to 8 sectors (one erase block). */
+        const MKFS_PARM Options = {(BYTE)(FM_ANY | FM_SFD), 1, 8, 64, 4096};
+        const FRESULT Format = pWork ? f_mkfs(Path, &Options, pWork, kWork) : FR_NOT_ENOUGH_CORE;
+        free(pWork);
+        printf("SDCARD_STORE format=%d\n", (int)Format);
+        if (Format != FR_OK) Result = ESP_FAIL;
+        ff_diskio_register(Drive, NULL);
+    }
+    (void)wl_unmount(Handle);
+    return Result;
+}
+
+static esp_err_t MountStoreOnce(void)
+{
+    const esp_vfs_fat_mount_config_t Config = {
+        .format_if_mount_failed = false,
+        .max_files = kMaxOpenFiles,
+        .allocation_unit_size = 4096,
+    };
+    esp_err_t Result = esp_vfs_fat_spiflash_mount_rw_wl(MountPoint, kStoreLabel, &Config, &StoreHandle);
+    if (Result != ESP_OK)
+    {
+        StoreHandle = WL_INVALID_HANDLE;
+        return Result;
+    }
+    struct stat Info;
+    if (stat(kStoreMarker, &Info) == 0) return ESP_OK;
+    (void)esp_vfs_fat_spiflash_unmount_rw_wl(MountPoint, StoreHandle);
+    StoreHandle = WL_INVALID_HANDLE;
+    return ESP_ERR_INVALID_VERSION;
+}
+
 /* Mounts the internal store at /sdcard (formatting it the first time) with
  * the folders cartridge saves expect. Called with the mount gate held. */
 static esp_err_t MountStore(void)
@@ -80,17 +140,31 @@ static esp_err_t MountStore(void)
             return Result;
         }
     }
-    const esp_vfs_fat_mount_config_t Config = {
-        .format_if_mount_failed = true,
-        .max_files = kMaxOpenFiles,
-        .allocation_unit_size = 4096,
-    };
-    Result = esp_vfs_fat_spiflash_mount_rw_wl(MountPoint, kStoreLabel, &Config, &StoreHandle);
+    Result = MountStoreOnce();
     if (Result != ESP_OK)
     {
-        printf("SDCARD_STORE mount=%s\n", esp_err_to_name(Result));
-        StoreHandle = WL_INVALID_HANDLE;
-        return Result;
+        printf("SDCARD_STORE mount=%s formatting\n", esp_err_to_name(Result));
+        Result = FormatStore();
+        if (Result == ESP_OK)
+        {
+            const esp_vfs_fat_mount_config_t Config = {
+                .format_if_mount_failed = false,
+                .max_files = kMaxOpenFiles,
+                .allocation_unit_size = 4096,
+            };
+            Result = esp_vfs_fat_spiflash_mount_rw_wl(MountPoint, kStoreLabel, &Config, &StoreHandle);
+            FILE *pMarker = Result == ESP_OK ? fopen(kStoreMarker, "wb") : NULL;
+            if (pMarker) fclose(pMarker);
+            else if (Result == ESP_OK) Result = ESP_FAIL;
+            if (Result != ESP_OK && StoreHandle != WL_INVALID_HANDLE)
+                (void)esp_vfs_fat_spiflash_unmount_rw_wl(MountPoint, StoreHandle);
+        }
+        if (Result != ESP_OK)
+        {
+            printf("SDCARD_STORE mount=%s\n", esp_err_to_name(Result));
+            StoreHandle = WL_INVALID_HANDLE;
+            return Result;
+        }
     }
     StoreMounted = true;
     SDList_SetDrive(ff_diskio_get_pdrv_wl(StoreHandle));
@@ -102,6 +176,12 @@ static esp_err_t MountStore(void)
 }
 
 bool SDCard_IsVirtual(void) { return StoreMounted; }
+
+void SDCard_TuneWrite(FILE *pFile)
+{
+    /* Whole erase blocks per write on the internal store (see FormatStore). */
+    if (pFile && StoreMounted) (void)setvbuf(pFile, NULL, _IOFBF, 4096);
+}
 
 static esp_err_t Mount(sdmmc_card_t **const ppCard, bool Preview, bool AllowStore)
 {

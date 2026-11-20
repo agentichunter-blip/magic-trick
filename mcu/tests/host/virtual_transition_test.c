@@ -4,6 +4,7 @@
 #define CM_VIRTUAL_CART_SOURCE "../../main/virtual_cart.c"
 #endif
 #include CM_VIRTUAL_CART_SOURCE
+void SDCard_TuneWrite(FILE *pFile) { (void)pFile; }
 
 static uint8_t Ram[8192], Snapshot[8192];
 static bool Paused, Requested, Dirty, FailRead;

@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdint.h>
 #define CART_STORE_TEST_HAS_GAMES
+#define SDCARD_STORE_MARKER "sd_mount_test.marker"
 #include <stdbool.h>
 bool CartStore_HasGames(void);
 #include "../../main/sd_card.c"
@@ -17,9 +18,14 @@ esp_err_t esp_partition_register_external(esp_flash_t *chip, size_t offset, size
     assert(offset == 0x110000 && offset + size == 0x25F000 && !strcmp(label, "mtstore"));
     ++Registers; *out = &TestPartition; return ESP_OK;
 }
+/* A fresh store has no file system: it is formatted once (aligned, with
+ * the marker), then mounts as is. */
+static bool Formatted, WlMounted;
+static int Formats;
 esp_err_t esp_vfs_fat_spiflash_mount_rw_wl(const char *path, const char *label, const esp_vfs_fat_mount_config_t *c, wl_handle_t *h) {
-    assert(!strcmp(path, "/sdcard") && !strcmp(label, "mtstore") && c->format_if_mount_failed);
+    assert(!strcmp(path, "/sdcard") && !strcmp(label, "mtstore") && !c->format_if_mount_failed && !WlMounted);
     if (StoreResult != ESP_OK) return StoreResult;
+    if (!Formatted) return ESP_FAIL;
     assert(!StoreMounts); StoreMounts = true; ++StoreMountCount; *h = 7; return ESP_OK;
 }
 esp_err_t esp_vfs_fat_spiflash_unmount_rw_wl(const char *path, wl_handle_t h) {
@@ -27,6 +33,18 @@ esp_err_t esp_vfs_fat_spiflash_unmount_rw_wl(const char *path, wl_handle_t h) {
 }
 esp_err_t esp_vfs_fat_info(const char *p, uint64_t *t, uint64_t *f) { *t = *f = 0; return ESP_OK; }
 BYTE ff_diskio_get_pdrv_wl(wl_handle_t h) { return 1; }
+int wl_mount(const esp_partition_t *p, wl_handle_t *h) { assert(p == &TestPartition && !StoreMounts && !WlMounted); WlMounted = true; *h = 9; return ESP_OK; }
+int wl_unmount(wl_handle_t h) { assert(h == 9 && WlMounted); WlMounted = false; return ESP_OK; }
+static int DiskRegistered = -1;
+esp_err_t ff_diskio_get_drive(BYTE *d) { *d = 2; return ESP_OK; }
+esp_err_t ff_diskio_register_wl_partition(BYTE d, wl_handle_t h) { assert(d == 2 && h == 9); DiskRegistered = d; return ESP_OK; }
+void ff_diskio_register(BYTE d, const void *impl) { assert(d == 2 && impl == NULL); DiskRegistered = -1; }
+FRESULT f_mkfs(const char *path, const MKFS_PARM *o, void *work, UINT len) {
+    /* One FAT, 4 KiB clusters, data on 4 KiB erase-block boundaries. */
+    assert(!strcmp(path, "2:") && DiskRegistered == 2 && work && len >= 4096);
+    assert(o->n_fat == 1 && o->align == 8 && o->au_size == 4096);
+    Formatted = true; ++Formats; return FR_OK;
+}
 int mkdir(const char *path, mode_t mode) { (void)path; (void)mode; return 0; }
 
 static esp_err_t MountResult, CommandResult, CommandError;
@@ -71,6 +89,7 @@ void SDList_SetDrive(int Drive) { (void)Drive; }
 void sdmmc_card_print_info(FILE *f, const sdmmc_card_t *card) {}
 int esp_console_cmd_register(const esp_console_cmd_t *c) { return ESP_OK; }
 int main(void) {
+    (void)remove("sd_mount_test.marker");
     sdmmc_card_t *card;
     MountResult = ESP_ERR_TIMEOUT;
     assert(SDCard_Mount(&card) == ESP_ERR_NOT_FOUND && card == NULL);
@@ -125,6 +144,13 @@ int main(void) {
     Responds = false; MountResult = ESP_OK; /* card back: the card wins */
     assert(SDCard_Mount(&card) == ESP_OK && card == &Card && !SDCard_IsVirtual());
     assert(SDCard_Unmount(card) == ESP_OK);
-    assert(StoreMountCount == 2 && StoreUnmountCount == 2);
+    /* The failing store above was formatted again too (a mount failure means no file system). */
+    assert(StoreMountCount == 2 && StoreUnmountCount == 2 && Formats == 2 && DiskRegistered == -1 && !WlMounted);
+    /* A store without the marker (older layout) is formatted again. */
+    assert(remove("sd_mount_test.marker") == 0);
+    Responds = false; MountResult = ESP_ERR_TIMEOUT;
+    assert(SDCard_Mount(&card) == ESP_OK && SDCard_IsVirtual() && Formats == 3);
+    assert(SDCard_Unmount(card) == ESP_OK);
+    (void)remove("sd_mount_test.marker");
     return 0;
 }

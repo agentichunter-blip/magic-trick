@@ -17,6 +17,9 @@ BootResumeCartridge_t BootResume_CheckCartridge(void);
 /* A plain cartridge found by the check stays held (not running) until this is
  * called, right after the intro, so it boots once the intro is over. */
 void BootResume_ReleaseCartridge(void);
+/* Hands the start-up hold to the caller (cart_store's staging session):
+ * true when the cartridge was still held, which the caller now ends. */
+bool BootResume_TakeHeldCartridge(void);
 /* Use the early result after UI, console and power task are ready. An unknown
  * result falls back to the menu rather than probing a running cartridge late. */
 void BootResume_Run(const BootResumeCartridge_t *Cartridge);

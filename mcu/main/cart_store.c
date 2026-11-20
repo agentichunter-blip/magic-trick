@@ -1,5 +1,6 @@
 #include "cart_store.h"
 
+#include "boot_resume.h"
 #include "cart_bulk.h"
 #include "core_switch.h"
 #include "sd_card.h"
@@ -184,11 +185,19 @@ static size_t DirectoryCandidates(const uint8_t Block0[kBlock], uint32_t Out[2])
 
 /* Runs Fn inside a CartBulk session (reusing the caller's) with the
  * cartridge bus taken. */
+static bool CartHeld; /* CartStore_HoldCart: already in a cartridge session */
+
 static esp_err_t WithCart(esp_err_t (*Fn)(void *), void *pContext)
 {
     const bool Own = !CartBulk_IsSessionActive();
     esp_err_t Result = Own ? CartBulk_Begin() : ESP_OK;
     if (Result != ESP_OK) return Result;
+    if (CartHeld)
+    {
+        Result = Fn(pContext);
+        if (Own) CartBulk_End();
+        return Result;
+    }
     Result = CartBulk_CartEnter(NULL);
     if (Result == ESP_OK)
     {
@@ -198,6 +207,33 @@ static esp_err_t WithCart(esp_err_t (*Fn)(void *), void *pContext)
     }
     if (Own) CartBulk_End();
     return Result;
+}
+
+esp_err_t CartStore_HoldCart(void)
+{
+    if (CartHeld) return ESP_OK;
+    if (BootResume_TakeHeldCartridge()) { CartHeld = true; return ESP_OK; }
+    const bool Own = !CartBulk_IsSessionActive();
+    esp_err_t Result = Own ? CartBulk_Begin() : ESP_OK;
+    if (Result == ESP_OK)
+    {
+        Result = CartBulk_CartEnter(NULL);
+        if (Own) CartBulk_End();
+    }
+    CartHeld = Result == ESP_OK;
+    return Result;
+}
+
+void CartStore_ReleaseCart(bool Exit)
+{
+    if (!CartHeld) return;
+    CartHeld = false;
+    if (!Exit) return;
+    const bool Own = !CartBulk_IsSessionActive();
+    if (Own && CartBulk_Begin() != ESP_OK) return;
+    const esp_err_t Result = CartBulk_CartExit();
+    if (Own) CartBulk_End();
+    if (Result != ESP_OK) printf("CARTSTORE release=%s\n", esp_err_to_name(Result));
 }
 
 typedef struct {
@@ -428,7 +464,17 @@ esp_err_t CartStore_StageBegin(const char *pPath)
     /* The SD copy (the caller has the SD mounted). With no card (the internal
      * store) only the CRC is checked here; StageMirror keeps what's needed. */
     const bool KeepCopy = !SDCard_IsVirtual();
-    (void)unlink(KeepCopy ? kStagedMirror : kStagedCopy);
+    if (KeepCopy) (void)unlink(kStagedMirror);
+    else (void)unlink(kStagedCopy);
+    /* With no card nothing needs the whole game here: the upload that follows
+     * reads it once (cart transfers are CRC-checked) and the caller compares
+     * its CRC with the directory's. */
+    if (!KeepCopy)
+    {
+        xSemaphoreGive(Lock);
+        if (Result != ESP_OK) { printf("CARTSTORE head_error=%s\n", esp_err_to_name(Result)); FreeRecord(); }
+        return Result;
+    }
     uint8_t *pChunk = Result == ESP_OK ? malloc(kCacheBlocks * kBlock) : NULL;
     FILE *pCopy = pChunk && KeepCopy ? fopen(kStagedCopy, "wb") : NULL;
     if (Result == ESP_OK && (!pChunk || (KeepCopy && !pCopy))) Result = ESP_FAIL;
@@ -453,25 +499,56 @@ esp_err_t CartStore_StageBegin(const char *pPath)
     return Result;
 }
 
+/* The mirror bytes, then the trailer that identifies them (data first, so
+ * each 4 KiB write fills one flash erase block of the internal store). */
+static bool MirrorMatches(FILE *pFile, uint32_t EntryCrc, uint32_t Size, uint32_t Start, uint32_t *pLength)
+{
+    MirrorHeader_t Trailer;
+    if (!pFile || fseek(pFile, -(long)sizeof(Trailer), SEEK_END) != 0 ||
+        fread(&Trailer, sizeof(Trailer), 1, pFile) != 1 || Trailer.Magic != kMirrorMagic ||
+        Trailer.EntryCrc != EntryCrc || Trailer.Size != Size || Trailer.Start != Start ||
+        ftell(pFile) != (long)(Trailer.Length + sizeof(Trailer)))
+        return false;
+    if (pLength) *pLength = Trailer.Length;
+    return fseek(pFile, 0, SEEK_SET) == 0;
+}
+
 esp_err_t CartStore_StageMirror(uint32_t Start, uint32_t Length)
 {
-    if (!Record || !StagedEntry.Size) return ESP_ERR_INVALID_STATE;
-    uint8_t *pBlock = malloc(kBlock);
-    FILE *pFile = pBlock ? fopen(kStagedMirror, "wb") : NULL;
-    esp_err_t Result = pFile ? ESP_OK : ESP_FAIL;
-    const MirrorHeader_t Header = {kMirrorMagic, StagedEntry.Crc, StagedEntry.Size, Start, Length};
-    if (Result == ESP_OK && fwrite(&Header, sizeof(Header), 1, pFile) != 1) Result = ESP_FAIL;
-    xSemaphoreTake(Lock, portMAX_DELAY);
-    for (uint32_t Done = 0; Result == ESP_OK && Done < Length; Done += kBlock)
+    if (!Record || !StagedEntry.Size || Length % kBlock) return ESP_ERR_INVALID_STATE;
+    /* Kept from the last time this game was staged: nothing to read or write. */
+    FILE *pOld = fopen(kStagedMirror, "rb");
+    uint32_t OldLength = 0;
+    const bool Same = MirrorMatches(pOld, StagedEntry.Crc, StagedEntry.Size, Start, &OldLength) && OldLength == Length;
+    if (pOld) fclose(pOld);
+    if (Same)
     {
-        /* Whole blocks, as RestoreGGRomMirror writes them (sizes are 1 KiB multiples). */
+        printf("CARTSTORE mirror=kept start=0x%lx bytes=%lu\n", (unsigned long)Start, (unsigned long)Length);
+        return ESP_OK;
+    }
+    enum { kChunk = kCacheBlocks * kBlock };
+    uint8_t *pChunk = malloc(kChunk);
+    (void)unlink(kStagedMirror);
+    FILE *pFile = pChunk ? fopen(kStagedMirror, "wb") : NULL;
+    SDCard_TuneWrite(pFile);
+    esp_err_t Result = pFile ? ESP_OK : ESP_FAIL;
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    for (uint32_t Done = 0; Result == ESP_OK && Done < Length;)
+    {
+        /* File offsets (Start + k) % Size: contiguous up to the end of the file. */
         const uint32_t Offset = (Start + Done) % StagedEntry.Size;
-        Result = ReadCart(StagedEntry.Offset + Offset, pBlock, 1);
-        if (Result == ESP_OK && fwrite(pBlock, 1, kBlock, pFile) != kBlock) Result = ESP_FAIL;
+        uint32_t Count = kChunk;
+        if (Count > Length - Done) Count = Length - Done;
+        if (Count > StagedEntry.Size - Offset) Count = StagedEntry.Size - Offset;
+        Result = ReadCart(StagedEntry.Offset + Offset, pChunk, Count / kBlock);
+        if (Result == ESP_OK && fwrite(pChunk, 1, Count, pFile) != Count) Result = ESP_FAIL;
+        Done += Count;
     }
     xSemaphoreGive(Lock);
+    const MirrorHeader_t Trailer = {kMirrorMagic, StagedEntry.Crc, StagedEntry.Size, Start, Length};
+    if (Result == ESP_OK && fwrite(&Trailer, sizeof(Trailer), 1, pFile) != 1) Result = ESP_FAIL;
     if (pFile && fclose(pFile) != 0 && Result == ESP_OK) Result = ESP_FAIL;
-    free(pBlock);
+    free(pChunk);
     if (Result != ESP_OK) (void)unlink(kStagedMirror);
     printf("CARTSTORE mirror=%s start=0x%lx bytes=%lu\n", esp_err_to_name(Result), (unsigned long)Start, (unsigned long)Length);
     return Result;
@@ -491,13 +568,7 @@ FILE *CartStore_OpenMirror(uint32_t Start, uint32_t *pLength)
 {
     if (!LoadRecord()) return NULL;
     FILE *pFile = fopen(kStagedMirror, "rb");
-    MirrorHeader_t Header;
-    if (pFile && fread(&Header, sizeof(Header), 1, pFile) == 1 && Header.Magic == kMirrorMagic &&
-        Header.EntryCrc == Record->EntryCrc && Header.Size == Record->Size && Header.Start == Start)
-    {
-        if (pLength) *pLength = Header.Length;
-        return pFile;
-    }
+    if (MirrorMatches(pFile, Record->EntryCrc, Record->Size, Start, pLength)) return pFile;
     if (pFile) fclose(pFile);
     return NULL;
 }
@@ -529,6 +600,14 @@ esp_err_t CartStore_StageCommit(uint32_t RomCrc)
 {
     if (!Record) return ESP_ERR_INVALID_STATE;
     esp_err_t Result = Record->Overflow ? ESP_ERR_INVALID_SIZE : ESP_OK;
+    /* The upload's CRC covers the whole file for a Game Gear game: it must be
+     * the directory's (with no card it is the only whole-game check). */
+    const char *pExtension = strrchr(Record->Name, '.');
+    if (Result == ESP_OK && RomCrc != Record->EntryCrc)
+    {
+        printf("CARTSTORE crc_mismatch upload=%08lx entry=%08lx\n", (unsigned long)RomCrc, (unsigned long)Record->EntryCrc);
+        if (pExtension && !strcasecmp(pExtension, ".gg")) Result = ESP_ERR_INVALID_CRC;
+    }
     Record->RomCrc = RomCrc;
     Record->Fresh = 1;
     nvs_handle_t Handle;

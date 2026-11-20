@@ -22,6 +22,7 @@
 #include "color_correct_usb.h"
 #include "cart_bulk.h"
 #include "cart_store.h"
+#include "core_switch.h"
 #include "cart_link.h"
 #include "cart_backup.h"
 #include "dpad_ctl.h"
@@ -402,7 +403,9 @@ void app_main(void)
 
     /* Before the LVGL task starts drawing into buffy. */
     const bool IntroPlayed = BootResume_PlayIntro(&BootCartridge, (uint16_t *)buffy, intro_present);
-    BootResume_ReleaseCartridge();
+    /* A core switch carrying a game keeps the hold until BootResume_Run
+     * knows whether a cartridge game is staged next (no flash of its game). */
+    if (!CoreSwitch_HasPending()) BootResume_ReleaseCartridge();
 
     xTaskCreatePinnedToCore(lvglTimerTask, "lvgl Timer", kTimerTask_StackDepth, NULL, 4, NULL, 1);
 
