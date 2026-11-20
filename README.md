@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.11">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.12">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Support my work</a>
@@ -18,13 +18,13 @@
 
 > **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.8`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear) and `50.3` (Atari Lynx). Status reports "Magic Trick 1.0 beta".
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.9`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear) and `50.3` (Atari Lynx). Status reports "Magic Trick 1.0 beta".
 
 This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo, Sega or Atari. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
 ## Features
 
-- **Four systems:** Game Boy, Game Boy Color, Game Gear (with sound) and Atari Lynx on FPGA cores. Opening a game for another system loads the right core automatically.
+- **Four systems:** Game Boy, Game Boy Color, Game Gear (with sound) and Atari Lynx on FPGA cores. Opening a game for another system loads the right core automatically. Game Gear buttons sit where they do on a Game Gear: B is button 1, A is button 2.
 - **Atari Lynx** (`.lnx`, `.lyx`, `.o`) on a core adapted from MiSTer's: games start without a Lynx BIOS file, run at a steady 60 Hz (games that run faster are slowed to the screen's rate, without changing the sound), and have save states. Sideways games such as Centipede, Klax and Gauntlet: The Third Encounter turn upright on their own, with the D-pad turned to match. The **LYNX SCREEN** setting shows the picture letterboxed or stretched to fill the screen. Wi-Fi Files and USB TRANSFERS aren't available while a Lynx game is loaded: play a Game Boy or Game Gear game first.
 - **Native save states** for Game Boy, Game Boy Color, Game Gear and Atari Lynx: three slots per game in System → Save States, plus Menu+Select to save and Menu+Start to load the slot you used last; a shortcut shows "State saved" or "State loaded", then returns to the game. Each slot is written to the SD card next to the game (`<game>.state`, `.state2`, `.state3`), so you can load it again after turning the Chromatic off. Game Boy games with MBC1, MBC3 (including the clock in Pokémon Gold, Silver and Crystal) or MBC5 are supported, as are Game Gear games. Loading a state keeps the in-game save you had before as `<game>.SAV.before-load-0001.sav`.
 - **Color temperature** for Game Boy Color and Game Gear games, ported from ModRetro's stock firmware 4.6. In color games the **Color Temp** tab takes the Palette tab's place and goes from Neutral to Warm 5. Like ModRetro's, it warms only bright areas such as white text and title screens, so dark scenes barely change. **Menu+Up** warms and **Menu+Down** cools during play; in Game Boy games the same keys cycle the palette, as on stock firmware. Controls → hot keys lists every shortcut.
@@ -32,9 +32,9 @@ This is an independent community project with no guaranteed support or release s
 - **In-game saves for Game Gear:** battery and EEPROM saves are kept on the SD card as `<game>.SAV` and loaded before the game starts, including games with 32 KiB of cartridge RAM such as Shining Force – The Sword of Hajya.
 - **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
-- **Recent games** and **last-game startup** (hold B at power-on to skip).
+- **Recent games** and **last-game startup** (hold B at power-on to skip, or set System → **START-UP** to GAMES MENU). A physical cartridge boots once, after the boot animation.
 - **Wi-Fi file transfers** to and from the SD card in a web browser. Files already on the card are skipped, so you can drop a whole folder again after an interruption.
-- **SD card library** in the installer: puts each game in the folder for its system, downloads box art for them and converts your gameplay clips into previews, over a card reader, Wi-Fi or USB.
+- **SD card library** in the installer: puts each game in the folder for its system, downloads box art for them, converts your gameplay clips into previews and removes games you no longer want, over a card reader, Wi-Fi or USB.
 - **USB file transfers** with [ChroMagician](https://github.com/cursedtoast2/ChroMagician) (Windows and Linux): turn on **USB TRANSFERS** in the menu, with Wi-Fi off. It's the same switch ChroMagician calls **C. MAGICIAN**. USB uploads are slow (a few KB/s), so use Wi-Fi or a card reader for a big library.
 - **Boot animation** with the Magic Trick logo.
 - Files beginning with `[BIOS]` are hidden without being deleted. Demo and Kiosk ROMs are filtered out.
@@ -43,9 +43,9 @@ ChroMagic's cartridge backup and save features remain available. An installed SD
 
 ## Install
 
-Download **[Magic Trick Installer 1.0.0-beta.11](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.11)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
+Download **[Magic Trick Installer 1.0.0-beta.12](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.12)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
-- **Updates take 10 to 20 minutes,** depending on how many FPGA cores change: about 12 minutes from 1.0.0-beta.10, about 20 when all three change. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
+- **Updates take 10 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.11 rewrites the Game Boy and Game Gear cores and takes 15 to 20 minutes. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
 - **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching, Atari Lynx games, and the SD card library over a card reader, Wi-Fi and USB). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
 
@@ -89,14 +89,17 @@ no repeated write when the newest game is launched again.
 
 Cartridge detection runs as soon as the MCU transports are ready, before menu
 setup and the startup delay. A detected cartridge is not probed again afterward.
-This moves the existing core-resetting check earlier. Tetris cold-start testing
-on the physical device confirmed the copyright-screen restart is gone.
+The Game Boy core stays in reset from power-on until this check is done, and a
+cartridge then stays held until the boot animation ends, so it starts exactly
+once, after the animation (flash carts such as the EverDrive need a single
+start).
 
 After installing this build, launch a game from BACKUPS once to remember it.
 On later startups, an inserted cartridge takes priority. With no cartridge, the
 MCU checks live button state and loads the remembered SD game through the normal
 loader. Hold **B while turning the device on** for five seconds, then release it
-to open BACKUPS instead.
+to open BACKUPS instead. To always open the games menu, set System →
+**START-UP** to GAMES MENU (LAST GAME is the default).
 Cartridge detection cross-checks two read-only header samples when the presence
 flag is asserted, because this device also asserts it with an empty slot.
 Opening the menu manually or enabling C. MAGICIAN also prevents automatic loading.
