@@ -703,12 +703,28 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
             Hide(C.Arrows[Row],!Folders || Row>=VisibleRows || Index>=C.Count);
             if (Picker || Row >= VisibleRows || Index >= C.Count) continue;
             lv_obj_set_pos(C.Rows[Row],Game?6:8,Game?8+Row*16:6+Row*20);
-            lv_obj_set_width(C.Rows[Row],Game?116:100);
+            /* Folder rows run up to the arrow, letters 1 px tighter like the
+             * heading, so names such as GAME BOY COLOR fit without dots. */
+            lv_obj_set_width(C.Rows[Row],Game?116:107);
             lv_obj_set_height(C.Rows[Row],10);
-            if (Folders) lv_obj_set_style_text_font(C.Rows[Row],&chromatic_banner,0);
-            else lv_obj_remove_local_style_prop(C.Rows[Row],LV_STYLE_TEXT_FONT,0);
+            if (Folders) {
+                lv_obj_set_style_text_font(C.Rows[Row],&chromatic_banner,0);
+                lv_obj_set_style_text_letter_space(C.Rows[Row],-1,0);
+            } else {
+                lv_obj_remove_local_style_prop(C.Rows[Row],LV_STYLE_TEXT_FONT,0);
+                lv_obj_remove_local_style_prop(C.Rows[Row],LV_STYLE_TEXT_LETTER_SPACE,0);
+            }
             lv_obj_set_pos(C.Arrows[Row],116,6+Row*20);
             char Name[256]; DisplayName(Index, Name);
+            if (Folders) {
+                /* A folder name too long for the row (GAME BOY COLOR) takes the
+                 * arrow's space too, as the heading does, instead of dots. */
+                const lv_coord_t Width = lv_txt_get_width(Name, strlen(Name), &chromatic_banner, -1, LV_TEXT_FLAG_NONE);
+                const bool Wide = Width > 107 && Width <= 120;
+                lv_obj_set_pos(C.Rows[Row], Wide ? 4 : 8, 6+Row*20);
+                lv_obj_set_width(C.Rows[Row], Wide ? 120 : 107);
+                if (Wide) Hide(C.Arrows[Row], true);
+            }
             const bool Selected = Index == C.Selected;
             lv_label_set_long_mode(C.Rows[Row], Selected && C.Marquee && (!Game || C.ListPinned)
                 ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_DOT);
