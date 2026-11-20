@@ -20,6 +20,10 @@ void BootResume_ReleaseCartridge(void);
 /* Hands the start-up hold to the caller (cart_store's staging session):
  * true when the cartridge was still held, which the caller now ends. */
 bool BootResume_TakeHeldCartridge(void);
+/* A start-up continuing a core switch: open the menu overlay over the loading
+ * card the caller drew. BootResume_Run calls Hide and closes the overlay once
+ * the game runs (or leaves the menu up when it falls back). */
+bool BootResume_ShowSwitchCard(void (*Hide)(void));
 /* Use the early result after UI, console and power task are ready. An unknown
  * result falls back to the menu rather than probing a running cartridge late. */
 void BootResume_Run(const BootResumeCartridge_t *Cartridge);

@@ -63,6 +63,17 @@ bool CoreSwitch_HasPending(void)
     nvs_close(Handle);
     return Result == ESP_OK;
 }
+bool CoreSwitch_PeekPending(char *Path, size_t Size)
+{
+    if (!Path || !Size) return false;
+    Path[0] = 0;
+    nvs_handle_t Handle;
+    if (nvs_open(Namespace, NVS_READONLY, &Handle) != ESP_OK) return false;
+    const esp_err_t Result = nvs_get_str(Handle, Key, Path, &Size);
+    nvs_close(Handle);
+    if (Result != ESP_OK) Path[0] = 0;
+    return Result == ESP_OK;
+}
 esp_err_t CoreSwitch_TakePendingHops(char Path[LAST_GAME_PATH_SIZE], uint8_t *pHops)
 {
     return CoreSwitch_TakePendingTarget(Path, pHops, NULL);

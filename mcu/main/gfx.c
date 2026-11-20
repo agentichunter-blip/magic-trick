@@ -1,6 +1,9 @@
 #include "gfx.h"
 
 #include "osd.h"
+#include "button.h"
+
+LV_FONT_DECLARE(chromatic_banner);
 
 static lv_style_t Background;
 static lv_obj_t *pDisplayObj;
@@ -14,11 +17,28 @@ typedef struct
 
 static TimerCtx_t _Ctx;
 
+/* Core-switch loading card: its own screen, so the menu's widgets are left
+ * alone underneath. Shown before the LVGL task starts; hidden from that task. */
+static lv_obj_t *pCard;
+static volatile bool CardHideRequested;
+
 static void anim_timer_cb(lv_timer_t *timer)
 {
     TimerCtx_t *timer_ctx = (TimerCtx_t *) timer->user_data;
     lv_obj_t *pScreen = timer_ctx->pScreen;
 
+    if (pCard)
+    {
+        /* No menu input or drawing behind the card: its buttons are not
+         * meant for a page nobody can see. */
+        if (!CardHideRequested) return;
+        lv_scr_load(pScreen);
+        lv_obj_del(pCard);
+        pCard = NULL;
+        CardHideRequested = false;
+        lv_obj_invalidate(pScreen);
+        Button_ResetAll();
+    }
     OSD_HandleInputs();
     OSD_Draw(pScreen);
 }
@@ -49,4 +69,42 @@ void Gfx_Start(lv_obj_t *const pScreen)
 
     // Create timer for animation
     lv_timer_create(anim_timer_cb, 20, &_Ctx);
+}
+
+void Gfx_ShowCard(const char *pTitle)
+{
+    if (pCard) return;
+    CardHideRequested = false;
+    pCard = lv_obj_create(NULL);
+    lv_obj_remove_style_all(pCard);
+    lv_obj_clear_flag(pCard, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(pCard, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(pCard, LV_OPA_COVER, 0);
+
+    lv_obj_t *pHeading = lv_label_create(pCard);
+    lv_obj_set_width(pHeading, 160);
+    lv_obj_set_style_text_font(pHeading, &chromatic_banner, 0);
+    lv_obj_set_style_text_color(pHeading, lv_color_white(), 0);
+    lv_obj_set_style_text_align(pHeading, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text_static(pHeading, "LOADING GAME");
+    lv_obj_set_pos(pHeading, 0, 52);
+
+    lv_obj_t *pName = lv_label_create(pCard);
+    /* Up to two lines of the 8 px banner font, then "...". */
+    lv_obj_set_size(pName, 144, 20);
+    lv_obj_set_style_text_line_space(pName, 4, 0);
+    lv_obj_set_style_text_font(pName, &chromatic_banner, 0);
+    lv_obj_set_style_text_color(pName, lv_color_hex(0xffcd48), 0);
+    lv_obj_set_style_text_align(pName, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(pName, LV_LABEL_LONG_DOT);
+    lv_label_set_text(pName, pTitle ? pTitle : "");
+    lv_obj_set_pos(pName, 8, 70);
+
+    lv_scr_load(pCard);
+    lv_refr_now(lv_obj_get_disp(pCard));
+}
+
+void Gfx_HideCard(void)
+{
+    CardHideRequested = true;
 }

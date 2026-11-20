@@ -45,3 +45,5 @@ esp_err_t CoreSwitch_TakePendingTarget(char Path[LAST_GAME_PATH_SIZE], uint8_t *
 esp_err_t CoreSwitch_SetPending(const char *Path);
 /* True when a switch request is stored (does not consume it). */
 bool CoreSwitch_HasPending(void);
+/* Reads the pending game path without consuming it (start-up loading card). */
+bool CoreSwitch_PeekPending(char *Path, size_t Size);

@@ -7,6 +7,8 @@ static lv_color_t Pixels[160*144];
 static unsigned FrameStarts, InputPolls, Draws;
 void OSD_HandleInputs(void) { ++InputPolls; }
 void OSD_Draw(void *Arg) { (void)Arg; ++Draws; }
+static unsigned ButtonResets;
+void Button_ResetAll(void) { ++ButtonResets; }
 static void Flush(lv_disp_drv_t *Driver, const lv_area_t *Area, lv_color_t *Data)
 {
     (void)Data;
@@ -31,4 +33,18 @@ int main(void)
     printf("Startup frame writes: %u\n",FrameStarts); fflush(stdout);
     assert(FrameStarts>=2 && !InputPolls && !Draws && lv_tick_get()==0);
     puts("PASS: menu frame gate primed before startup timers or user input");
+
+    /* Core-switch loading card: its own screen, no menu input or drawing
+     * while it is up, and the menu screen back after Gfx_HideCard. */
+    lv_obj_t *Menu=lv_scr_act();
+    const unsigned Frames=FrameStarts;
+    Gfx_ShowCard("SHINOBI");
+    lv_obj_t *Card=lv_scr_act();
+    assert(Card!=Menu && FrameStarts>Frames);
+    lv_tick_inc(25); lv_timer_handler();
+    assert(lv_scr_act()==Card && !InputPolls && !Draws);
+    Gfx_HideCard();
+    lv_tick_inc(25); lv_timer_handler();
+    assert(lv_scr_act()==Menu && ButtonResets==1 && InputPolls==1 && Draws==1);
+    puts("PASS: core-switch loading card");
 }

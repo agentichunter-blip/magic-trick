@@ -32,10 +32,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* The core-switch loading card holds the menu overlay open; that is not the
+ * user opening the menu. */
+static void (*CardHide)(void);
+
 static bool Interrupted(void)
 {
     return PCBackup_IsEnabled() || CartBackup_IsPCModeActive() ||
-        VirtualCart_IsBusy() || VirtualCart_IsActive() || OSD_IsVisible();
+        VirtualCart_IsBusy() || VirtualCart_IsActive() || (OSD_IsVisible() && !CardHide);
 }
 
 static bool OpenBusHeader(const uint8_t *Block)
@@ -282,6 +286,38 @@ bool BootResume_PlayIntro(const BootResumeCartridge_t *Cartridge,
     return true;
 }
 
+bool BootResume_ShowSwitchCard(void (*Hide)(void))
+{
+    uint16_t Held;
+    if (!Hide || !CoreSwitch_HasPending() || PCBackup_IsEnabled()) return false;
+    if (!FreshButtons(&Held)) { printf("BOOT_CARD skip=buttons_unknown\n"); return false; }
+    if ((Held & kButtonBits_MenuEn) && (FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt) != ESP_OK || !WaitMenu(true)))
+    {
+        printf("BOOT_CARD skip=menu_unconfirmed\n");
+        if (WaitMenu(true)) { (void)FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt); (void)WaitMenu(false); }
+        return false;
+    }
+    CardHide = Hide;
+    printf("BOOT_CARD shown\n");
+    return true;
+}
+
+/* Take the card down: close the overlay over a started game (Close), or
+ * leave it open on the menu. Returns whether the overlay is still open. */
+static bool EndCard(bool Close)
+{
+    if (!CardHide) return false;
+    void (*Hide)(void) = CardHide;
+    CardHide = NULL;
+    Hide();
+    uint16_t Held;
+    const bool Open = FreshButtons(&Held) && !(Held & (kButtonBits_MenuEn | kButtonBits_MenuEnAlt));
+    if (!Close || !Open) { printf("BOOT_CARD end menu=%d\n", Open); return Open; }
+    const bool Closed = FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt) == ESP_OK && WaitMenu(false);
+    printf("BOOT_CARD end closed=%d\n", Closed);
+    return !Closed;
+}
+
 typedef enum { kWindowClear, kWindowInterrupted, kWindowSkip } SkipWindow_t;
 
 /* A one-second opportunity to hold B; use fresh real FPGA levels even when
@@ -337,7 +373,7 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
     if (!(PendingResult == ESP_OK && CartStore_IsCartPath(Path) && CoreSwitch_IsCore(Target) &&
           CartStore_CanReadCart()))
         BootResume_ReleaseCartridge();
-    if (Interrupted()) { LYNX_DIAG("boot interrupted"); BootResume_ReleaseCartridge(); return; }
+    if (Interrupted()) { LYNX_DIAG("boot interrupted"); BootResume_ReleaseCartridge(); (void)EndCard(false); return; }
     PwrMgr_InhibitSleep();
     if (PendingResult == ESP_OK) {
         if (!CoreSwitch_IsCore(Target)) {
@@ -399,8 +435,9 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
     goto Done;
 Fallback:
     BootResume_ReleaseCartridge();
-    OpenMenu();
+    if (!EndCard(false)) OpenMenu();
 Done:
+    (void)EndCard(true);
     BootResume_ReleaseCartridge(); /* no-op unless a cart staging never took it */
     PwrMgr_AllowSleep();
 }

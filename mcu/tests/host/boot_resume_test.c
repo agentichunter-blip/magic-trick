@@ -58,6 +58,9 @@ static bool NoButtons, RequestFailed, FailLoad, FailStart, ManualMenu, ManualLoa
 static unsigned Starts, Pings, ButtonRequests, SleepLocks, MenuOpens, Sequence, Clock;
 static unsigned BAt, BReleaseAt, InsertAt, AckAt;
 static bool PulseRejected;
+/* Core-switch loading card: the overlay toggles open and closed. */
+static bool CardMode; static unsigned CardPulses, CardHides;
+static void CardHide(void) { ++CardHides; }
 static uint16_t Held;
 static bool Bulk, Entered, ReadFailed, ExitFailed, UnstableHeader;
 static uint8_t EmptyValue;
@@ -94,7 +97,7 @@ bool OSD_IsVisible(void) { return Visible; }
 bool VirtualCart_IsActive(void) { return Active; }
 bool VirtualCart_IsBusy(void) { return Busy; }
 esp_err_t VirtualCart_Start(const char *Path) {
-    assert((!Present || MagicCart || SwitchResult==ESP_OK) && !PC && !PCActive && !Busy && !Visible && !(Held & kButtonBits_B));
+    assert((!Present || MagicCart || SwitchResult==ESP_OK) && !PC && !PCActive && !Busy && (!Visible || CardMode) && !(Held & kButtonBits_B));
     ++Starts; strcpy(StartedPath,Path);
     if(FailStart) return ESP_ERR_NO_MEM;
     Busy=true; return ESP_OK;
@@ -118,6 +121,7 @@ esp_err_t FPGA_Tx_RequestButtons(void) {
     return ESP_OK;
 }
 esp_err_t FPGA_Tx_PulseButtons(uint16_t Buttons) {
+    if(CardMode) { assert(Buttons==kButtonBits_MenuEnAlt); ++CardPulses; Visible=!Visible; return ESP_OK; }
     assert(Buttons==kButtonBits_MenuEnAlt && !Visible && !Busy && !Active && !PC && !PCActive);
     /* Model the real core: a held game button cancels a Menu toggle. */
     assert(!(Held & 0x1ffu));
@@ -140,6 +144,7 @@ static void Reset(void) {
     NoButtons=RequestFailed=FailLoad=FailStart=ManualMenu=ManualLoad=false;
     Starts=Pings=ButtonRequests=MenuOpens=Sequence=Clock=0; Held=0;
     BAt=InsertAt=~0u; BReleaseAt=15; AckAt=0; PulseRejected=false; ReadFailed=ExitFailed=UnstableHeader=false; EmptyValue=0xf0; HeaderReads=Enters=Exits=0; MagicCart=false; CartGames=1; DirectoryReads=0; strcpy(Stored,Game); StartedPath[0]=0; StartUpMenu=false;
+    CardMode=false; CardPulses=CardHides=0;
 }
 static void Run(void) {
     const BootResumeCartridge_t Cartridge=BootResume_CheckCartridge();
@@ -268,5 +273,20 @@ int main(void) {
     Reset(); PC=true; Cartridge=BootResume_CheckCartridge(); PC=false;
     BootResume_Run(&Cartridge); assert(!Pings && !Enters && !Starts && MenuOpens==1 && !SleepLocks);
 
+    /* A start-up continuing a core switch: the card opens the overlay, the
+     * load still runs under it, and the overlay closes over the game. */
+    Reset(); CardMode=true; strcpy(SwitchPath,Game); SwitchResult=ESP_OK;
+    assert(BootResume_ShowSwitchCard(CardHide) && Visible && CardPulses==1 && !CardHides);
+    BootResume_Run(NULL);
+    assert(Starts==1 && !strcmp(StartedPath,Game) && CardHides==1 && CardPulses==2 && !Visible && !SleepLocks);
+    /* A failed load leaves the overlay up as the menu (no second toggle). */
+    Reset(); CardMode=true; strcpy(SwitchPath,Game); SwitchResult=ESP_OK; FailLoad=true;
+    assert(BootResume_ShowSwitchCard(CardHide));
+    BootResume_Run(NULL);
+    assert(Starts==1 && CardHides==1 && CardPulses==1 && Visible && !SleepLocks);
+    /* No pending switch: no card. */
+    Reset(); CardMode=true; assert(!BootResume_ShowSwitchCard(CardHide) && !CardPulses);
+
+    puts("PASS: core-switch loading card");
     puts("PASS: persistent last game; cartridge held until after the intro; START-UP games menu; dedicated cart auto-boot; early cartridge probe avoids late reset; cartridge priority and recheck; fresh B bypass; missing/corrupt settings; failed load fallback; PC/manual interaction priority");
 }

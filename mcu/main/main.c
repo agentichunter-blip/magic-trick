@@ -23,6 +23,9 @@
 #include "cart_bulk.h"
 #include "cart_store.h"
 #include "core_switch.h"
+#include "rom_title.h"
+#include <string.h>
+#include "last_game.h"
 #include "cart_link.h"
 #include "cart_backup.h"
 #include "dpad_ctl.h"
@@ -406,6 +409,19 @@ void app_main(void)
     /* A core switch carrying a game keeps the hold until BootResume_Run
      * knows whether a cartridge game is staged next (no flash of its game). */
     if (!CoreSwitch_HasPending()) BootResume_ReleaseCartridge();
+    /* A start-up that continues a core switch shows the game being loaded
+     * instead of each core's blank screen (still before the LVGL task). */
+    if (!IntroPlayed)
+    {
+        char SwitchPath[LAST_GAME_PATH_SIZE], SwitchTitle[48];
+        if (CoreSwitch_PeekPending(SwitchPath, sizeof(SwitchPath)))
+        {
+            const char *pName = strrchr(SwitchPath, '/');
+            RomTitle_Make(pName ? pName + 1 : SwitchPath, false, SwitchTitle, sizeof(SwitchTitle));
+            Gfx_ShowCard(SwitchTitle);
+            if (!BootResume_ShowSwitchCard(Gfx_HideCard)) Gfx_HideCard();
+        }
+    }
 
     xTaskCreatePinnedToCore(lvglTimerTask, "lvgl Timer", kTimerTask_StackDepth, NULL, 4, NULL, 1);
 
