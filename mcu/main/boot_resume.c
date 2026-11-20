@@ -25,6 +25,7 @@
 #include "pwrmgr.h"
 #include "virtual_cart.h"
 #include "intro_video.h"
+#include "startup_mode.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -56,7 +57,13 @@ static bool MagicTrickHeader(const uint8_t *Block)
     return !memcmp(Block + 0x134, kTitle, sizeof(kTitle));
 }
 
-static esp_err_t CheckPhysicalHeader(bool *Present, bool *pMagicTrick)
+/* A physical cartridge found at power-on stays in maintenance (core held in
+ * reset) until the intro has played, so it boots once, silently, afterwards
+ * instead of under the intro (BootResume_ReleaseCartridge). The engine's own
+ * ~10 s idle watchdog releases it if the MCU never does. */
+static bool HeldForIntro;
+
+static esp_err_t CheckPhysicalHeader(bool *Present, bool *pMagicTrick, bool HoldCartridge)
 {
     uint8_t *Block = malloc(kCartBulkBlockSize);
     if (!Block) return ESP_ERR_NO_MEM;
@@ -84,8 +91,13 @@ static esp_err_t CheckPhysicalHeader(bool *Present, bool *pMagicTrick)
         }
     }
     /* Release the physical bus even if an enter/read reply timed out. No mapper,
-     * RAM, or flash writes are performed by this probe. */
-    if (EnterAttempted)
+     * RAM, or flash writes are performed by this probe. A plain cartridge that
+     * read cleanly may stay held for the intro. */
+    const bool Hold = HoldCartridge && Result == ESP_OK && *Present &&
+                      !(pMagicTrick && *pMagicTrick);
+    if (Hold)
+        HeldForIntro = true;
+    else if (EnterAttempted)
     {
         const esp_err_t ExitResult = CartLink_Transaction(kCartLinkOp_Exit, 0, 0, &Reply);
         if (ExitResult != ESP_OK) Result = ExitResult;
@@ -99,7 +111,7 @@ static esp_err_t CheckPhysicalHeader(bool *Present, bool *pMagicTrick)
     return Result;
 }
 
-static esp_err_t CartridgePresent(bool *Present, bool *pMagicTrick)
+static esp_err_t CartridgePresent(bool *Present, bool *pMagicTrick, bool HoldCartridge)
 {
     CartLinkResponse_t Reply = {0};
     esp_err_t Result = ESP_ERR_TIMEOUT;
@@ -113,7 +125,7 @@ static esp_err_t CartridgePresent(bool *Present, bool *pMagicTrick)
         return ESP_ERR_INVALID_RESPONSE;
     if (Reply.Data[1] & 1u) return ESP_ERR_INVALID_STATE; /* maintenance in progress */
     *Present = (Reply.Data[1] & 2u) != 0;
-    return *Present ? CheckPhysicalHeader(Present, pMagicTrick) : ESP_OK;
+    return *Present ? CheckPhysicalHeader(Present, pMagicTrick, HoldCartridge) : ESP_OK;
 }
 
 BootResumeCartridge_t BootResume_CheckCartridge(void)
@@ -121,9 +133,20 @@ BootResumeCartridge_t BootResume_CheckCartridge(void)
     BootResumeCartridge_t Cartridge = {ESP_ERR_INVALID_STATE, true, false};
     if (Interrupted()) return Cartridge;
     PwrMgr_InhibitSleep();
-    Cartridge.Result = CartridgePresent(&Cartridge.Present, &Cartridge.MagicTrick);
+    Cartridge.Result = CartridgePresent(&Cartridge.Present, &Cartridge.MagicTrick, true);
     PwrMgr_AllowSleep();
     return Cartridge;
+}
+
+void BootResume_ReleaseCartridge(void)
+{
+    if (!HeldForIntro) return;
+    HeldForIntro = false;
+    CartLinkResponse_t Reply = {0};
+    const bool Bulk = CartBulk_Begin() == ESP_OK;
+    const esp_err_t Result = CartLink_Transaction(kCartLinkOp_Exit, 0, 0, &Reply);
+    if (Bulk) CartBulk_End();
+    printf("BOOT_RESUME cartridge_release=%s status=%u\n", esp_err_to_name(Result), (unsigned)Reply.Status);
 }
 
 static bool FreshButtons(uint16_t *Held)
@@ -336,6 +359,7 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
         goto Done;
     }
     if (Present) { printf("BOOT_RESUME skip=cartridge\n"); goto Done; }
+    if (StartUp_GetMode() == kStartUpMode_GamesMenu) { printf("BOOT_RESUME skip=startup_menu\n"); goto Fallback; }
     Result = LastGame_Read(Path);
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=no_last_game\n"); goto Fallback; }
 
@@ -346,7 +370,7 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
      * the load in case a cartridge was inserted during setup or the B window.
      * A cartridge detected at early startup never receives this second probe. */
     if (Interrupted()) goto Done;
-    Result = CartridgePresent(&Present, NULL);
+    Result = CartridgePresent(&Present, NULL, false);
     if (Result != ESP_OK) { printf("BOOT_RESUME skip=cartridge_unknown\n"); goto Fallback; }
     if (Present) { printf("BOOT_RESUME skip=cartridge\n"); goto Done; }
     uint16_t Held;

@@ -20,6 +20,7 @@
 #include "display/low_batt_icon_ctl.h"
 #include "display/screen_transit_ctl.h"
 #include "display/lynx_stretch.h"
+#include "system/startup_mode.h"
 #include "system/silent.h"
 #include "system/player_num.h"
 #include "system/serial_num.h"
@@ -546,6 +547,16 @@ static void CreateMenuSystem(lv_obj_t *const pScreen)
     };
     if (Tab_AddItem(pList, &WifiFiles, pScreen) != kOSD_Result_Ok) return;
 #endif
+
+    static TabItem_t StartUp = {
+        .Widget = {
+            .Name = "START-UP",
+            .fnDraw = StartUp_Draw,
+            .fnOnButton = StartUp_OnButton,
+            .fnOnTransition = StartUp_OnTransition,
+        },
+    };
+    if (Tab_AddItem(pList, &StartUp, pScreen) != kOSD_Result_Ok) return;
 
     if (SerialNum_IsPresent())
     {

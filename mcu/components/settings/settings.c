@@ -24,6 +24,7 @@ static const char* NVS_KeyStr[kNumSettingKeys] = {
     [kSettingKey_PCBackupMode]     = "pc_backup",
     [kSettingKey_GBCColorTemp]     = "gbc-ctemp",   /* same key as ModRetro's firmware */
     [kSettingKey_LynxStretch]      = "lynx-stretch",
+    [kSettingKey_StartUp]          = "startup",
 };
 
 const SettingValue_t DefaultSettings[kNumSettingKeys] = {
@@ -76,6 +77,10 @@ const SettingValue_t DefaultSettings[kNumSettingKeys] = {
         .U8 = 0,
     },
     [kSettingKey_LynxStretch] = {
+        .eType = kSettingDataType_U8,
+        .U8 = 0,
+    },
+    [kSettingKey_StartUp] = {   /* 0 = resume the last game */
         .eType = kSettingDataType_U8,
         .U8 = 0,
     },

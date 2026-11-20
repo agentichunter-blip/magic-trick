@@ -40,6 +40,7 @@
 #include "pc_backup_mode.h"
 #include "screen_transit_ctl.h"
 #include "lynx_stretch.h"
+#include "startup_mode.h"
 #include "mutex.h"
 #include "sd_card.h"
 #include "serial_num.h"
@@ -219,6 +220,7 @@ static void persist_storage_init(void)
         [kSettingKey_Brightness]       = Brightness_ApplySetting,
         [kSettingKey_ScreenTransitCtl] = ScreenTransitCtl_ApplySetting,
         [kSettingKey_LynxStretch]      = LynxStretch_ApplySetting,
+        [kSettingKey_StartUp]          = StartUp_ApplySetting,
         [kSettingKey_DPadCtl]          = DPadCtl_ApplySetting,
         [kSettingKey_LowBattIconCtl]   = LowBattIconCtl_ApplySetting,
         [kSettingKey_PaletteStyleID]   = Style_ApplySetting,
@@ -400,6 +402,7 @@ void app_main(void)
 
     /* Before the LVGL task starts drawing into buffy. */
     const bool IntroPlayed = BootResume_PlayIntro(&BootCartridge, (uint16_t *)buffy, intro_present);
+    BootResume_ReleaseCartridge();
 
     xTaskCreatePinnedToCore(lvglTimerTask, "lvgl Timer", kTimerTask_StackDepth, NULL, 4, NULL, 1);
 

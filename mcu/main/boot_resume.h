@@ -14,6 +14,9 @@ typedef struct {
 /* Probe once as soon as UART/QSPI are ready, before UI setup and startup waits.
  * The existing maintenance command resets the core, even for a read-only probe. */
 BootResumeCartridge_t BootResume_CheckCartridge(void);
+/* A plain cartridge found by the check stays held (not running) until this is
+ * called, right after the intro, so it boots once the intro is over. */
+void BootResume_ReleaseCartridge(void);
 /* Use the early result after UI, console and power task are ready. An unknown
  * result falls back to the menu rather than probing a running cartridge late. */
 void BootResume_Run(const BootResumeCartridge_t *Cartridge);

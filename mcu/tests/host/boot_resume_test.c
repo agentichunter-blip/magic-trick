@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "boot_resume.h"
+#include "startup_mode.h"
 #include "core_switch.h"
 #include "last_game.h"
 #include "button.h"
@@ -22,6 +23,8 @@ CoreSystem_t CoreSwitch_SystemForPath(const char *P) { (void)P;return kCoreSyste
 static unsigned Continues;
 esp_err_t CoreSwitch_ContinueTo(const char *P,uint8_t H,CoreSystem_t T) { (void)P;(void)H;(void)T;++Continues;return ESP_ERR_INVALID_STATE; }
 bool CoreSwitch_HasPending(void) { return SwitchPath[0]!=0; }
+static bool StartUpMenu;
+StartUpMode_t StartUp_GetMode(void) { return StartUpMenu ? kStartUpMode_GamesMenu : kStartUpMode_LastGame; }
 int64_t esp_timer_get_time(void) { return 0; }
 void Button_ResetAll(void) {}
 static const char Game[]="/sdcard/CHROMAGIC/BACKUPS/GB/0-F/Alleyway (World).gb";
@@ -136,10 +139,11 @@ static void Reset(void) {
     PC=PCActive=Visible=Active=Busy=Present=UnknownCart=BadReply=false;
     NoButtons=RequestFailed=FailLoad=FailStart=ManualMenu=ManualLoad=false;
     Starts=Pings=ButtonRequests=MenuOpens=Sequence=Clock=0; Held=0;
-    BAt=InsertAt=~0u; BReleaseAt=15; AckAt=0; PulseRejected=false; ReadFailed=ExitFailed=UnstableHeader=false; EmptyValue=0xf0; HeaderReads=Enters=Exits=0; MagicCart=false; CartGames=1; DirectoryReads=0; strcpy(Stored,Game); StartedPath[0]=0;
+    BAt=InsertAt=~0u; BReleaseAt=15; AckAt=0; PulseRejected=false; ReadFailed=ExitFailed=UnstableHeader=false; EmptyValue=0xf0; HeaderReads=Enters=Exits=0; MagicCart=false; CartGames=1; DirectoryReads=0; strcpy(Stored,Game); StartedPath[0]=0; StartUpMenu=false;
 }
 static void Run(void) {
     const BootResumeCartridge_t Cartridge=BootResume_CheckCartridge();
+    BootResume_ReleaseCartridge();   /* main.c: right after the intro */
     BootResume_Run(&Cartridge);
 }
 static void Skipped(void) { Run(); assert(!Starts && !SleepLocks && !HandleOpen && !Bulk && !Entered); }
@@ -217,15 +221,32 @@ int main(void) {
     Reset(); Present=MagicCart=true; PC=true; Skipped(); assert(!MenuOpens && !DirectoryReads);
     Reset(); MagicCart=true; Run(); assert(Starts==1 && !strcmp(StartedPath,Game) && !DirectoryReads); /* empty slot */
     Reset(); Present=MagicCart=true; BootResumeCartridge_t Magic=BootResume_CheckCartridge();
-    assert(Magic.Present && Magic.MagicTrick); MagicCart=false;
-    Magic=BootResume_CheckCartridge(); assert(Magic.Present && !Magic.MagicTrick);
-    Present=false; Magic=BootResume_CheckCartridge(); assert(!Magic.Present && !Magic.MagicTrick);
+    assert(Magic.Present && Magic.MagicTrick && !Entered); MagicCart=false;   /* never held */
+    Magic=BootResume_CheckCartridge(); assert(Magic.Present && !Magic.MagicTrick && Entered);
+    BootResume_ReleaseCartridge(); assert(!Entered && !Bulk);
+    Present=false; Magic=BootResume_CheckCartridge(); assert(!Magic.Present && !Magic.MagicTrick && !Entered);
+    const unsigned ExitsBefore=Exits;
+    BootResume_ReleaseCartridge(); assert(Exits==ExitsBefore);   /* nothing held: no extra exit */
+
+    /* A plain cartridge stays held (core in reset) until after the intro, then
+     * boots once: the exit comes from the release, not the probe. */
+    Reset(); Present=true; Magic=BootResume_CheckCartridge();
+    assert(Magic.Result==ESP_OK && Magic.Present && Entered && Enters==1 && !Exits && !Bulk && !SleepLocks);
+    BootResume_ReleaseCartridge(); assert(!Entered && Exits==1);
+    BootResume_ReleaseCartridge(); assert(Exits==1);
+    /* A failed header read is never held. */
+    Reset(); Present=true; ReadFailed=true; Magic=BootResume_CheckCartridge(); assert(!Entered && Exits==1);
+
+    /* START-UP = GAMES MENU: no cartridge opens the menu instead of the last game. */
+    Reset(); StartUpMenu=true; Skipped(); assert(MenuOpens==1);
+    Reset(); StartUpMenu=true; Present=true; Skipped(); assert(!MenuOpens);   /* a cartridge still runs */
 
     /* A physical game may already be running after UI setup. Use the early
      * result without entering maintenance/reset again, even if the bus would
      * now fail. This reproduces the former late Tetris copyright-screen reset. */
     Reset(); Present=true;
     BootResumeCartridge_t Cartridge=BootResume_CheckCartridge();
+    BootResume_ReleaseCartridge();
     assert(Cartridge.Result==ESP_OK && Cartridge.Present && Enters==1 && Exits==1);
     vTaskDelay(2000); ReadFailed=true;
     BootResume_Run(&Cartridge);
@@ -247,5 +268,5 @@ int main(void) {
     Reset(); PC=true; Cartridge=BootResume_CheckCartridge(); PC=false;
     BootResume_Run(&Cartridge); assert(!Pings && !Enters && !Starts && MenuOpens==1 && !SleepLocks);
 
-    puts("PASS: persistent last game; dedicated cart auto-boot; early cartridge probe avoids late reset; cartridge priority and recheck; fresh B bypass; missing/corrupt settings; failed load fallback; PC/manual interaction priority");
+    puts("PASS: persistent last game; cartridge held until after the intro; START-UP games menu; dedicated cart auto-boot; early cartridge probe avoids late reset; cartridge priority and recheck; fresh B bypass; missing/corrupt settings; failed load fallback; PC/manual interaction priority");
 }
