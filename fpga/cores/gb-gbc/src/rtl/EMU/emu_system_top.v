@@ -285,7 +285,33 @@ module emu_system_top
         end
     end
     wire virtual_mode_reset = virtual_mode_reset_hold != 0;
-    wire gbreset_effective = gbreset | maintenance_reset_h |
+
+    // Power-on hold: the MCU reads the cartridge header at start-up, and that
+    // read holds the core in reset. Without this hold a physical cartridge
+    // would boot, be reset ~0.5 s later and boot again (a flash cart such as
+    // an EverDrive can hang on that second boot). Keep the core in reset from
+    // configuration until the first header read ends, an SD game starts, or
+    // ~3 s pass (hclk 16.777 MHz), so the cartridge boots exactly once.
+    reg power_on_hold;
+    reg power_on_maint_d;
+    reg [25:0] power_on_hold_count;
+    always @(posedge hclk or negedge reset_n) begin
+        if (!reset_n) begin
+            power_on_hold <= 1'b1;
+            power_on_maint_d <= 1'b0;
+            power_on_hold_count <= 26'd0;
+        end else begin
+            power_on_maint_d <= maintenance_reset_h;
+            if (power_on_hold) begin
+                power_on_hold_count <= power_on_hold_count + 1'b1;
+                if ((power_on_maint_d && !maintenance_reset_h) || virtual_enable ||
+                    power_on_hold_count == 26'd50_331_648)
+                    power_on_hold <= 1'b0;
+            end
+        end
+    end
+
+    wire gbreset_effective = gbreset | maintenance_reset_h | power_on_hold |
         virtual_attempt_reset_h |
         virtual_mode_reset | (virtual_enable && !virtual_initialized);
     assign virtual_core_reset_h = gbreset_effective;
