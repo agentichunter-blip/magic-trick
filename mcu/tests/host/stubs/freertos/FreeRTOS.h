@@ -18,6 +18,7 @@ typedef int portMUX_TYPE;
 #define pdPASS 1
 #define portMAX_DELAY UINT32_MAX
 #define pdMS_TO_TICKS(n) (n)
+#define pdTICKS_TO_MS(n) (n)
 
 #include <assert.h>
 #define configASSERT(expr) assert(expr)

@@ -46,8 +46,10 @@ static sdmmc_card_t Card;
 static unsigned SleepLocks;
 void PwrMgr_InhibitSleep(void) { ++SleepLocks; }
 void PwrMgr_AllowSleep(void) { assert(SleepLocks); --SleepLocks; }
-TickType_t xTaskGetTickCount(void) { return 0; }
-void vTaskDelay(TickType_t Ticks) { (void)Ticks; }
+/* Delays advance the clock, so time-based waits (GG first frame) end. */
+static TickType_t MockTicks;
+TickType_t xTaskGetTickCount(void) { return MockTicks; }
+void vTaskDelay(TickType_t Ticks) { MockTicks += Ticks; }
 esp_err_t SDCard_Mount(sdmmc_card_t **Out) { assert(!Mounted); Mounted=true; *Out=&Card; return ESP_OK; }
 esp_err_t SDCard_Unmount(sdmmc_card_t *Value) { assert(Mounted && Value==&Card); Mounted=false; return UnmountResult; }
 esp_err_t CartBulk_Begin(void) { assert(Mounted && !Bulk); Bulk=true; return ESP_OK; }
