@@ -124,6 +124,7 @@ enum {
     kVirtualStatusQuiesced = 1 << 9,
     kVirtualBootAttempts = 3,
     kVirtualBootPolls = 200,
+    kVirtualFrameWaitMs = 12000, /* GG/Lynx: first displayed frame */
     kVirtualPreparePolls = 100,
     kSaveTaskStack = 6 * 1024,
     kSaveTaskPriority = 3,
@@ -1802,15 +1803,24 @@ static esp_err_t StartAndWaitForFrame(const VirtualCartInfo_t *pInfo,
     if (pInfo->GameGear || pInfo->Lynx) {
         CartLinkResponse_t response={0};
         ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStart,pInfo,&response),TAG,"GG start");
-        for (unsigned poll=0;poll<kVirtualBootPolls;poll++) {
+        /* "Ready" needs a frame with the display switched on. Some games keep
+         * the display off for seconds while they set up (Battletoads: ~2.5 s,
+         * more on a freshly loaded core), so wait by time, not by poll count. */
+        const TickType_t started=xTaskGetTickCount();
+        uint16_t flags=0;
+        do {
             ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStatus,NULL,&response),TAG,"GG status");
-            uint16_t flags=(uint16_t)response.Data[0] | ((uint16_t)response.Data[1]<<8);
+            flags=(uint16_t)response.Data[0] | ((uint16_t)response.Data[1]<<8);
             if (response.Data[3]!=CoreTag(pInfo) || response.Data[2]!=1) return ESP_ERR_NOT_SUPPORTED;
             /* Bit 13 means reset/fault while enabled; bit 14 is a fresh frame.
              * Reset is normal during start propagation. Never accept stale ready. */
-            if ((flags & 0x603b)==0x403b) return ESP_OK;
+            if ((flags & 0x603b)==0x403b) {
+                printf("VIRTUAL_CART_FRAME ms=%lu\n",(unsigned long)pdTICKS_TO_MS(xTaskGetTickCount()-started));
+                return ESP_OK;
+            }
             vTaskDelay(pdMS_TO_TICKS(10));
-        }
+        } while (xTaskGetTickCount()-started < pdMS_TO_TICKS(kVirtualFrameWaitMs));
+        printf("VIRTUAL_CART_FRAME_TIMEOUT flags=0x%04x\n",flags);
         return ESP_ERR_TIMEOUT;
     }
     const uint16_t Required = kVirtualStatusEnabled |
