@@ -86,6 +86,33 @@ class Card(unittest.TestCase):
         self.assertIn('Added 3 games', result)
         self.assertIn('1 was already on the card, so it was skipped', result)
 
+    def test_remove_games_with_art_and_clips_keeps_saves(self):
+        for rel in ('CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).gb', 'CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).sav',
+                    'CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).state', 'CHROMAGIC/ART/GB/S-Z/Tetris (World).gb.cma',
+                    'CHROMAGIC/VIDEO/GB/S-Z/Tetris (World).gb.cmv', 'CHROMAGIC/BACKUPS/GG/Sonic.gg'):
+            self.put(rel, b'x')
+        target = library.FolderTarget(self.card)
+        self.assertEqual(sorted(p for p, _, _ in library.card_games(target)),
+                         ['CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).gb', 'CHROMAGIC/BACKUPS/GG/Sonic.gg'])
+        # A different spelling still finds the file (FAT ignores case); a vanished game is reported.
+        result = library.remove_games(target, ['CHROMAGIC/BACKUPS/GB/S-Z/tetris (world).gb',
+                                               'CHROMAGIC/BACKUPS/GG/Gone.gg'], log=lambda *a: None)
+        self.assertFalse((self.card / 'CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).gb').exists())
+        self.assertFalse((self.card / 'CHROMAGIC/ART/GB/S-Z/Tetris (World).gb.cma').exists())
+        self.assertFalse((self.card / 'CHROMAGIC/VIDEO/GB/S-Z/Tetris (World).gb.cmv').exists())
+        self.assertTrue((self.card / 'CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).sav').exists())
+        self.assertTrue((self.card / 'CHROMAGIC/BACKUPS/GB/S-Z/Tetris (World).state').exists())
+        self.assertTrue((self.card / 'CHROMAGIC/BACKUPS/GG/Sonic.gg').exists())
+        self.assertEqual(result, 'Removed 1 game and 2 box art and clips. 1 was already gone. '
+                                 'Their saves and save states are still on the card.')
+
+    def test_remove_refuses_files_that_are_not_games(self):
+        self.put('CHROMAGIC/BACKUPS/GB/Tetris (World).sav', b'x')
+        for bad in ('CHROMAGIC/BACKUPS/GB/Tetris (World).sav', 'CHROMAGIC/ART/GB/x.gb', '../x.gb'):
+            with self.assertRaises(ValueError):
+                library.remove_games(library.FolderTarget(self.card), [bad], log=lambda *a: None)
+        self.assertTrue((self.card / 'CHROMAGIC/BACKUPS/GB/Tetris (World).sav').exists())
+
     def test_games_go_in_existing_letter_folders(self):
         for sub in ('0-F', 'G-L', 'M-R', 'S-Z'):
             (self.card / 'CHROMAGIC/BACKUPS/GB' / sub).mkdir(parents=True)
@@ -207,8 +234,8 @@ class MacMetadata(unittest.TestCase):
 
 
 class FakeChromatic(BaseHTTPRequestHandler):
-    """Just enough of mcu/main/wifi_files.c: session, list, folder, file PUT (no overwrite), checksum."""
-    files, token = {}, 'tok'
+    """Just enough of mcu/main/wifi_files.c: session, list, folder, file PUT (no overwrite), DELETE, checksum."""
+    files, token, can_delete = {}, 'tok', True
 
     def log_message(self, *a):
         pass
@@ -246,6 +273,15 @@ class FakeChromatic(BaseHTTPRequestHandler):
             if rel in self.files:
                 return self.reply(409, b'{"error":"exists"}')
             self.files[rel] = body; self.reply(201, b'{"ok":true}')
+
+    def do_DELETE(self):
+        if not self.can_delete:
+            return self.reply(405, b'Method Not Allowed', 'text/plain')
+        if self.authorised():
+            rel = self.path_arg()
+            if self.files.get(rel) is None:   # missing, or a folder
+                return self.reply(404, b'{"error":"File unavailable."}')
+            del self.files[rel]; self.reply(200, b'{"ok":true}')
 
     def do_GET(self):
         if not self.authorised():
@@ -292,6 +328,24 @@ class Wifi(unittest.TestCase):
         # A second run finds both covers and writes nothing.
         target.forget('CHROMAGIC/ART'); target.forget('CHROMAGIC/ART/GB')
         self.assertIn('already has box art', library.get_covers(target, log=lambda *a: None, load_index=loader))
+
+    def test_remove_over_wifi(self):
+        FakeChromatic.files.update({'CHROMAGIC/ART': None, 'CHROMAGIC/ART/GB': None,
+                                    'CHROMAGIC/ART/GB/mine.gb.cma': b'c', 'CHROMAGIC/BACKUPS/GB/mine.sav': b's'})
+        target = library.WifiTarget(self.address, '123456')
+        result = library.remove_games(target, ['CHROMAGIC/BACKUPS/GB/mine.gb'], log=lambda *a: None)
+        self.assertNotIn('CHROMAGIC/BACKUPS/GB/mine.gb', FakeChromatic.files)
+        self.assertNotIn('CHROMAGIC/ART/GB/mine.gb.cma', FakeChromatic.files)
+        self.assertIn('CHROMAGIC/BACKUPS/GB/mine.sav', FakeChromatic.files)
+        self.assertIn('Removed 1 game and 1 box art or clip.', result)
+
+    def test_remove_over_wifi_on_older_firmware(self):
+        FakeChromatic.can_delete = False
+        self.addCleanup(setattr, FakeChromatic, 'can_delete', True)
+        target = library.WifiTarget(self.address, '123456')
+        with self.assertRaisesRegex(ValueError, 'Update Magic Trick'):
+            library.remove_games(target, ['CHROMAGIC/BACKUPS/GB/mine.gb'], log=lambda *a: None)
+        self.assertIn('CHROMAGIC/BACKUPS/GB/mine.gb', FakeChromatic.files)
 
 
 if __name__ == '__main__':

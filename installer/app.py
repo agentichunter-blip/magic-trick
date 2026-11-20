@@ -36,6 +36,7 @@ STEPS = {
     'art_match': ('FINDING BOX ART', 'Matching your games to box art.', 1),
     'art_write': ('ADDING BOX ART', 'Downloading box art and adding it to your card.', 3),
     'vid_write': ('ADDING CLIPS', 'Shrinking your clips to fit the screen and adding them to your card.', 5),
+    'lib_remove': ('REMOVING GAMES', 'Deleting the games you picked, with their box art and clips.', 1),
 }
 PLANS = {
     'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'table', 'confirm'],
@@ -44,10 +45,12 @@ PLANS = {
     'games': ['lib_scan', 'lib_copy'],
     'covers': ['lib_scan', 'art_match', 'art_write'],
     'previews': ['lib_scan', 'vid_write'],
+    'remove': ['lib_scan', 'lib_remove'],
 }
 TITLES = {'install': 'INSTALLING', 'uninstall': 'UNINSTALLING', 'restore': 'RESTORING',
-          'games': 'ADDING GAMES', 'covers': 'BOX ART', 'previews': 'ADDING CLIPS'}
-LIBRARY = ('games', 'covers', 'previews')
+          'games': 'ADDING GAMES', 'covers': 'BOX ART', 'previews': 'ADDING CLIPS',
+          'remove': 'REMOVING GAMES'}
+LIBRARY = ('games', 'covers', 'previews', 'remove')
 # How the library reaches the SD card: key, label, speed note.
 ROUTES = [('folder', 'CARD READER', 'Fastest. Take the SD card out of the Chromatic and put it in this computer.'),
           ('wifi', 'WI-FI', 'No cable needed. On the Chromatic, open Settings, then Wi-Fi Files.'),
@@ -249,8 +252,8 @@ class App:
         self.label(top, 'SD CARD LIBRARY', self.f_pixel_big, LILAC).pack(side='left')
         PixelButton(top, '◀ BACK', self.show_home, self.f_pixel, 'secondary').pack(side='right')
         self.label(self.screen, 'Add games, box art and gameplay clips to your SD card. Everything goes in the '
-                   'right folder with the right name. Nothing on the card is deleted.', self.f_body_big, INK,
-                   wrap=840).pack(anchor='w')
+                   'right folder with the right name. Nothing on the card is deleted unless you use REMOVE GAMES.',
+                   self.f_body_big, INK, wrap=840).pack(anchor='w')
         self.label(self.screen, '1. HOW TO REACH YOUR SD CARD', self.f_pixel, ACCENT).pack(anchor='w', pady=(14, 4))
         self.route_rows = {}
         for key, name, note in ROUTES:
@@ -262,7 +265,7 @@ class App:
                 w.bind('<Button-1>', lambda e, k=key: self.pick_route(k))
             self.route_rows[key] = (mark, name)
         self.draw_routes()
-        self.label(self.screen, '2. WHAT TO ADD', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
+        self.label(self.screen, '2. WHAT TO DO', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
         for key, title, text, buttons in [
                 ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .lnx) or a folder of them. Zip files are '
                  'fine. No need to sort them: each game is put in its system\'s folder for you.',
@@ -271,7 +274,9 @@ class App:
                  'none yet. ' + library.ART_CREDIT, [('START ▶', None)]),
                 ('previews', 'ADD GAMEPLAY CLIPS', 'Pick video clips, 10 seconds or longer, or a folder of them. '
                  'Each clip needs the same name as its game, for example Tetris.mp4.',
-                 [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')])]:
+                 [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
+                ('remove', 'REMOVE GAMES', 'Pick games on the card to delete, with their box art and clips. Their '
+                 'saves and save states stay on the card.', [('CHOOSE ▶', None)])]:
             tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
             tile.pack(fill='x', pady=4)
             words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=8)
@@ -327,7 +332,7 @@ class App:
         if self.busy:
             return
         sources = []
-        if operation != 'covers':
+        if operation not in ('covers', 'remove'):
             if operation == 'games':
                 kinds = [('Games', '*.gb *.gbc *.gg *.lnx *.lyx *.zip'), ('All files', '*')]
             else:
@@ -352,7 +357,15 @@ class App:
         def work():
             target = opener()
             try:
-                if operation == 'games':
+                if operation == 'remove':
+                    library.emit('step', key='lib_scan')
+                    games = library.card_games(target)
+                    if not games:
+                        raise ValueError('There are no games on this card.')
+                    chosen = self.ask_games(games)
+                    self.library_result = (library.remove_games(target, chosen) if chosen else
+                                           'Nothing was removed.')
+                elif operation == 'games':
                     self.library_result = library.add_games(target, sources)
                 elif operation == 'covers':
                     self.library_result = library.get_covers(target, replace)
@@ -364,6 +377,71 @@ class App:
                 target.close()
         self.library_result = ''
         self.run(operation, work, folder)
+
+    def ask_games(self, games):
+        """From the worker thread: show the game picker and wait for the user's choice ([] = cancel)."""
+        answer = {'paths': [], 'done': threading.Event()}
+        self.events.put(('pick', (games, answer)))
+        answer['done'].wait()
+        return answer['paths']
+
+    def pick_games(self, games, answer):
+        """Pick games to delete: a filter box and a multi-select list, then a confirmation."""
+        rows = sorted(((library.SYSTEM_NAMES.get(system, system), Path(path).name, path)
+                       for path, _, system in games), key=lambda r: (r[0], r[1].lower()))
+        win = tk.Toplevel(self.root); win.title('Remove games'); win.configure(bg=BG); win.transient(self.root)
+        self.label(win, 'Pick the games to delete. Click to select or unselect; you can pick several.',
+                   self.f_body, INK, wrap=620).pack(anchor='w', padx=16, pady=(14, 6))
+        search = tk.StringVar()
+        entry = tk.Entry(win, textvariable=search, font=self.f_body, bg=PANEL, fg=INK, insertbackground=INK,
+                         relief='flat', highlightthickness=2, highlightbackground=LINE, highlightcolor=ACCENT)
+        entry.pack(fill='x', padx=16)
+        frame = tk.Frame(win, bg=BG); frame.pack(fill='both', expand=True, padx=16, pady=8)
+        box = tk.Listbox(frame, selectmode='multiple', activestyle='none', font=self.f_body, width=70, height=18,
+                         bg=PANEL, fg=INK, selectbackground=RED, selectforeground=INK, relief='flat',
+                         highlightthickness=0, exportselection=False)
+        bar = tk.Scrollbar(frame, command=box.yview); box.configure(yscrollcommand=bar.set)
+        box.pack(side='left', fill='both', expand=True); bar.pack(side='right', fill='y')
+        count = self.label(win, '', self.f_pixel, MUTED); count.pack(anchor='w', padx=16)
+        picked, shown = set(), []
+
+        def refresh(*_):
+            words = search.get().lower().split()
+            shown[:] = [r for r in rows if all(w in (r[0] + ' ' + r[1]).lower() for w in words)]
+            box.delete(0, 'end')
+            for i, (system, name, path) in enumerate(shown):
+                box.insert('end', '%-15s %s' % (system, name))
+                if path in picked:
+                    box.selection_set(i)
+            count.configure(text='%d SELECTED' % len(picked), fg=RED if picked else MUTED)
+
+        def toggled(_):
+            visible = {r[2] for r in shown}
+            chosen = {shown[i][2] for i in box.curselection()}
+            picked.difference_update(visible - chosen); picked.update(chosen)
+            count.configure(text='%d SELECTED' % len(picked), fg=RED if picked else MUTED)
+
+        def finish(paths):
+            answer['paths'] = paths; answer['done'].set()
+            win.grab_release(); win.destroy()
+
+        def delete():
+            if not picked:
+                return
+            names = [r[1] for r in rows if r[2] in picked]
+            listing = '\n'.join('• ' + n for n in names[:8]) + ('\n…and %d more' % (len(names) - 8) if len(names) > 8 else '')
+            if messagebox.askyesno('Delete %s?' % library.plural(len(names), 'game'),
+                                   'These will be deleted from the SD card, with their box art and clips:\n\n' +
+                                   listing + '\n\nThis can\'t be undone. Saves and save states stay on the card.',
+                                   icon='warning', parent=win):
+                finish([r[2] for r in rows if r[2] in picked])
+
+        search.trace_add('write', refresh); box.bind('<<ListboxSelect>>', toggled)
+        row = tk.Frame(win, bg=BG); row.pack(anchor='e', padx=16, pady=(4, 14))
+        PixelButton(row, 'CANCEL', lambda: finish([]), self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
+        PixelButton(row, 'DELETE ▶', delete, self.f_pixel, 'danger').pack(side='left')
+        win.protocol('WM_DELETE_WINDOW', lambda: finish([]))
+        refresh(); entry.focus_set(); win.grab_set()
 
     def library_target(self, sources=()):
         """Ask how to reach the card. Returns (a function that opens it, a local folder or None).
@@ -874,6 +952,8 @@ class App:
                     self.current = data['key']; self.step_started = time.monotonic()
                     self.step_fraction = None; self.note = ''
                 changed = True
+            elif kind == 'pick':
+                self.pick_games(*payload)
             elif kind == 'finished':
                 self.finished(payload)
             elif kind == 'recheck':

@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 /* Off at boot. One HTTP task owns all file handles; one control task owns the
  * SD mount and PC-mode mutex. Stop drains HTTP before unmounting/releasing. */
@@ -394,6 +395,19 @@ static esp_err_t MakeDirectory(httpd_req_t *Req)
     httpd_resp_set_type(Req,"application/json");
     return httpd_resp_sendstr(Req,"{\"ok\":true}");
 }
+/* Removes one file (never a folder): the installer's "Remove games". */
+static esp_err_t Remove(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    char Name[WIFI_FILE_PATH_SIZE];
+    if (!Path(Req, Name) || Req->content_len) return Error(Req, "400 Bad Request", "Invalid file path.");
+    Touch();
+    struct stat Info;
+    if (stat(Name, &Info) || !S_ISREG(Info.st_mode)) return Error(Req, "404 Not Found", "File unavailable.");
+    if (unlink(Name) != 0) return Error(Req, "409 Conflict", "Could not delete the file.");
+    httpd_resp_set_type(Req, "application/json");
+    return httpd_resp_sendstr(Req, "{\"ok\":true}");
+}
 static esp_err_t Checksum(httpd_req_t *Req)
 {
     if(!Authorized(Req)) return Error(Req,"401 Unauthorized","Pair with the Chromatic first.");
@@ -423,7 +437,7 @@ static esp_err_t StartServer(void)
     Config.max_open_sockets = 2;
     Config.lru_purge_enable = true;
     Config.recv_wait_timeout = 5; Config.send_wait_timeout = 5;
-    Config.max_uri_handlers = 11;
+    Config.max_uri_handlers = 12;
     esp_err_t Result = httpd_start(&Server, &Config);
     if (Result != ESP_OK) return Result;
     const httpd_uri_t Routes[] = {
@@ -437,6 +451,7 @@ static esp_err_t StartServer(void)
         {.uri="/api/list", .method=HTTP_GET, .handler=List},
         {.uri="/api/file", .method=HTTP_GET, .handler=Download},
         {.uri="/api/file", .method=HTTP_PUT, .handler=Upload},
+        {.uri="/api/file", .method=HTTP_DELETE, .handler=Remove},
         {.uri="/api/folder", .method=HTTP_POST, .handler=MakeDirectory},
     };
     for (unsigned I = 0; I < sizeof(Routes)/sizeof(Routes[0]); ++I)

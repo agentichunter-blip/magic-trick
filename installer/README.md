@@ -61,7 +61,7 @@ Choose **Restore backup…** and pick `mcu-backup.bin` from your **first** insta
 
 ## SD card library
 
-**SD card library** adds games, box art and gameplay clips to your SD card. Everything goes in the right folder with the right name, and nothing on the card is deleted. It doesn't change the firmware, so no backup is needed.
+**SD card library** adds games, box art and gameplay clips to your SD card, and removes games you no longer want. Everything goes in the right folder with the right name, and nothing on the card is deleted unless you use **Remove games**. It doesn't change the firmware, so no backup is needed.
 
 **1. Choose how to reach your SD card**
 
@@ -71,11 +71,12 @@ Choose **Restore backup…** and pick `mcu-backup.bin` from your **first** insta
 | **Wi-Fi** | About 40 KB/s | On the Chromatic open **Settings > Wi-Fi Files**. Type the address it shows, then press A and type the 6-number WEB CODE. |
 | **USB** | Very slow, about 3 KB/s | On the Chromatic turn Wi-Fi off and **USB TRANSFERS** on. One box art takes about 8 s, one game about 5 min and one clip about 12 min, so use it for a few files only. |
 
-**2. Choose what to add**
+**2. Choose what to do**
 
 - **Add games:** pick game files (`.gb`, `.gbc`, `.gg`, `.lnx`, `.lyx`), zip files with games inside, or a folder of them. You don't need to sort them first: the installer puts each game in its system's folder for you, Game Boy games in the Game Boy folder (`BACKUPS/GB`), Game Gear games in the Game Gear folder (`BACKUPS/GG`), and so on. If that folder is split into A–Z folders (like `0-F`, `G-L`, `M-R`, `S-Z`), it picks the right one of those too. A game that's already on the card is skipped. Game Boy Color-only games go to `GBC` even when they end in `.gb`.
 - **Get box art:** press **START**. It finds box art for every game on the card that has none, by file name or by checking the game's contents, so renamed games are found too. Homebrew and rare games often have no box art. Box art comes from [ScreenScraper](https://www.screenscraper.fr), through the [MiSTer Artwork Pack](https://github.com/chipster6502/MiSTer_artwork_pack) by chipster6502. It's downloaded to your computer when you ask; the installer doesn't include any.
 - **Add gameplay clips:** pick video clips 10 seconds or longer, or a folder of them. Name each clip like its game file (`Tetris (World).mp4`) or just its title (`Tetris.mp4`, used for every version of that game). See **Getting gameplay clips** below. The installer includes the video converter (FFmpeg), so there's nothing else to install.
+- **Remove games:** press **CHOOSE**. The installer reads the card and lists its games; type to filter, click the games to delete, then press **DELETE** and confirm. Each game's box art and gameplay clip go with it. Its saves and save states stay on the card, so if you add the game again later it carries on where you left off. Deleting can't be undone. Over Wi-Fi this needs the Magic Trick firmware that came with this installer.
 
 **Getting gameplay clips.** Most people use [EmuMovies](https://emumovies.com), which has gameplay clips for thousands of games. Magic Trick can't include them, so you download them yourself (the app's **HOW DO I GET CLIPS?** link shows the same steps):
 
@@ -91,7 +92,7 @@ Box art and clips already on the card are kept. Tick **Replace box art and clips
 
 If it stops partway, nothing is lost: run it again and it carries on, skipping what's already there.
 
-From the command line: `app.py --library games|covers|previews TARGET [FILES…] [--replace]`, where `TARGET` is the card's folder, `wifi:ADDRESS:CODE` or `usb:PORT`.
+From the command line: `app.py --library games|covers|previews TARGET [FILES…] [--replace]`, where `TARGET` is the card's folder, `wifi:ADDRESS:CODE` or `usb:PORT`. `app.py --library list TARGET` prints the games on the card, and `app.py --library remove TARGET PATH…` deletes the ones named (paths as `list` prints them).
 
 ## If something goes wrong
 

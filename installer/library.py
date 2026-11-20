@@ -127,6 +127,17 @@ class Target:
         """(crc32, size) of a file on the card, or None if this target can't do it quickly."""
         return None
 
+    def find(self, rel):
+        """The card's spelling of a file (FAT ignores case), or None if it isn't there."""
+        folder, name = rel.rsplit('/', 1)
+        match = [n for n, is_dir, _ in self.list(folder) if not is_dir and n.lower() == name.lower()]
+        return folder + '/' + match[0] if match else None
+
+    def delete(self, rel):
+        """Delete one file that a listing showed. Subclasses implement remove."""
+        self.remove(rel)
+        self.forget(rel.rsplit('/', 1)[0])
+
     def close(self):
         pass
 
@@ -165,6 +176,13 @@ class FolderTarget(Target):
         temp.write_bytes(data)
         temp.replace(target)
 
+    def remove(self, rel):
+        path = self._path(rel)
+        path.unlink()
+        twin = path.with_name('._' + path.name)   # macOS metadata twin on a FAT card
+        if twin.is_file():
+            twin.unlink()
+
     def crc(self, rel):
         data = self._path(rel).read_bytes()
         return rom_crcs(rel, data)
@@ -191,7 +209,7 @@ class WifiTarget(Target):
     """The Chromatic's Wi-Fi Files server (Settings > Wi-Fi Files). Needs the address and WEB CODE it shows."""
     name = 'Wi-Fi'
     speed = WIFI_SPEED
-    can_replace = False   # the server never overwrites (409), and has no delete
+    can_replace = False   # the server never overwrites (409); deleting needs MCU 1.0.0-beta.9 or later
 
     def __init__(self, address, code, timeout=60):
         super().__init__()
@@ -252,6 +270,17 @@ class WifiTarget(Target):
     def crc(self, rel):
         reply = json.loads(self._request('GET', 'checksum', rel))   # the Chromatic reads the file itself
         return [(int(reply['crc32'], 16), int(reply['bytes']))]
+
+    def remove(self, rel):
+        try:
+            self._request('DELETE', 'file', rel)
+        except WifiError as exc:
+            if exc.status == 405:   # firmware before DELETE /api/file
+                raise ValueError('This Chromatic\'s firmware can\'t delete over Wi-Fi yet. Update Magic Trick, or '
+                                 'use a card reader or USB.') from None
+            if exc.status == 404:
+                raise FileNotFoundError(rel) from None
+            raise
 
 
 class WifiError(Exception):
@@ -372,6 +401,9 @@ class UsbTarget(Target):
         for i in range(0, len(data), 1024):
             self._exchange(b'\x08' + data[i:i + 1024])
         self._exchange(b'\x09', seconds=120)   # the device re-reads the file to verify it
+
+    def remove(self, rel):
+        self._exchange(b'\x05/' + rel.encode())   # only called for listed files: a failure ends the session
 
     def close(self):
         try:
@@ -530,6 +562,36 @@ def add_games(target, sources, log=print):
         text += (' 1 was already on the card, so it was skipped.' if skipped == 1 else
                  ' %d were already on the card, so they were skipped.' % skipped)
     return text
+
+
+def remove_games(target, paths, log=print):
+    """Delete games (card paths under CHROMAGIC/BACKUPS) with their box art and gameplay clip. Saves and
+    save states sit next to each game and are kept, so a game added again later picks up where it was."""
+    for path in paths:
+        if not path.startswith(GAMES + '/') or os.path.splitext(path)[1].lower() not in EXTENSIONS:
+            raise ValueError('Not a game on the card: ' + path)
+    emit('step', key='lib_remove')
+    removed, media, missing = 0, 0, 0
+    for i, path in enumerate(paths):
+        found = target.find(path)
+        if not found:
+            missing += 1
+            log('Already gone: %s' % path[len(GAMES) + 1:])
+        else:
+            target.delete(found)
+            removed += 1
+            log('Removed %s' % found[len(GAMES) + 1:])
+            for folder, suffix in ((ART, '.cma'), (VIDEO, '.cmv')):
+                extra = target.find(mirror(found, folder, suffix))
+                if extra:
+                    target.delete(extra)
+                    media += 1
+        progress(i + 1, len(paths), 'games')
+    text = 'Removed %s' % plural(removed, 'game')
+    text += (' and %s.' % plural(media, 'box art or clip', 'box art and clips')) if media else '.'
+    if missing:
+        text += ' %s already gone.' % ('1 was' if missing == 1 else '%d were' % missing)
+    return text + ' Their saves and save states are still on the card.'
 
 
 # ---------------------------------------------------------------- cover art
@@ -833,12 +895,13 @@ def add_previews(target, sources, replace=False, log=print, ffmpeg=None):
     return summary
 
 
-OPERATIONS = {'games': add_games, 'covers': get_covers, 'previews': add_previews}
+OPERATIONS = {'games': add_games, 'covers': get_covers, 'previews': add_previews, 'list': card_games,
+              'remove': remove_games}
 
 
 def main(argv):
-    """app.py --library games|covers|previews TARGET [FILES...] [--replace]
-    TARGET: the SD card folder, wifi:ADDRESS:CODE, or usb:PORT."""
+    """app.py --library games|covers|previews|list|remove TARGET [FILES...] [--replace]
+    TARGET: the SD card folder, wifi:ADDRESS:CODE, or usb:PORT. remove takes card paths, as list prints."""
     replace = '--replace' in argv
     args = [a for a in argv if a != '--replace']
     if len(args) < 2 or args[0] not in OPERATIONS:
@@ -849,6 +912,10 @@ def main(argv):
             result = get_covers(target, replace)
         elif args[0] == 'games':
             result = add_games(target, args[2:])
+        elif args[0] == 'list':
+            result = '\n'.join(path for path, _, _ in card_games(target))
+        elif args[0] == 'remove':
+            result = remove_games(target, args[2:])
         else:
             result = add_previews(target, args[2:], replace)
     finally:
