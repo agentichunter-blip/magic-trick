@@ -115,7 +115,9 @@ module emu_system_top
     (* ASYNC_REG="TRUE" *) reg [1:0] stop_x=2'b11;
     (* ASYNC_REG="TRUE" *) reg [1:0] quiet_x=0;
     (* ASYNC_REG="TRUE" *) reg [6:0] buttons_meta=0,buttons_x=0;
-    wire [6:0] keys_h={BTN_START,BTN_B,BTN_A,BTN_DPAD_RIGHT,
+    // Game Gear button 1 is the left button and 2 the right one: Chromatic
+    // B (left) -> 1 (j1_tl, bit 4), A (right) -> 2 (j1_tr, bit 5).
+    wire [6:0] keys_h={BTN_START,BTN_A,BTN_B,BTN_DPAD_RIGHT,
         BTN_DPAD_LEFT,BTN_DPAD_DOWN,BTN_DPAD_UP} & {7{MENU_CLOSED && !BTN_MENU}};
     always @(posedge xclk or posedge stop_h) begin
         if(stop_h) begin stop_x<=2'b11;buttons_meta<=0;buttons_x<=0;end

@@ -41,14 +41,14 @@ Note:Core Timing Report
 
 1. Timing Messages
 <Report Title>: Timing Analysis Report
-<Design File>: /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg
-<Physical Constraints File>: /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst
-<Timing Constraints File>: /Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/gg_board.sdc
+<Design File>: /Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg
+<Physical Constraints File>: /Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst
+<Timing Constraints File>: /Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/board/evt1_x2/gg_board.sdc
 <Tool Version>: V1.9.12.04-1
 <Part Number>: GW5A-EV25UG256CC1/I0
 <Device>: GW5A-25
 <Device Version>: A
-<Created Time>: Sun Nov 15 22:00:44 2026
+<Created Time>: Fri Nov 20 11:31:37 2026
 
 
 2. Timing Summaries
@@ -163,7 +163,7 @@ No timing paths to get frequency of clk24p!
   3             0.135        u_mem_system_top/iMultiPortRamCtrl/iPsramController/clock_ena_s8/Q                                                                                     u_mem_system_top/iMultiPortRamCtrl/iPsramController/oser4_psram_clk/D2                                                                                                xclk:[R]         xclk:[R]         0.000      -0.002       0.223       
   4             0.179        u_mem_system_top/iMultiPortRamCtrl/iPsramController/oe_dq_n_s2/Q                                                                                       u_mem_system_top/iMultiPortRamCtrl/iPsramController/gdq[7].oser4_dq/TX0                                                                                               xclk:[R]         xclk:[R]         0.000      -0.005       0.375       
   5             0.184        u_emu_system_top/video_cdc/fifo/rgray_1_s0/Q                                                                                                           u_emu_system_top/video_cdc/fifo/rm_1_s0/D                                                                                                                             hclk:[R]         xclk:[R]         0.000      -0.085       0.327       
-  6             0.192        u_system_monitor/MCU_buttons_3_s0/Q                                                                                                                    u_emu_system_top/buttons_meta_4_s0/D                                                                                                                                  gclk:[R]         xclk:[R]         0.000      -0.075       0.324       
+  6             0.192        u_system_monitor/MCU_buttons_3_s0/Q                                                                                                                    u_emu_system_top/buttons_meta_5_s0/D                                                                                                                                  gclk:[R]         xclk:[R]         0.000      -0.075       0.324       
   7             0.194        u_mem_system_top/u_gb_burst_write/u_fifo1k/fifo_inst/rbin_num_8_s0/Q                                                                                   u_mem_system_top/u_gb_burst_write/u_fifo1k/fifo_inst/Equal.mem_Equal.mem_0_0_s/ADB[12]                                                                                xclk:[R]         xclk:[R]         0.000      0.005        0.221       
   8             0.205        u_mem_system_top/iMultiPortRamCtrl/iPsramController/oe_dq_n_s2/Q                                                                                       u_mem_system_top/iMultiPortRamCtrl/iPsramController/gdq[6].oser4_dq/TX1                                                                                               xclk:[R]         xclk:[R]         0.000      -0.005       0.401       
   9             0.208        u_cart_maintenance_engine/block_write_data_7_s0/Q                                                                                                      u_cart_block_ram/cache_ram/DIA[7]                                                                                                                                     gclk:[R]         gclk:[R]         0.000      -0.013       0.254       
@@ -2316,7 +2316,7 @@ Slack             : 0.192
 Data Arrival Time : 2.160
 Data Required Time: 1.968
 From              : u_system_monitor/MCU_buttons_3_s0
-To                : u_emu_system_top/buttons_meta_4_s0
+To                : u_emu_system_top/buttons_meta_5_s0
 Launch Clk        : gclk:[R]
 Latch Clk         : xclk:[R]
 
@@ -2328,9 +2328,9 @@ Data Arrival Path:
   1.193   1.193   tCL    RR   1809     PLL_B         u_Gowin_PLL/PLLA_inst/CLKOUT3          
   1.836   0.643   tNET   RR   1        R5C69[0][B]   u_system_monitor/MCU_buttons_3_s0/CLK  
   1.963   0.127   tC2Q   RF   1        R5C69[0][B]   u_system_monitor/MCU_buttons_3_s0/Q    
-  2.022   0.059   tNET   FF   1        R5C69[1][A]   u_emu_system_top/keys_h_4_s0/I0        
-  2.160   0.138   tINS   FF   1        R5C69[1][A]   u_emu_system_top/keys_h_4_s0/F         
-  2.160   0.000   tNET   FF   1        R5C69[1][A]   u_emu_system_top/buttons_meta_4_s0/D   
+  2.022   0.059   tNET   FF   1        R5C69[1][B]   u_emu_system_top/keys_h_5_s0/I0        
+  2.160   0.138   tINS   FF   1        R5C69[1][B]   u_emu_system_top/keys_h_5_s0/F         
+  2.160   0.000   tNET   FF   1        R5C69[1][B]   u_emu_system_top/buttons_meta_5_s0/D   
 
 Data Required Path:
    AT     DELAY   TYPE   RF   FANOUT       LOC                        NODE                   
@@ -2338,9 +2338,9 @@ Data Required Path:
   0.000   0.000                                      active clock edge time                  
   0.000   0.000                                      xclk                                    
   1.193   1.193   tCL    RR   5931     PLL_B         u_Gowin_PLL/PLLA_inst/CLKOUT4           
-  1.911   0.718   tNET   RR   1        R5C69[1][A]   u_emu_system_top/buttons_meta_4_s0/CLK  
+  1.911   0.718   tNET   RR   1        R5C69[1][B]   u_emu_system_top/buttons_meta_5_s0/CLK  
   1.946   0.035   tUnc                                                                       
-  1.968   0.022   tHld        1        R5C69[1][A]   u_emu_system_top/buttons_meta_4_s0      
+  1.968   0.022   tHld        1        R5C69[1][B]   u_emu_system_top/buttons_meta_5_s0      
 
 Path Statistics:
 Clock Skew: 0.075

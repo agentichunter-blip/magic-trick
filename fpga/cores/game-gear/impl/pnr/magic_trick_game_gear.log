@@ -1,7 +1,7 @@
-Reading netlist file: "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg"
-Parsing netlist file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg" completed
+Reading netlist file: "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg"
+Parsing netlist file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg" completed
 Processing netlist completed
-Reading constraint file: "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst"
+Reading constraint file: "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst"
 Physical Constraint parsed completed
 Running placement......
 [10%] Placement Phase 0 completed
@@ -21,11 +21,11 @@ Bitstream generation in progress......
 Bitstream generation completed
 Running power analysis......
 [100%] Power analysis completed
-Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.power.html" completed
-Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.pin.html" completed
-Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.html" completed
-Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.txt" completed
-Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr.html" completed
-Generate file "/Volumes/ExternalSSD/MODRETRO/lynx-core/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr" completed
-Sun Nov 15 22:00:44 2026
+Generate file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.power.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.pin.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.txt" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr.html" completed
+Generate file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr" completed
+Fri Nov 20 11:31:37 2026
 
