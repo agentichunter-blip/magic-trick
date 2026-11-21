@@ -13,14 +13,14 @@ static uint16_t Frame[INTRO_WIDTH * INTRO_HEIGHT];
 int main(void) {
     IntroVideo_t V;
     assert(IntroVideo_Open(&V, IntroVideoData, IntroVideoSize));
-    assert(V.FPS == 30 && V.Frames == 160 && V.Colors >= 1);
+    assert(V.FPS == 30 && V.Frames == 76 && V.Colors >= 1);
     for (unsigned C = 0; C < V.Colors; ++C) /* never the OSD transparent key */
         assert((V.Palette[2*C] | (V.Palette[2*C+1] << 8)) != 0xf81f);
     unsigned N = 0;
     while (IntroVideo_Next(&V, Frame)) ++N;
-    assert(N == 160 && V.Cursor == V.End);
+    assert(N == 76 && V.Cursor == V.End);
     /* Independent Python decode of the same data (update when re-encoding). */
-    assert(Crc32((const uint8_t *)Frame, sizeof(Frame)) == 0x7d02214du);
+    assert(Crc32((const uint8_t *)Frame, sizeof(Frame)) == 0x9daeb8ddu);
     /* Corruption must fail cleanly, never write out of bounds. */
     uint8_t *Copy = malloc(IntroVideoSize); memcpy(Copy, IntroVideoData, IntroVideoSize);
     assert(!IntroVideo_Open(&V, Copy, 8));

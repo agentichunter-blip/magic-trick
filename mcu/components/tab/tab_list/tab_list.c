@@ -28,6 +28,10 @@ enum {
 
     kTextAdjustX_px = 0,
     kTextAdjustY_px = 13,
+    /* Eight or more items (the System tab in a game: SAVE STATES ... START-UP,
+     * SERIAL #) would run past the bottom of the menu frame at 13 px. */
+    kTextAdjustTightY_px = 11,
+    kTightFromItems = 8,
 
     kDividerOffsetX_px      = 65,
     kDividerOffsetYStart_px = 35,
@@ -77,6 +81,10 @@ OSD_Result_t TabList_Draw(void* arg)
 
     size_t i = 0;
     sys_dnode_t *pNode = NULL;
+    size_t Items = 0;
+    SYS_DLIST_FOR_EACH_NODE(&pList->WidgetList, pNode) ++Items;
+    const lv_coord_t RowStep = Items >= kTightFromItems ? kTextAdjustTightY_px : TextAdjust.y;
+    pNode = NULL;
     SYS_DLIST_FOR_EACH_NODE(&pList->WidgetList, pNode) {
         if (pNode == NULL)
         {
@@ -102,7 +110,7 @@ OSD_Result_t TabList_Draw(void* arg)
 
             const lv_point_t TextOrigin = {
                 .x = MenuOrigin.x + ListOrigin.x + TextOffset.x + ( i * TextAdjust.x ),
-                .y = MenuOrigin.y + ListOrigin.y + TextOffset.y + ( i * TextAdjust.y ),
+                .y = MenuOrigin.y + ListOrigin.y + TextOffset.y + ( i * RowStep ),
             };
 
             // Remove all styles so that the selected item is set appropriately

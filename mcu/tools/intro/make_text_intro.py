@@ -1,12 +1,11 @@
-"""Replace the boot intro's opening system-logo scenes with plain text.
+"""Make the boot intro's source: the original intro without its system scenes.
 
 The original intro (MagicTrick_2001_No_Oval_Chromatic_160x144.mp4) opens with
-the Nintendo and Sega logos. This keeps its timing (fade-ins, holds, cut to
-the sparkle at frame 68) but draws the system names as plain text in the
-firmware's own 8x8 banner font (components/osd/system/banner_font.c), so the
-intro carries no third-party logo artwork. An ATARI LYNX card is added after
-GAME GEAR (16 more frames), and the closing card lists all four systems.
-Frames 68+ of the original follow unchanged.
+the Nintendo and Sega logos. Those scenes (frames 0-67) were first replaced by
+plain-text system names in the firmware's banner font; since 2026-11-21 they
+are left out, so the intro is just the original's sparkle and MAGIC TRICK logo
+(frames 68 onward, about 2.5 s). The text-card code below is kept, unused, in
+case a system card is wanted again (SCENES).
 
 Usage: make_text_intro.py <original.mp4> <out.mkv>
 Writes a lossless FFV1 file at the source frame rate for encode_intro.py.
@@ -18,6 +17,7 @@ import numpy as np
 W, H = 160, 144
 FONT_C = Path(__file__).resolve().parents[2] / 'components/osd/system/banner_font.c'
 WHITE = np.array([255, 255, 255])
+SCENES = False   # True: the system-name cards before the logo (5.3 s instead of 2.5 s)
 
 def load_font():
     src = FONT_C.read_text()
@@ -72,7 +72,9 @@ def main():
     # with one more 16-frame system card before the closing list.
     scenes = [(3, 18, gb, True), (20, 35, gbc, True), (36, 51, gg, True), (52, 67, lynx, True),
               (68, 83, four, False)]
-    text_frames = 84
+    if not SCENES:   # no system cards: the original from its sparkle on
+        scenes = []
+    text_frames = 84 if SCENES else 0
     frames = np.concatenate([np.empty((text_frames, H, W, 3), np.uint8), original[68:]])
     frames[:text_frames] = bg.astype(np.uint8)
     for f0, f1, mask, fades in scenes:
