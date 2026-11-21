@@ -1924,6 +1924,22 @@ static esp_err_t RunLoad(const char *pPath)
         Result = ESP_FAIL;
         goto Cleanup;
     }
+    /* A game running from memory keeps the cartridge out of reach (entering
+     * cartridge maintenance answers INVALID_RESPONSE): stop it, keeping its
+     * save, before reading the cartridge. (This also writes the cart's own
+     * game's save back to its chip, ClearActiveSave.) */
+    if (FromCart && CartStore_CanReadCart() && Active)
+    {
+        Result = CartBulk_Begin();
+        if (Result != ESP_OK) goto Cleanup;
+        Result = PersistActiveDataForTransition();
+        CartLinkResponse_t Stopped = {0};
+        if (Result == ESP_OK) Result = VirtualCommand(kVirtualCommandStop, NULL, &Stopped);
+        if (Result == ESP_OK) { SetActive(false); ClearActiveSave(); }
+        CartBulk_End();
+        printf("VIRTUAL_CART_STOP_FOR_CART result=%s\n", esp_err_to_name(Result));
+        if (Result != ESP_OK) goto Cleanup;
+    }
     /* Cartridge games: only the GB core reads the cart (cart_store.h). In
      * another core the game is either staged already (replay) or the GB core
      * must stage it first (ViaGB). */
