@@ -100,7 +100,7 @@ From the command line: `app.py --library games|covers|previews TARGET [FILES…]
 
 **Connect.** Put the cart in and switch the Chromatic on. It reaches the cart only from its Game Boy side: the cart's own Game Boy game or the menu. If the cart starts a Game Gear or Lynx game by itself (a Magic Trick cart with one game), switch off and on holding **B** to stay in the menu. Then either turn Wi-Fi off and **USB TRANSFERS** on (System tab) and plug in a USB cable, or open **Settings > Wi-Fi Files** for Wi-Fi (faster: a 2 MB cart reads in about 80 s instead of about 110 s). The installer picks USB when a Chromatic is plugged in.
 
-**1. READ CART.** The whole cart, and its save memory, are copied to your computer first (`Documents/Magic Trick/Cartridge backups`, a `.bin` and a `.sav`). **RESTORE A CART BACKUP** puts either back exactly, save included.
+**1. READ CART.** The whole cart, and its save memory, are copied to your computer first (`Documents/Magic Trick/Cartridge backups`, a `.bin` and a `.sav`). **RESTORE A CART BACKUP** (or **RESTORE BACKUP…** once a cart is read) puts one back exactly, save included. **BACKUP FOLDER** opens the folder; the files are for the installer, not to be opened.
 
 **2. Choose what kind of cart.**
 

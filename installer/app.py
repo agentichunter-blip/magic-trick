@@ -909,8 +909,10 @@ class App:
         self.status_dot.configure(fg=AMBER); self.status_text.configure(text='CARTRIDGE')
         top = tk.Frame(self.screen, bg=BG); top.pack(fill='x', pady=(4, 6))
         self.label(top, 'CARTRIDGE', self.f_pixel_big, AMBER).pack(side='left')
-        PixelButton(top, '◀ BACK', self.show_home, self.f_pixel, 'secondary').pack(side='right')
         state = getattr(self, 'cart', None)
+        # From the editor, BACK goes to the Cartridge start screen (connection, restore); from there, home.
+        PixelButton(top, '◀ BACK', self.cart_forget if state else self.show_home, self.f_pixel,
+                    'secondary').pack(side='right')
         if state:
             return self.cart_editor(state)
         self.label(self.screen, 'Put Game Gear, Lynx and Game Boy games on a rewritable Game Boy cart: a ModRetro cart or '
@@ -1101,12 +1103,14 @@ class App:
         what = info.own_title or ('Magic Trick cart' if info.dedicated else 'no game of its own')
         head = tk.Frame(self.screen, bg=BG); head.pack(fill='x')
         self.label(head, '%s CART · %s' % (size, what.upper()), self.f_pixel, INK).pack(side='left')
-        link = self.label(head, 'BACKUP ▸', self.f_pixel, GREEN, cursor='hand2'); link.pack(side='right')
+        link = self.label(head, 'BACKUP FOLDER ▸', self.f_pixel, GREEN, cursor='hand2'); link.pack(side='right')
         link.bind('<Button-1>', lambda e: self.open_folder(str(state['backup'].parent)))
         row = tk.Frame(self.screen, bg=BG); row.pack(fill='x', side='bottom', pady=(6, 0))
         self.cart_write_button = PixelButton(row, 'WRITE TO CART ▶', self.begin_cart_write, self.f_pixel, 'primary')
         self.cart_write_button.pack(side='right')
-        PixelButton(row, 'READ AGAIN', self.cart_forget, self.f_pixel, 'secondary').pack(side='right', padx=(0, 10))
+        PixelButton(row, 'READ AGAIN', self.begin_cart_read, self.f_pixel, 'secondary').pack(side='right', padx=(0, 10))
+        PixelButton(row, 'RESTORE BACKUP…', self.begin_cart_restore, self.f_pixel,
+                    'secondary').pack(side='right', padx=(0, 10))
         self.label(self.screen, 'WHAT KIND OF CART', self.f_pixel, ACCENT).pack(anchor='w', pady=(8, 2))
         self.cart_modes = {}
         own = info.own_title
