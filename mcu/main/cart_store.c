@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 #include "nvs.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -142,7 +143,7 @@ static bool ParseSlot(const uint8_t *pSlot, CartStoreEntry_t *pEntry)
     if ((Offset & (kBlock - 1u)) || Size == 0 || Offset + Size > (8u << 20) || Offset + Size < Offset)
         return false;
     memcpy(pEntry->Name, pName, Length + 1);
-    pEntry->ArtOffset = pEntry->ArtSize = 0;
+    pEntry->ArtOffset = pEntry->ArtSize = pEntry->ArtCrc = 0;
     pEntry->System = pSlot[4];
     pEntry->Offset = Offset;
     pEntry->Size = Size;
@@ -195,6 +196,7 @@ static int ParseDirectory2(uint32_t Offset, const uint8_t *pBlock)
             e->Crc = Read32(&p[16]);
             e->ArtOffset = Read32(&p[24]) ? Read32(&p[20]) : 0;
             e->ArtSize = e->ArtOffset ? Read32(&p[24]) : 0;
+            e->ArtCrc = Read32(&p[28]);
         }
     }
     free(pDir);
@@ -414,7 +416,7 @@ static void UnpackDirectory(const uint8_t *p, size_t Length)
         if (At + 22 + NameLength > Length) break;
         CartStoreEntry_t *e = &Entries[EntryCount++];
         e->Offset = Read32(p + At); e->Size = Read32(p + At + 4); e->Crc = Read32(p + At + 8);
-        e->ArtOffset = Read32(p + At + 12); e->ArtSize = Read32(p + At + 16);
+        e->ArtOffset = Read32(p + At + 12); e->ArtSize = Read32(p + At + 16); e->ArtCrc = 0;
         e->System = p[At + 20];
         memcpy(e->Name, p + At + 22, NameLength);
         e->Name[NameLength] = 0;
@@ -523,9 +525,10 @@ esp_err_t CartStore_RestartCart(void)
     return Result;
 }
 
+/* No lock: storage mounts call this, including from inside a locked
+ * cartridge session (CartStore_FlashEnd); it only reads two flags and NVS. */
 bool CartStore_HasGames(void)
 {
-    xSemaphoreTake(Lock, portMAX_DELAY);
     bool Has = Scanned && EntryCount > 0;
     if (!Scanned)
     {
@@ -537,7 +540,6 @@ bool CartStore_HasGames(void)
             nvs_close(Handle);
         }
     }
-    xSemaphoreGive(Lock);
     return Has;
 }
 
@@ -1654,14 +1656,113 @@ esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
     return Result;
 }
 
-/* Re-read the directory (for the menu and the other cores), then let the
- * cartridge go: it restarts. Returns the game count. */
-size_t CartStore_FlashEnd(void)
+/* Copies box art off the cartridge (session open, Lock held, storage
+ * mounted) to CART_STORE_ART_ROOT. Replace: also rewrite art that changed
+ * and remove art of games no longer on the cartridge; otherwise only add
+ * what's missing (a quick check before each cartridge game loads). */
+static void SyncArtLocked(bool Replace)
+{
+    enum { kMaxArt = 64 * 1024, kChunk = 4 * 1024 }; /* streamed: no big buffer */
+    if (mkdir(CART_STORE_SIDECAR_ROOT, 0775) != 0 && errno != EEXIST) return;
+    if (mkdir(CART_STORE_ART_ROOT, 0775) != 0 && errno != EEXIST) return;
+    uint8_t *pChunk = malloc(kChunk);
+    if (!pChunk) { printf("CARTSTORE art_nomem\n"); return; }
+    char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
+    unsigned Copied = 0, Failed = 0;
+    for (size_t i = 0; i < EntryCount; ++i)
+    {
+        const CartStoreEntry_t *e = &Entries[i];
+        if (!e->ArtSize || e->ArtSize > kMaxArt) continue;
+        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, e->Name);
+        struct stat Info;
+        const bool Have = stat(Path, &Info) == 0 && (uint32_t)Info.st_size == e->ArtSize;
+        if (Have && !Replace) continue;
+        if (Have)
+        {
+            FILE *pOld = fopen(Path, "rb");
+            uint32_t Crc = 0;
+            size_t Got;
+            while (pOld && (Got = fread(pChunk, 1, kChunk, pOld)) > 0) Crc = esp_rom_crc32_le(Crc, pChunk, Got);
+            if (pOld) fclose(pOld);
+            if (pOld && Crc == e->ArtCrc) continue;
+        }
+        (void)unlink(Path);
+        FILE *pFile = fopen(Path, "wb");
+        SDCard_TuneWrite(pFile);
+        bool Ok = pFile != NULL;
+        uint32_t Crc = 0;
+        for (uint32_t At = 0; Ok && At < e->ArtSize; At += kChunk)
+        {
+            const uint32_t Count = e->ArtSize - At < kChunk ? e->ArtSize - At : kChunk;
+            Ok = CartBulk_ReadCart(e->ArtOffset + At, pChunk, (Count + kBlock - 1u) / kBlock) == ESP_OK &&
+                 fwrite(pChunk, 1, Count, pFile) == Count;
+            Crc = esp_rom_crc32_le(Crc, pChunk, Count);
+        }
+        if (pFile && fclose(pFile) != 0) Ok = false;
+        if (Ok && Crc != e->ArtCrc) Ok = false;
+        if (!Ok)
+        {
+            (void)unlink(Path);
+            ++Failed;
+            printf("CARTSTORE art_failed=\"%s\" open=%u errno=%d\n", e->Name, pFile ? 1u : 0u, errno);
+            continue;
+        }
+        ++Copied;
+    }
+    free(pChunk);
+    unsigned Removed = 0;
+    DIR *pDir = Replace ? opendir(CART_STORE_ART_ROOT) : NULL;
+    for (struct dirent *d; pDir && (d = readdir(pDir)) != NULL; )
+    {
+        const size_t Length = strlen(d->d_name);
+        if (Length < 5 || strcasecmp(d->d_name + Length - 4, ".cma")) continue;
+        bool Keep = false;
+        for (size_t i = 0; i < EntryCount && !Keep; ++i)
+            Keep = Entries[i].ArtSize && strlen(Entries[i].Name) == Length - 4 &&
+                   !strncmp(Entries[i].Name, d->d_name, Length - 4);
+        if (Keep) continue;
+        snprintf(Path, sizeof(Path), "%s/%.*s", CART_STORE_ART_ROOT, (int)(sizeof(Path) - sizeof(CART_STORE_ART_ROOT) - 1), d->d_name);
+        if (unlink(Path) == 0) ++Removed;
+    }
+    if (pDir) closedir(pDir);
+    printf("CARTSTORE art copied=%u failed=%u removed=%u\n", Copied, Failed, Removed);
+}
+
+static esp_err_t SyncArtFn(void *pContext) { (void)pContext; SyncArtLocked(false); return ESP_OK; }
+
+void CartStore_SyncArt(void)
+{
+    if (!CartStore_CanReadCart()) return;
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    bool Needed = false;
+    if (!Scanned) { Scanned = WithCart(ScanFn, NULL) == ESP_OK; if (Scanned) SaveDirectory(); }
+    for (size_t i = 0; i < EntryCount && !Needed; ++i)
+    {
+        if (!Entries[i].ArtSize) continue;
+        char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
+        struct stat Info;
+        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, Entries[i].Name);
+        Needed = stat(Path, &Info) != 0;
+    }
+    if (Needed) (void)WithCart(SyncArtFn, NULL); /* only then touch the cartridge */
+    xSemaphoreGive(Lock);
+}
+
+/* Re-read the directory (for the menu and the other cores), bring the
+ * menu's box art up to date, then let the cartridge go: it restarts.
+ * Returns the game count. */
+size_t CartStore_FlashEnd(bool StorageMounted)
 {
     if (!FlashOpen) return 0;
     (void)Writes(kReset, 1);
     Scanned = ScanFn(NULL) == ESP_OK;
     if (Scanned) SaveDirectory();
+    sdmmc_card_t *pCard = NULL;
+    if (Scanned && (StorageMounted || SDCard_Mount(&pCard) == ESP_OK))
+    {
+        SyncArtLocked(true);
+        if (pCard) (void)SDCard_Unmount(pCard);
+    }
     const size_t Count = EntryCount;
     (void)CartBulk_CartExit();
     CartBulk_End();

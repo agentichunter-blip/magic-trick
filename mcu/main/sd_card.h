@@ -25,6 +25,9 @@ bool SDCard_IsVirtual(void);
 void SDCard_TuneWrite(FILE *pFile);
 /* Best-effort preview mount; never waits for a foreground storage owner. */
 esp_err_t SDCard_MountPreview(sdmmc_card_t **ppCard);
+/* The same for box art: with no card, also the internal store (cartridge
+ * games' art is copied there; see CartStore_SyncArt). */
+esp_err_t SDCard_MountArt(sdmmc_card_t **ppCard);
 
 esp_err_t SDCard_ProbeReadWrite(void);
 

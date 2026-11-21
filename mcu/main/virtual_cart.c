@@ -1969,6 +1969,9 @@ static esp_err_t RunLoad(const char *pPath)
         if (Result != ESP_OK) goto Cleanup;
         CartHeld = true;
     }
+    /* The menu shows cartridge games' box art from storage: copy any that
+     * isn't there yet (the cartridge is being read anyway). */
+    if (FromCart && CartStore_CanReadCart()) CartStore_SyncArt();
     const char *extension=strrchr(pPath,'.');
     Info.GameGear=extension && !strcasecmp(extension,".gg");
     Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;

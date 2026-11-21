@@ -44,6 +44,7 @@ esp_err_t SDCard_Mount(sdmmc_card_t **card) { *card = &TestCard; return ESP_OK; 
 esp_err_t SDCard_MountPhysical(sdmmc_card_t **card) { return SDCard_Mount(card); }
 esp_err_t SDCard_Unmount(sdmmc_card_t *card) { assert(card == &TestCard); return ESP_OK; }
 esp_err_t CartBackup_SetPCMode(bool enabled) { if (!enabled) ++ModeChanges; Active = enabled; return ESP_OK; }
+bool CartBackup_IsPCModeActive(void) { return Active; }
 esp_err_t CartBackup_StreamToSD(uint32_t selection, const CartBackupStreamSink_t *sink, void *context) {
     ++BackupCalls;
     assert(Active);

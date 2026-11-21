@@ -124,9 +124,10 @@ static esp_err_t MountStoreOnce(void)
     return ESP_ERR_INVALID_VERSION;
 }
 
-/* Mounts the internal store at /sdcard (formatting it the first time) with
- * the folders cartridge saves expect. Called with the mount gate held. */
-static esp_err_t MountStore(void)
+/* Mounts the internal store at /sdcard (formatting it the first time, unless
+ * !AllowFormat) with the folders cartridge saves expect. Called with the
+ * mount gate held. */
+static esp_err_t MountStore(bool AllowFormat)
 {
     esp_err_t Result = ESP_OK;
     if (!StorePartition)
@@ -141,6 +142,7 @@ static esp_err_t MountStore(void)
         }
     }
     Result = MountStoreOnce();
+    if (Result != ESP_OK && !AllowFormat) return Result;
     if (Result != ESP_OK)
     {
         printf("SDCARD_STORE mount=%s formatting\n", esp_err_to_name(Result));
@@ -240,9 +242,10 @@ static esp_err_t Mount(sdmmc_card_t **const ppCard, bool Preview, bool AllowStor
         if (Result == ESP_ERR_TIMEOUT && !CardResponded)
             Result = ESP_ERR_NOT_FOUND;
         /* No card at all, and the cartridge carries Magic Trick games: their
-         * saves go to the internal store instead (never for previews). */
-        if (Result == ESP_ERR_NOT_FOUND && AllowStore && !Preview && CartStore_HasGames() &&
-            MountStore() == ESP_OK)
+         * saves go to the internal store instead. Previews never use it; box
+         * art may (SDCard_MountArt), but never formats it. */
+        if (Result == ESP_ERR_NOT_FOUND && AllowStore && CartStore_HasGames() &&
+            MountStore(!Preview) == ESP_OK)
         {
             *ppCard = &StoreCard;
             return ESP_OK;
@@ -259,6 +262,7 @@ static esp_err_t Mount(sdmmc_card_t **const ppCard, bool Preview, bool AllowStor
 esp_err_t SDCard_Mount(sdmmc_card_t **ppCard) { return Mount(ppCard, false, true); }
 esp_err_t SDCard_MountPhysical(sdmmc_card_t **ppCard) { return Mount(ppCard, false, false); }
 esp_err_t SDCard_MountPreview(sdmmc_card_t **ppCard) { return Mount(ppCard, true, false); }
+esp_err_t SDCard_MountArt(sdmmc_card_t **ppCard) { return Mount(ppCard, true, true); }
 
 esp_err_t SDCard_ProbeReadWrite(void)
 {
@@ -452,6 +456,15 @@ static int StoreInfoCommand(const int argc, char **const argv)
         struct stat Stat;
         snprintf(Path, sizeof(Path), "%s/%s", CART_STORE_SIDECAR_ROOT, pEntry->d_name);
         printf("STOREINFO file=\"%s\" bytes=%ld\n", pEntry->d_name, stat(Path, &Stat) == 0 ? (long)Stat.st_size : -1L);
+    }
+    if (pDir) closedir(pDir);
+    pDir = opendir(CART_STORE_ART_ROOT);
+    for (struct dirent *pEntry; pDir && (pEntry = readdir(pDir)) != NULL;)
+    {
+        char Path[400];
+        struct stat Stat;
+        snprintf(Path, sizeof(Path), "%s/%s", CART_STORE_ART_ROOT, pEntry->d_name);
+        printf("STOREINFO art=\"%s\" bytes=%ld\n", pEntry->d_name, stat(Path, &Stat) == 0 ? (long)Stat.st_size : -1L);
     }
     if (pDir) closedir(pDir);
     (void)SDCard_Unmount(pCard);

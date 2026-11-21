@@ -46,6 +46,9 @@
  * free flash): "/cart/.cartridge/<TITLE> (CARTRIDGE).gb[c]". Choosing it
  * restarts the cartridge in the GB core instead of loading a file. */
 #define CART_STORE_OWN_ROOT CART_STORE_ROOT "/.cartridge"
+/* Box art of cartridge games, copied off the cartridge by the GB core so the
+ * menu can show it in any core: <root>/<game file name>.cma */
+#define CART_STORE_ART_ROOT CART_STORE_SIDECAR_ROOT "/ART"
 static inline bool CartStore_IsOwnGamePath(const char *pPath)
 {
     return pPath && strncmp(pPath, CART_STORE_OWN_ROOT "/", sizeof(CART_STORE_OWN_ROOT)) == 0;
@@ -65,6 +68,7 @@ typedef struct {
     uint32_t Crc;
     uint32_t ArtOffset; /* box art (.cma) on the cartridge, 0 for none */
     uint32_t ArtSize;
+    uint32_t ArtCrc;    /* (not kept in the other cores' copy) */
 } CartStoreEntry_t;
 
 /* Power-on boot of a dedicated cart: "/cart/<name>" when the cartridge's
@@ -111,7 +115,10 @@ esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks);
 esp_err_t CartStore_FlashErase(uint32_t Offset);
 esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData);
 esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc);
-size_t CartStore_FlashEnd(void);
+size_t CartStore_FlashEnd(bool StorageMounted);
+/* GB core, storage mounted: copy box art the menu doesn't have yet off the
+ * cartridge (holding it unless the caller already does). */
+void CartStore_SyncArt(void);
 /* One cartridge session (core held in reset) for all of a staging's reads,
  * so the cartridge's own game doesn't run between them; takes over the hold
  * from power-on/core-switch start-up (BootResume) when there is one.
@@ -163,7 +170,8 @@ static inline esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *p
 { (void)Offset; (void)pData; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
 { (void)Offset; (void)Length; (void)pCrc; return ESP_ERR_NOT_SUPPORTED; }
-static inline size_t CartStore_FlashEnd(void) { return 0; }
+static inline size_t CartStore_FlashEnd(bool StorageMounted) { (void)StorageMounted; return 0; }
+static inline void CartStore_SyncArt(void) {}
 #ifndef CART_STORE_TEST_HAS_GAMES
 static inline bool CartStore_HasGames(void) { return false; }
 #endif

@@ -329,7 +329,7 @@ static void ProcessOne(void)
         if ((HaveArt && Worker.Pixels) || HaveBadge)
         {
             sdmmc_card_t *Card = NULL;
-            Result = SDCard_MountPreview(&Card);
+            Result = HaveArt ? SDCard_MountArt(&Card) : SDCard_MountPreview(&Card);
             if (Result == ESP_OK)
             {
                 if(HaveArt && Worker.Pixels) {

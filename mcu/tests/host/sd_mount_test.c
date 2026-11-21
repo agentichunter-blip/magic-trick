@@ -151,6 +151,14 @@ int main(void) {
     Responds = false; MountResult = ESP_ERR_TIMEOUT;
     assert(SDCard_Mount(&card) == ESP_OK && SDCard_IsVirtual() && Formats == 3);
     assert(SDCard_Unmount(card) == ESP_OK);
+    /* Box art may read the store, but never formats it. */
+    const int FormatsBefore = Formats;
+    assert(SDCard_MountArt(&card) == ESP_OK && card == &StoreCard && SDCard_IsVirtual() && Formats == FormatsBefore);
+    assert(SDCard_Unmount(card) == ESP_OK);
+    (void)unlink(SDCARD_STORE_MARKER);
+    assert(SDCard_MountArt(&card) == ESP_ERR_NOT_FOUND && !SDCard_IsVirtual() && Formats == FormatsBefore);
+    assert(SDCard_Mount(&card) == ESP_OK && Formats == FormatsBefore + 1); /* a foreground mount repairs it */
+    assert(SDCard_Unmount(card) == ESP_OK);
     (void)remove("sd_mount_test.marker");
     return 0;
 }

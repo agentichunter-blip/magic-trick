@@ -59,6 +59,7 @@ esp_err_t SDCard_MountPreview(sdmmc_card_t **Card) {
     if(DuringMount) DuringMount();
     return ESP_OK;
 }
+esp_err_t SDCard_MountArt(sdmmc_card_t **Card) { return SDCard_MountPreview(Card); }
 esp_err_t SDCard_Unmount(sdmmc_card_t *Card) { assert(Mounted); Mounted=false; ++Unmounts; return ESP_OK; }
 static unsigned BadgeReads;
 static bool BadgeFailure;

@@ -385,7 +385,7 @@ static esp_err_t BackupCart(bool Save)
  * base64 per 1 KiB), 0x22 erase a 64 KiB block, 0x23 program (offset,
  * 1 KiB), 0x24 CRC (offset, length), 0x25 close (re-reads the directory,
  * restarts the cartridge). */
-static bool CartOpen, CartRestorePCMode;
+static bool CartOpen, CartRestorePCMode, CardMounted;
 static char CartLine[1400];
 
 /* USB TRANSFERS holds the cartridge in maintenance (PC mode); the flash
@@ -393,7 +393,7 @@ static char CartLine[1400];
 static size_t CartClose(void)
 {
     CartOpen = false;
-    const size_t Games = CartStore_FlashEnd();
+    const size_t Games = CartStore_FlashEnd(CardMounted);
     if (CartRestorePCMode)
     {
         CartRestorePCMode = false;
@@ -538,6 +538,7 @@ static esp_err_t Run(void)
     LastPing = esp_timer_get_time();
     sdmmc_card_t *Card = NULL;
     esp_err_t Mount = SDCard_MountPhysical(&Card);
+    CardMounted = Mount == ESP_OK;
     Upload = NULL; Temporary[0] = 0;
     (void)uart_flush_input(UART_NUM_0);
     printf("PCSD READY protocol=1 block=1024\n");
