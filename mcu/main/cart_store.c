@@ -1553,6 +1553,7 @@ static bool FlashRestorePCMode;
 bool CartStore_FlashIsOpen(void) { return FlashWanted; }
 static uint8_t FlashMode;
 static uint32_t FlashCapacity;
+static uint32_t FlashSaveSize; /* cartridge save memory (MBC5 banks of 8 KiB) */
 static uint8_t *pFlashScratch;
 static const uint16_t kEraseUnlock[][2] = {{0x0aaa, 0xaa}, {0x0555, 0x55}, {0x0aaa, 0x80},
                                            {0x0aaa, 0xaa}, {0x0555, 0x55}};
@@ -1587,6 +1588,14 @@ esp_err_t CartStore_FlashBegin(uint32_t *pCapacity)
     if (Result == ESP_OK) Result = CartBulk_CartEnter(NULL);
     const bool Entered = Result == ESP_OK;
     if (Result == ESP_OK) Result = IdentifyChip(&FlashCapacity, &FlashMode, pFlashScratch);
+    /* Save memory size from the cart's header; ModRetro carts have 32 KiB,
+     * and a header without RAM (e.g. a Magic Trick cart) still has the chip. */
+    if (Result == ESP_OK && CartBulk_ReadBlock(0, pFlashScratch) == ESP_OK)
+    {
+        static const uint32_t kSizes[] = {0, 2048, 8192, 32768, 131072, 65536};
+        const uint8_t Code = pFlashScratch[0x149];
+        FlashSaveSize = Code < 6 && kSizes[Code] >= 8192 ? kSizes[Code] : 32768;
+    }
     if (Result != ESP_OK)
     {
         if (Entered) (void)CartBulk_CartExit();
@@ -1681,6 +1690,39 @@ esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData)
 {
     if (!pData || !FlashRange(Offset, kBlock)) return ESP_ERR_INVALID_ARG;
     return ProgramBlock(Offset, pData, FlashMode, pFlashScratch, "CARTFLASH", NULL);
+}
+
+uint32_t CartStore_FlashSaveSize(void) { return FlashOpen ? FlashSaveSize : 0; }
+
+/* Save memory, MBC5 style: enable RAM (0x0000 = 0x0A), bank at 0x4000,
+ * 8 KiB window at 0xA000; disabled again after each block. */
+static esp_err_t SaveWindow(uint32_t Offset, uint16_t *pAddress)
+{
+    if (!FlashOpen || (Offset & (kBlock - 1u)) || Offset >= FlashSaveSize) return ESP_ERR_INVALID_ARG;
+    ESP_RETURN_ON_ERROR(CartBulk_CartWrite(0x0000, 0x0a), TAG, "save enable");
+    ESP_RETURN_ON_ERROR(CartBulk_CartWrite(0x4000, (uint8_t)(Offset / 8192u)), TAG, "save bank");
+    *pAddress = (uint16_t)(0xa000u + Offset % 8192u);
+    return ESP_OK;
+}
+
+esp_err_t CartStore_FlashSaveRead(uint32_t Offset, uint8_t *pData)
+{
+    uint16_t Address;
+    ESP_RETURN_ON_ERROR(SaveWindow(Offset, &Address), TAG, "save window");
+    const esp_err_t Result = CartBulk_ReadBlock(Address, pData);
+    (void)CartBulk_CartWrite(0x0000, 0x00);
+    return Result;
+}
+
+esp_err_t CartStore_FlashSaveWrite(uint32_t Offset, const uint8_t *pData)
+{
+    uint16_t Address;
+    ESP_RETURN_ON_ERROR(SaveWindow(Offset, &Address), TAG, "save window");
+    esp_err_t Result = CartBulk_WriteCartBlock(Address, pData, kBlock);
+    if (Result == ESP_OK) Result = CartBulk_ReadBlock(Address, pFlashScratch);
+    if (Result == ESP_OK && memcmp(pFlashScratch, pData, kBlock)) Result = ESP_ERR_INVALID_CRC;
+    (void)CartBulk_CartWrite(0x0000, 0x00);
+    return Result;
 }
 
 esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)

@@ -310,10 +310,19 @@ class UsbTarget(Target):
                 break
         time.sleep(3)
         port.reset_input_buffer(); port.write(b'\r\n'); port.flush(); time.sleep(0.2); port.reset_input_buffer()
-        if not self._usb_transfers_on():
+        on = None
+        for _ in range(4):   # just after a cart session the console can be slow to answer
+            on = self._usb_transfers_on()
+            if on is not None:
+                break
+            time.sleep(1)
+        if on is None:
             port.close()
-            raise ValueError('USB TRANSFERS is off. On the Chromatic, turn Wi-Fi off and USB TRANSFERS on, then try '
-                             'again.')
+            raise ValueError('The Chromatic didn\'t answer over USB. Switch it off and on, then try again.')
+        if not on:
+            port.close()
+            raise ValueError('USB TRANSFERS is off. On the Chromatic, press Menu and open the System tab: set WI-FI '
+                             'off and USB TRANSFERS on, then try again.')
         self._timeout(30)
         port.write(b'\rpcsd\r'); port.flush()
         ready = self._record()
@@ -335,7 +344,7 @@ class UsbTarget(Target):
                     self.port.baudrate = self.BAUD
                     return m.group(1) == b'1'
         self.port.baudrate = self.BAUD
-        return False
+        return None   # no answer (not the same as off)
 
     def _timeout(self, seconds):
         self.deadline = time.time() + seconds

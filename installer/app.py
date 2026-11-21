@@ -554,10 +554,12 @@ class App:
         self.root.update_idletasks()
         want_w = max(self.root.winfo_width(), self.root.winfo_reqwidth())
         want_h = max(self.root.winfo_height(), self.root.winfo_reqheight())
-        max_h = self.root.winfo_screenheight() - 80
+        max_h = self.root.winfo_screenheight() - (150 if sys.platform == 'darwin' else 80)   # menu bar + Dock
         if want_h > self.root.winfo_height() or want_w > self.root.winfo_width():
             self.root.geometry('%dx%d' % (want_w, min(want_h, max_h)))
-        self.root.minsize(min(want_w, self.root.winfo_screenwidth()), min(want_h, max_h))
+        # A floor, not the content's size: the window can still be made smaller (screens keep their main
+        # buttons at the bottom, so a short window clips the middle).
+        self.root.minsize(min(820, want_w, self.root.winfo_screenwidth()), min(640, want_h, max_h))
         if sys.platform.startswith('linux'):
             # Tiling window managers squeeze a normal window into a tile that clips the lower screens.
             # A fixed size and the dialog window type make most of them (Hyprland, sway, i3) float it.
@@ -868,6 +870,7 @@ class App:
                    'whole cart is copied to this computer as a backup.', self.f_body_big, INK,
                    wrap=840).pack(anchor='w')
         self.cart_route = getattr(self, 'cart_route', 'wifi')
+        self.cart_route_picked = getattr(self, 'cart_route_picked', False)
         self.label(self.screen, 'HOW TO REACH THE CHROMATIC', self.f_pixel, ACCENT).pack(anchor='w', pady=(14, 4))
         self.cart_route_rows = {}
         for key, name, note in CART_ROUTES:
@@ -880,7 +883,8 @@ class App:
         self.label(self.screen, 'BEFORE YOU START, ON THE CHROMATIC', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
         self.cart_steps = self.label(self.screen, '', self.f_body, MUTED, wrap=820)
         self.cart_steps.pack(anchor='w')
-        self.draw_cart_routes()
+        self.cart_route_poll = object()
+        self.cart_route_auto(self.cart_route_poll)
         for title, text, button, command, kind in [
                 ('READ CART', 'Back up the cart, then choose its games. About 2 minutes for a 2 MB cart.',
                  'START ▶', self.begin_cart_read, 'primary'),
@@ -896,8 +900,22 @@ class App:
         self.fit_window()
 
     def pick_cart_route(self, key):
-        self.cart_route = key
+        self.cart_route, self.cart_route_picked = key, True
         self.draw_cart_routes()
+
+    def cart_route_auto(self, poll):
+        """Until a route is picked by hand: USB when one Chromatic is plugged in, else Wi-Fi. Re-checked while the
+        route screen shows, so plugging in the cable switches it."""
+        if poll is not self.cart_route_poll or self.mode != 'cartridge' or getattr(self, 'cart', None):
+            return   # another copy of this screen, or it's gone
+        if not self.cart_route_picked and not self.busy:
+            try:
+                ports = core.device_ports()
+            except Exception:
+                ports = []
+            self.cart_route = 'usb' if len(ports) == 1 else 'wifi'
+        self.draw_cart_routes()
+        self.root.after(1500, self.cart_route_auto, poll)
 
     def draw_cart_routes(self):
         for key, (mark, name) in self.cart_route_rows.items():
@@ -905,7 +923,8 @@ class App:
                            fg=ACCENT if key == self.cart_route else MUTED)
         last = ('3. Open Settings > Wi-Fi Files (USB TRANSFERS off). It shows an address and, after you press A, a '
                 'WEB CODE: you\'ll type both here.' if self.cart_route == 'wifi' else
-                '3. Open the menu: turn Wi-Fi off and USB TRANSFERS on. Plug it into this computer with a USB cable.')
+                '3. Press Menu and open the System tab: set WI-FI off and USB TRANSFERS on. Plug it into this '
+                'computer with a USB cable.')
         self.cart_steps.configure(text='1. Put the cart in and switch the Chromatic on.\n2. Start a Game Boy game (the '
                                   'cart\'s own game is fine): Game Gear and Lynx games can\'t reach the cart.\n' + last)
 
@@ -929,7 +948,8 @@ class App:
             ports = []
         if len(ports) != 1:
             messagebox.showinfo('Connect your Chromatic', 'Plug your Chromatic into this computer with a USB cable, '
-                                'start a Game Boy game, and turn USB TRANSFERS on (Wi-Fi off). Then try again.')
+                                'start a Game Boy game, then press Menu and open the System tab: set WI-FI off and USB '
+                                'TRANSFERS on. Then try again.')
             return None
         return ('usb', ports[0])
 
@@ -975,6 +995,7 @@ class App:
             try:
                 library.emit('step', key='cart_read')
                 image = cart.read(lambda done, total: library.progress(done // 1024, total // 1024, 'KB read'))
+                save = cart.read_save() if cart.save_size else b''
             finally:
                 cart.close(); finish()
             info = cartridge.parse(image)
@@ -983,11 +1004,17 @@ class App:
             path = CART_BACKUPS / ('%s %s %08X.bin' % (stem, datetime.date.today().isoformat(), cartridge.crc32(image)))
             if not path.exists():
                 path.write_bytes(image)
-            print('Backup saved: %s' % path)
-            self.cart_loaded = {'image': image, 'info': info, 'backup': path, 'port': port,
-                                'games': list(info.games), 'dedicated': info.dedicated or not info.own_title}
+            if save:
+                path.with_suffix('.sav').write_bytes(save)   # the cart's save memory, next to its flash
+            print('Backup saved: %s%s' % (path, ' (+ %d KB save memory)' % (len(save) // 1024) if save else ''))
+            self.cart_loaded = {'image': image, 'info': info, 'backup': path, 'port': port, 'save': save,
+                                'games': list(info.games), 'mode': self.cart_mode_of(info)}
         self.cart_loaded = None
         self.run('cart_read', work, None)
+
+    @staticmethod
+    def cart_mode_of(info):
+        return 'keep' if info.own_title and not info.dedicated else 'magic'
 
     def cart_finished(self, error):
         self.clear(); self.mode = 'finished'; self.finish_colour = None
@@ -998,7 +1025,8 @@ class App:
         if error is None:
             word, colour = 'DONE!', GREEN
             lines = self.cart_result
-            extra = ('Next: on the Chromatic, turn USB TRANSFERS off and open Games > Cartridge.')
+            extra = ('Next: on the Chromatic, press Menu, set USB TRANSFERS off in the System tab, and open Games > '
+                     'Cartridge.')
         else:
             word, colour = 'STOPPED', RED
             lines = 'It stopped before finishing: ' + error
@@ -1020,55 +1048,70 @@ class App:
     def cart_editor(self, state):
         info = state['info']
         size = '%g MB' % (info.capacity / 1048576)
-        what = ('keeps its own game, %s' % info.own_title) if info.own_title else \
-            ('a Magic Trick cart' if info.dedicated else 'no game of its own')
+        what = info.own_title or ('Magic Trick cart' if info.dedicated else 'no game of its own')
         head = tk.Frame(self.screen, bg=BG); head.pack(fill='x')
         self.label(head, '%s CART · %s' % (size, what.upper()), self.f_pixel, INK).pack(side='left')
-        link = self.label(head, 'BACKUP SAVED ▸', self.f_pixel, GREEN, cursor='hand2'); link.pack(side='right')
+        link = self.label(head, 'BACKUP ▸', self.f_pixel, GREEN, cursor='hand2'); link.pack(side='right')
         link.bind('<Button-1>', lambda e: self.open_folder(str(state['backup'].parent)))
-        if info.own_title:
-            self.label(self.screen, 'WHAT KIND OF CART', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 2))
-            self.cart_modes = {}
-            for dedicated, text in [
-                    (False, 'Keep %s. It still plays on any Game Boy, and is listed first under Games > Cartridge.'
-                     % info.own_title),
-                    (True, 'Magic Trick cart. Replaces %s with a title card; with one game, the Chromatic starts '
-                     'straight into it.' % info.own_title)]:
-                row = tk.Frame(self.screen, bg=BG, cursor='hand2'); row.pack(fill='x', pady=1)
-                mark = self.label(row, '', self.f_pixel, INK, width=22); mark.pack(side='left')
-                note = self.label(row, text, self.f_body, MUTED, wrap=520); note.pack(side='left', padx=(10, 0))
-                for w in (row, mark, note):
-                    w.bind('<Button-1>', lambda e, d=dedicated: self.cart_set_mode(d))
-                self.cart_modes[dedicated] = mark
-        self.label(self.screen, 'GAMES ON THE CART', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 2))
+        row = tk.Frame(self.screen, bg=BG); row.pack(fill='x', side='bottom', pady=(6, 0))
+        self.cart_write_button = PixelButton(row, 'WRITE TO CART ▶', self.begin_cart_write, self.f_pixel, 'primary')
+        self.cart_write_button.pack(side='right')
+        PixelButton(row, 'READ AGAIN', self.cart_forget, self.f_pixel, 'secondary').pack(side='right', padx=(0, 10))
+        self.label(self.screen, 'WHAT KIND OF CART', self.f_pixel, ACCENT).pack(anchor='w', pady=(8, 2))
+        self.cart_modes = {}
+        own = info.own_title
+        options = ([('keep', 'KEEP IT', 'Keep %s first: it still plays on any Game Boy.' % own)] if own else []) + [
+            ('replace', 'OWN GAME', 'Put a Game Boy game of your choice first%s, so any Game Boy plays it. More '
+             'games can still go on for the Chromatic.' % (' instead of %s' % own if own else '')),
+            ('magic', 'MAGIC TRICK CART', 'Only games for the Chromatic, behind a title card. With one game, it '
+             'starts straight away.')]
+        for key, name, text in options:
+            row = tk.Frame(self.screen, bg=BG, cursor='hand2'); row.pack(fill='x', pady=1)
+            mark = self.label(row, '', self.f_pixel, INK, width=20); mark.pack(side='left', anchor='n')
+            note = self.label(row, text, self.f_body, MUTED, wrap=560); note.pack(side='left', padx=(8, 0))
+            for w in (row, mark, note):
+                w.bind('<Button-1>', lambda e, k=key: self.cart_set_mode(k))
+            self.cart_modes[key] = (mark, name)
+        self.cart_own_row = tk.Frame(self.screen, bg=BG)
+        pick = tk.Frame(self.cart_own_row, bg=BG); pick.pack(fill='x')
+        PixelButton(pick, 'CHOOSE GAME…', self.cart_pick_own, self.f_pixel, 'secondary').pack(side='left')
+        self.cart_own_label = self.label(pick, '', self.f_body, INK, wrap=560)
+        self.cart_own_label.pack(side='left', padx=(12, 0))
+        clear = tk.Frame(self.cart_own_row, bg=BG, cursor='hand2'); clear.pack(fill='x', pady=(4, 0))
+        self.cart_save_box = self.label(clear, '', self.f_pixel, INK, width=18)
+        self.cart_save_box.pack(side='left', anchor='n')
+        self.cart_clear_note = clear_note = self.label(clear, '', self.f_body, MUTED, wrap=520)
+        clear_note.pack(side='left', padx=(8, 0))
+        for w in (clear, self.cart_save_box, clear_note):
+            w.bind('<Button-1>', lambda e: self.cart_toggle_clear())
+        self.cart_games_title = self.label(self.screen, 'GAMES ON THE CART', self.f_pixel, ACCENT)
+        self.cart_games_title.pack(anchor='w', pady=(8, 2))
         frame = tk.Frame(self.screen, bg=BG); frame.pack(fill='x')
         mono = 'Menlo' if sys.platform == 'darwin' else ('Consolas' if sys.platform == 'win32' else 'DejaVu Sans Mono')
-        self.cart_list = tk.Listbox(frame, selectmode='extended', activestyle='none', font=(mono, 12), height=8,
+        self.cart_list = tk.Listbox(frame, selectmode='extended', activestyle='none', font=(mono, 12), height=4,
                                     bg=PANEL, fg=INK, selectbackground=BLUE, selectforeground=INK, relief='flat',
                                     highlightthickness=0, exportselection=False)
         bar = tk.Scrollbar(frame, command=self.cart_list.yview); self.cart_list.configure(yscrollcommand=bar.set)
         self.cart_list.pack(side='left', fill='x', expand=True); bar.pack(side='right', fill='y')
         buttons = tk.Frame(self.screen, bg=BG); buttons.pack(fill='x', pady=(6, 0))
-        for text, command in [('ADD GAMES ▶', self.cart_add_games), ('REMOVE', self.cart_remove),
-                              ('FIND BOX ART ▶', self.cart_find_art), ('PICK ART…', self.cart_pick_art),
+        for text, command in [('ADD GAMES…', self.cart_add_games), ('REMOVE', self.cart_remove),
+                              ('FIND ART', self.cart_find_art), ('PICK ART…', self.cart_pick_art),
                               ('NO ART', self.cart_clear_art)]:
             PixelButton(buttons, text, command, self.f_pixel, 'secondary').pack(side='left', padx=(0, 8))
         self.cart_note = self.label(self.screen, '', self.f_body, MUTED, wrap=820)
         self.cart_note.pack(anchor='w', pady=(4, 0))
-        self.label(self.screen, 'CART SPACE', self.f_pixel, ACCENT).pack(anchor='w', pady=(10, 2))
+        self.label(self.screen, 'CART SPACE', self.f_pixel, ACCENT).pack(anchor='w', pady=(6, 2))
         self.cart_bar = tk.Canvas(self.screen, height=26, bg=BG, highlightthickness=0); self.cart_bar.pack(fill='x')
-        legend = tk.Frame(self.screen, bg=BG); legend.pack(anchor='w')
-        self.cart_bar_text = self.label(legend, '', self.f_pixel, MUTED); self.cart_bar_text.pack(side='left')
-        for text, colour in [(info.own_title or 'CART PROGRAM', FAINT), ('GAMES', ACCENT), ('BOX ART', LILAC)]:
-            self.label(legend, '  ■ ', self.f_pixel, colour).pack(side='left')
-            self.label(legend, text.upper(), self.f_pixel, MUTED).pack(side='left')
-        self.label(self.screen, 'SAVES & STATES WITHOUT AN SD CARD', self.f_pixel, ACCENT).pack(anchor='w', pady=(8, 2))
+        legend = tk.Frame(self.screen, bg=BG); legend.pack(fill='x')
+        self.cart_bar_text = self.label(legend, '', self.f_body, MUTED); self.cart_bar_text.pack(side='left')
+        self.cart_legend = []
+        for text, colour in [('BOX ART', LILAC), ('GAMES', ACCENT), (info.own_title or 'CART PROGRAM', FAINT)]:
+            name = self.label(legend, text, self.f_body, MUTED); name.pack(side='right', padx=(0, 10))
+            self.label(legend, '■', self.f_pixel, colour).pack(side='right', padx=(0, 4))
+            self.cart_legend.append(name)
+        self.label(self.screen, 'SAVES & STATES WITHOUT AN SD CARD', self.f_pixel, ACCENT).pack(anchor='w', pady=(6, 2))
         self.store_bar = tk.Canvas(self.screen, height=26, bg=BG, highlightthickness=0); self.store_bar.pack(fill='x')
         self.store_bar_text = self.label(self.screen, '', self.f_body, MUTED, wrap=820); self.store_bar_text.pack(anchor='w')
-        row = tk.Frame(self.screen, bg=BG); row.pack(fill='x', pady=(12, 0))
-        self.cart_write_button = PixelButton(row, 'WRITE TO CART ▶', self.begin_cart_write, self.f_pixel, 'primary')
-        self.cart_write_button.pack(side='right')
-        PixelButton(row, 'READ AGAIN', self.cart_forget, self.f_pixel, 'secondary').pack(side='right', padx=(0, 10))
         for canvas in (self.cart_bar, self.store_bar):
             canvas.bind('<Configure>', lambda e: self.draw_cart())
         self.screen.after(50, self.draw_cart)
@@ -1078,19 +1121,53 @@ class App:
         self.cart = None
         self.show_cartridge()
 
-    def cart_set_mode(self, dedicated):
-        self.cart['dedicated'] = dedicated
+    def cart_set_mode(self, mode):
+        self.cart['mode'] = mode
+        if mode == 'replace' and not self.cart.get('own_rom'):
+            self.cart_pick_own()
         self.draw_cart()
+
+    def cart_pick_own(self):
+        path = ask_open_filename(title='Choose the Game Boy or Game Boy Color game to put first on the cart',
+                                 filetypes=[('Game Boy games', '*.gb *.gbc *.zip'), ('All files', '*')])
+        if not path:
+            return
+        found = [(n, load) for n, load, _ in library.collect_games([path]) if n.lower().endswith(('.gb', '.gbc'))]
+        if not found:
+            messagebox.showinfo('Not a Game Boy game', 'Choose a .gb or .gbc file (or a zip with one in it).')
+            return
+        name, load = found[0]
+        try:
+            image, title, notes = cartridge.own_game(load(), self.cart_save_size())
+        except cartridge.CartError as exc:
+            messagebox.showinfo('That game can\'t go first on the cart', str(exc))
+            return
+        self.cart['own_rom'] = {'name': name, 'image': image, 'title': title, 'notes': notes}
+        self.cart['mode'] = 'replace'
+        self.cart.setdefault('clear_save', True)
+        self.draw_cart()
+
+    def cart_toggle_clear(self):
+        self.cart['clear_save'] = not self.cart.get('clear_save', True)
+        self.draw_cart()
+
+    def cart_save_size(self):
+        return len(self.cart.get('save') or b'') or 32768
 
     def cart_target(self):
         """(image or None, error text): the cart as it would be written."""
         state = self.cart
         info = state['info']
         try:
-            if state['dedicated'] or not info.own_title:
+            if state['mode'] == 'magic':
                 if not state['games']:
                     return None, 'Add at least one game.'
                 return cartridge.build(info.capacity, state['games'], dedicated=True), ''
+            if state['mode'] == 'replace':
+                own = state.get('own_rom')
+                if not own:
+                    return None, 'Choose the Game Boy game to put first on the cart (CHOOSE GAME…).'
+                return cartridge.build(info.capacity, state['games'], own_image=own['image']), ''
             return cartridge.build(info.capacity, state['games'], own_image=state['image']), ''
         except cartridge.CartFull as exc:
             return None, str(exc)
@@ -1118,32 +1195,51 @@ class App:
             return
         state = self.cart
         info = state['info']
-        dedicated = state['dedicated'] or not info.own_title
-        for d, mark in getattr(self, 'cart_modes', {}).items():
-            mark.configure(text=('[■] ' if d == dedicated else '[ ] ') + ('MAGIC TRICK CART' if d else 'KEEP IT'),
-                           fg=ACCENT if d == dedicated else MUTED)
+        mode = state['mode']
+        dedicated = mode == 'magic'
+        for key, (mark, name) in getattr(self, 'cart_modes', {}).items():
+            mark.configure(text=('[■] ' if key == mode else '[ ] ') + name, fg=ACCENT if key == mode else MUTED)
+        own = state.get('own_rom')
+        if mode == 'replace':
+            self.cart_own_row.pack(fill='x', padx=(32, 0), pady=(2, 4), after=self.cart_modes['replace'][0].master)
+            self.cart_own_label.configure(text=('%s (%s)' % (own['title'], own['name'])) if own else 'No game chosen yet.')
+            on = state.get('clear_save', True)
+            self.cart_save_box.configure(text=('[■] ' if on else '[ ] ') + 'BLANK SAVE', fg=ACCENT if on else MUTED)
+            old = info.own_title or 'the old game'
+            new = own['title'] if own else 'the new game'
+            self.cart_clear_note.configure(
+                text=('The cart\'s save chip still holds %s\'s save. Wipe it so %s starts with no save (the old one '
+                      'is in your backup).' % (old, new)) if on else
+                     ('Keep the save chip as it is: %s will see %s\'s save data, which it may read as damaged.' %
+                      (new, old)))
+        else:
+            self.cart_own_row.pack_forget()
+        self.cart_games_title.configure(text='MORE GAMES (FOR THE CHROMATIC)' if mode == 'replace' else
+                                        'GAMES ON THE CART' if mode == 'magic' else 'ADDED GAMES (FOR THE CHROMATIC)')
         self.cart_list.delete(0, 'end')
         for g in state['games']:
             self.cart_list.insert('end', '%-10s %7s  %s  %s' % (cartridge.SYSTEM_NAMES[g.system],
                                                                 '%d KB' % (len(g.data) // 1024),
                                                                 'ART' if g.art else '   ', g.name))
-        parts, used = cartridge.usage(info.capacity, state['games'], own=info.own_size, dedicated=dedicated)
+        own_size = len(own['image']) if mode == 'replace' and own else info.own_size
+        self.cart_legend[2].configure(text='TITLE CARD' if dedicated else (own['title'] if mode == 'replace' and own
+                                                                          else info.own_title or 'CART PROGRAM'))
+        parts, used = cartridge.usage(info.capacity, state['games'], own=own_size, dedicated=dedicated)
         colours = {'own': FAINT, 'stub': FAINT, 'directory': LINE, 'game': ACCENT, 'art': LILAC}
         self.draw_segments(self.cart_bar, parts[:-1], info.capacity, colours)
         free = info.capacity - used
         self.cart_bar_text.configure(
-            text='%.2f MB OF %g MB USED · %s' % (used / 1048576, info.capacity / 1048576,
-                                                 '%d KB FREE' % (free // 1024) if free >= 0 else
-                                                 '%d KB TOO MUCH' % (-free // 1024)),
+            text='%.2f MB of %g MB used · %s' % (used / 1048576, info.capacity / 1048576,
+                                                 '%d KB free' % (free // 1024) if free >= 0 else
+                                                 '%d KB too much' % (-free // 1024)),
             fg=RED if free < 0 else MUTED)
         store_parts, store = cartridge.store_usage(state['games'])
         self.draw_segments(self.store_bar, [(n, 'save', b) for n, b in store_parts], cartridge.STORE_BYTES,
                            {'save': AMBER if store > cartridge.STORE_BYTES else GREEN})
-        text = ('Up to %.2f MB of about %.2f MB, if every game uses its save and all 3 save states. ' %
-                (store / 1048576, cartridge.STORE_BYTES / 1048576))
-        text += ('That could run out without an SD card: then the newest saves fail. With an SD card in, saves '
-                 'go on the card instead.' if store > cartridge.STORE_BYTES else
-                 'With an SD card in, saves go on the card instead.')
+        text = ('Up to %.2f of %.2f MB if every game saves and uses all 3 states%s' %
+                (store / 1048576, cartridge.STORE_BYTES / 1048576,
+                 ': without an SD card the newest saves could fail.' if store > cartridge.STORE_BYTES else
+                 '. With an SD card in, saves go on the card.'))
         self.store_bar_text.configure(text=text, fg=AMBER if store > cartridge.STORE_BYTES else MUTED)
         target, problem = self.cart_target()
         changed = target is not None and target != state['image']
@@ -1156,7 +1252,10 @@ class App:
                                                                len(state['games']) == 1 else ''))
         else:
             note = problem
-        self.cart_note.configure(text=note, fg=RED if target is None else MUTED)
+        warn = mode == 'replace' and own and own['notes']
+        if warn and target is not None:
+            note = ' '.join(own['notes']) + ' ' + note
+        self.cart_note.configure(text=note, fg=RED if target is None else (AMBER if warn else MUTED))
         self.cart_write_button.set_enabled(changed)
 
     def cart_selected(self):
@@ -1251,8 +1350,15 @@ class App:
         before = {g.name for g in state['info'].games}
         after = {g.name for g in state['games']}
         lines = ['Add: ' + n for n in sorted(after - before)] + ['Remove: ' + n for n in sorted(before - after)]
-        if state['dedicated'] and state['info'].own_title:
+        own = state.get('own_rom')
+        if state['mode'] == 'magic' and state['info'].own_title:
             lines.insert(0, 'Replace %s with the Magic Trick title card' % state['info'].own_title)
+        clear = state['mode'] == 'replace' and state.get('clear_save', True)
+        if state['mode'] == 'replace' and own:
+            lines.insert(0, 'Put %s first%s' % (own['title'], ' (instead of %s)' % state['info'].own_title
+                                                 if state['info'].own_title else ''))
+            if clear:
+                lines.insert(1, 'Wipe the cart\'s save chip (%s\'s save is in your backup)' % (state['info'].own_title or 'the old'))
         listing = '\n'.join('• ' + l for l in lines[:10]) + ('\n…and %d more' % (len(lines) - 10) if len(lines) > 10 else '')
         if not messagebox.askyesno('Write to the cart?', (listing + '\n\n' if listing else '') +
                                    'This changes %d KB of the cart. Your backup is saved in:\n%s\n\nKeep the cable in '
@@ -1262,7 +1368,8 @@ class App:
         port = self.cart_connection()
         if not port:
             return
-        self.cart_write_run('cart_write', state['image'], target, port, check=True)
+        save = b'\xff' * self.cart_save_size() if clear else None
+        self.cart_write_run('cart_write', state['image'], target, port, check=True, save=save)
 
     def begin_cart_restore(self):
         if self.busy:
@@ -1274,16 +1381,19 @@ class App:
         image = Path(path).read_bytes()
         info = cartridge.parse(image)
         what = info.own_title or ('a Magic Trick cart' if info.dedicated else 'a cart')
-        if not messagebox.askyesno('Restore this backup?', '%s\n\n%g MB, %s, %s.\n\nEverything on the cart is '
+        save_path = Path(path).with_suffix('.sav')
+        save = save_path.read_bytes() if save_path.is_file() else None
+        if not messagebox.askyesno('Restore this backup?', '%s\n\n%g MB, %s, %s%s.\n\nEverything on the cart is '
                                    'replaced by this backup. Continue?' % (Path(path).name, len(image) / 1048576, what,
-                                   library.plural(len(info.games), 'added game')), icon='warning'):
+                                   library.plural(len(info.games), 'added game'),
+                                   ', and its %d KB save memory' % (len(save) // 1024) if save else ''), icon='warning'):
             return
         port = self.cart_connection()
         if not port:
             return
-        self.cart_write_run('cart_restore', None, image, port, check=False)
+        self.cart_write_run('cart_restore', None, image, port, check=False, save=save)
 
-    def cart_write_run(self, operation, current, target, port, check):
+    def cart_write_run(self, operation, current, target, port, check, save=None):
         def work():
             library.emit('step', key='cart_connect')
             finish, cart = self.cart_open(port)
@@ -1323,6 +1433,9 @@ class App:
                 if not cart.matches(target, touched):
                     raise ValueError('The cart doesn\'t match what was written. Write it again, or restore your '
                                      'backup.')
+                if save is not None and cart.save_size:
+                    print('Writing %d KB of save memory' % (cart.save_size // 1024))
+                    cart.write_save(bytes(save[:cart.save_size]).ljust(cart.save_size, b'\xff'))
             finally:
                 games = cart.close(); finish()
             info = cartridge.parse(target)
@@ -1330,7 +1443,9 @@ class App:
                                 ' plus %s' % info.own_title if info.own_title else ''))
             if self.cart:
                 self.cart.update({'image': target, 'info': info, 'games': list(info.games),
-                                  'dedicated': info.dedicated or not info.own_title})
+                                  'mode': self.cart_mode_of(info), 'own_rom': None})
+                if save is not None:
+                    self.cart['save'] = bytes(save)
             print('The Chromatic reads %s games on the cart.' % games)
         self.cart_result = ''
         self.run(operation, work, None)

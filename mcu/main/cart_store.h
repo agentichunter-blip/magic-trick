@@ -118,6 +118,12 @@ esp_err_t CartStore_FlashReadShared(uint32_t Offset, uint32_t *pBlocks, const ui
 esp_err_t CartStore_FlashErase(uint32_t Offset);
 esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData);
 esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc);
+/* The cartridge's save memory (battery RAM / FRAM), 1 KiB at a time; the
+ * size comes from the header (32 KiB when it names none). Writes are read
+ * back. */
+uint32_t CartStore_FlashSaveSize(void);
+esp_err_t CartStore_FlashSaveRead(uint32_t Offset, uint8_t *pData);
+esp_err_t CartStore_FlashSaveWrite(uint32_t Offset, const uint8_t *pData);
 size_t CartStore_FlashEnd(bool StorageMounted);
 /* True from Begin until End: PC-mode owners must not re-take the cartridge. */
 bool CartStore_FlashIsOpen(void);
@@ -178,6 +184,9 @@ static inline esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *p
 static inline esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
 { (void)Offset; (void)Length; (void)pCrc; return ESP_ERR_NOT_SUPPORTED; }
 static inline size_t CartStore_FlashEnd(bool StorageMounted) { (void)StorageMounted; return 0; }
+static inline uint32_t CartStore_FlashSaveSize(void) { return 0; }
+static inline esp_err_t CartStore_FlashSaveRead(uint32_t Offset, uint8_t *pData) { (void)Offset; (void)pData; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashSaveWrite(uint32_t Offset, const uint8_t *pData) { (void)Offset; (void)pData; return ESP_ERR_NOT_SUPPORTED; }
 static inline bool CartStore_FlashIsOpen(void) { return false; }
 static inline void CartStore_SyncArt(void) {}
 #ifndef CART_STORE_TEST_HAS_GAMES

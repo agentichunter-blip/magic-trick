@@ -469,7 +469,7 @@ static esp_err_t CartOpen(httpd_req_t *Req)
     const esp_err_t Result = CartStore_FlashBegin(&Capacity);
     if (Result != ESP_OK) return CartFailed(Req, Result);
     cJSON *Reply = cJSON_CreateObject();
-    if (Reply) cJSON_AddNumberToObject(Reply, "capacity", Capacity);
+    if (Reply) { cJSON_AddNumberToObject(Reply, "capacity", Capacity); cJSON_AddNumberToObject(Reply, "save", CartStore_FlashSaveSize()); }
     return Json(Req, Reply);
 }
 static esp_err_t CartRead(httpd_req_t *Req)
@@ -534,6 +534,58 @@ static esp_err_t CartWrite(httpd_req_t *Req)
     httpd_resp_set_type(Req, "application/json");
     return httpd_resp_sendstr(Req, "{\"ok\":true}");
 }
+/* GET save?offset&length: the cart's save memory; PUT save?offset: write it
+ * (whole 1 KiB blocks, read back). */
+static esp_err_t CartSaveRead(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Offset, Length;
+    if (!CartQuery(Req, &Offset, &Length) || !Length || Length > 128 * 1024 || (Length & 1023u))
+        return Error(Req, "400 Bad Request", "Invalid save range.");
+    uint8_t *Block = malloc(1024);
+    if (!Block) return Error(Req, "503 Service Unavailable", "Not enough memory.");
+    esp_err_t Result = CartStore_FlashSaveRead(Offset, Block);
+    if (Result != ESP_OK) { free(Block); return CartFailed(Req, Result); }
+    httpd_resp_set_type(Req, "application/octet-stream");
+    for (uint32_t At = 0; Result == ESP_OK && At < Length && !Stopping(); At += 1024)
+    {
+        if (At) Result = CartStore_FlashSaveRead(Offset + At, Block);
+        if (Result == ESP_OK) Result = httpd_resp_send_chunk(Req, (const char *)Block, 1024);
+        Touch();
+    }
+    free(Block);
+    if (Result != ESP_OK || Stopping()) return ESP_FAIL;
+    return httpd_resp_send_chunk(Req, NULL, 0);
+}
+static esp_err_t CartSaveWrite(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Offset;
+    if (!CartQuery(Req, &Offset, NULL) || !Req->content_len || Req->content_len > 128 * 1024 || (Req->content_len & 1023u))
+        return Error(Req, "400 Bad Request", "Invalid save range.");
+    uint8_t *Block = malloc(1024);
+    if (!Block) return Error(Req, "503 Service Unavailable", "Not enough memory.");
+    esp_err_t Result = ESP_OK;
+    unsigned Stalls = 0;
+    for (size_t Done = 0; Result == ESP_OK && Done < Req->content_len; Done += 1024)
+    {
+        size_t Got = 0;
+        while (Got < 1024)
+        {
+            const int Count = httpd_req_recv(Req, (char *)Block + Got, 1024 - Got);
+            if (Count == HTTPD_SOCK_ERR_TIMEOUT && ++Stalls < kUploadStallLimit) continue;
+            if (Count <= 0 || Stopping()) { Result = ESP_FAIL; break; }
+            Stalls = 0; Got += Count;
+        }
+        if (Result == ESP_OK) Result = CartStore_FlashSaveWrite(Offset + Done, Block);
+        Touch();
+    }
+    free(Block);
+    if (Result == ESP_FAIL) return Error(Req, "500 Internal Server Error", "The upload stopped. Write it again.");
+    if (Result != ESP_OK) return CartFailed(Req, Result);
+    httpd_resp_set_type(Req, "application/json");
+    return httpd_resp_sendstr(Req, "{\"ok\":true}");
+}
 static esp_err_t CartCrc(httpd_req_t *Req)
 {
     if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
@@ -563,7 +615,7 @@ static esp_err_t StartServer(void)
     Config.max_open_sockets = 2;
     Config.lru_purge_enable = true;
     Config.recv_wait_timeout = 5; Config.send_wait_timeout = 5;
-    Config.max_uri_handlers = 18;
+    Config.max_uri_handlers = 20;
     esp_err_t Result = httpd_start(&Server, &Config);
     if (Result != ESP_OK) return Result;
     const httpd_uri_t Routes[] = {
@@ -585,6 +637,8 @@ static esp_err_t StartServer(void)
         {.uri="/api/cart/write", .method=HTTP_PUT, .handler=CartWrite},
         {.uri="/api/cart/crc", .method=HTTP_GET, .handler=CartCrc},
         {.uri="/api/cart/close", .method=HTTP_POST, .handler=CartClose},
+        {.uri="/api/cart/save", .method=HTTP_GET, .handler=CartSaveRead},
+        {.uri="/api/cart/save", .method=HTTP_PUT, .handler=CartSaveWrite},
     };
     for (unsigned I = 0; I < sizeof(Routes)/sizeof(Routes[0]); ++I)
         if ((Result = httpd_register_uri_handler(Server, &Routes[I])) != ESP_OK) return Result;

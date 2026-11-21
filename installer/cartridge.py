@@ -196,6 +196,45 @@ def parse(image):
     return cart
 
 
+# ------------------------------------------------ the cart's own game
+
+MAPPERS = {0x00: 'ROM only', 0x01: 'MBC1', 0x02: 'MBC1', 0x03: 'MBC1', 0x05: 'MBC2', 0x06: 'MBC2',
+           0x0f: 'MBC3', 0x10: 'MBC3', 0x11: 'MBC3', 0x12: 'MBC3', 0x13: 'MBC3',
+           0x19: 'MBC5', 0x1a: 'MBC5', 0x1b: 'MBC5', 0x1c: 'MBC5', 0x1d: 'MBC5', 0x1e: 'MBC5'}
+RAM_SIZES = {0: 0, 1: 2048, 2: 8192, 3: 32768, 4: 131072, 5: 65536}
+
+
+def own_game(rom, save_size=32768):
+    """Check a Game Boy / Game Boy Color ROM for use as the cart's own game
+    (what an original Game Boy plays). Returns (padded image, title, notes):
+    notes are warnings about how well the cart's own controller (which acts
+    like an MBC5, as on ModRetro carts) can run it."""
+    if not header_ok(rom):
+        raise CartError('That isn\'t a Game Boy or Game Boy Color game (its header doesn\'t check out).')
+    size = 0x8000 << rom[0x148] if rom[0x148] <= 8 else 0
+    if not size or len(rom) > size:
+        raise CartError('That game\'s size doesn\'t match its header.')
+    padded = bytes(rom) + b'\xff' * (size - len(rom))
+    notes = []
+    mapper = MAPPERS.get(rom[0x147])
+    if mapper is None:
+        notes.append('It uses a special cartridge chip (type 0x%02X) that this cart can\'t act like, so it '
+                     'probably won\'t run on an original Game Boy.' % rom[0x147])
+    elif mapper == 'MBC1':
+        notes.append('It was made for an MBC1 cartridge. This cart acts like an MBC5, so on an original Game Boy '
+                     'it may not run or may crash later on.')
+    elif mapper == 'MBC2':
+        notes.append('It was made for an MBC2 cartridge (with save memory built into the chip), which this cart '
+                     'can\'t act like.')
+    elif mapper == 'MBC3':
+        notes.append('It was made for an MBC3 cartridge. It should mostly run, but %s' %
+                     ('its clock won\'t work.' if rom[0x147] in (0x0f, 0x10) else 'test it on a Game Boy.'))
+    ram = 512 if mapper == 'MBC2' else RAM_SIZES.get(rom[0x149], 0)
+    if ram > save_size:
+        notes.append('It saves %d KB, but this cart\'s save memory holds %d KB.' % (ram // 1024, save_size // 1024))
+    return padded, header_title(rom), notes
+
+
 # ---------------------------------------------------------------- layout
 
 def _directory(games, placed):
@@ -613,6 +652,7 @@ class CartAccess:
     """The cartridge in a Chromatic's Game Boy core: read, erase 64 KiB blocks,
     program, CRC. Subclasses move the bytes (USB console or Wi-Fi Files)."""
     capacity = 0
+    save_size = 0                # cartridge save memory (battery RAM / FRAM)
     run_limit = BLOCK            # bytes per program request
 
     def matches(self, image, offsets):
@@ -668,7 +708,8 @@ class CartUsb(CartAccess):
         rec = usb._record()
         if not rec.startswith('CART capacity='):
             raise CartError('The Chromatic did not open the cart (%r).' % rec)
-        self.capacity = int(rec.split('=', 1)[1])
+        fields = dict(f.split('=', 1) for f in rec.split()[1:])
+        self.capacity, self.save_size = int(fields['capacity']), int(fields.get('save', 0))
         usb._ok()
 
     def read(self, progress=None):
@@ -712,6 +753,26 @@ class CartUsb(CartAccess):
         for at in range(0, len(data), BLOCK):
             self.usb._exchange(b'\x23' + struct.pack('<I', offset + at) + data[at:at + BLOCK], seconds=30)
 
+    def read_save(self):
+        import base64
+        out = bytearray(self.save_size)
+        for o in range(0, self.save_size, 32 * BLOCK):
+            n = min(32 * BLOCK, self.save_size - o) // BLOCK
+            self.usb._timeout(60)
+            self.usb._send(b'\x26' + struct.pack('<II', o, n))
+            for _ in range(n):
+                rec = self.usb._record()
+                if not rec.startswith('CDATA '):
+                    raise CartError('unexpected cart reply %r' % rec[:40])
+                at, data = rec[6:].split(' ', 1)
+                out[int(at, 16):int(at, 16) + BLOCK] = base64.b64decode(data)
+            self.usb._ok()
+        return bytes(out)
+
+    def write_save(self, data):
+        for at in range(0, len(data), BLOCK):
+            self.usb._exchange(b'\x27' + struct.pack('<I', at) + data[at:at + BLOCK], seconds=30)
+
     def close(self):
         self.usb._timeout(60)
         self.usb._send(b'\x25')
@@ -734,7 +795,7 @@ class CartWifi(CartAccess):
                 raise CartError('This Chromatic\'s firmware can\'t reach the cart over Wi-Fi yet. Update Magic '
                                 'Trick, or use USB.') from None
             raise
-        self.capacity = int(reply['capacity'])
+        self.capacity, self.save_size = int(reply['capacity']), int(reply.get('save', 0))
 
     def _call(self, method, route, body=None, timeout=120):
         try:
@@ -766,6 +827,15 @@ class CartWifi(CartAccess):
 
     def program(self, offset, data):
         self._call('PUT', 'cart/write?offset=%d' % offset, body=bytes(data))
+
+    def read_save(self):
+        data = self._call('GET', 'cart/save?offset=0&length=%d' % self.save_size) if self.save_size else b''
+        if len(data) != self.save_size:
+            raise CartError('The Chromatic sent %d of %d save bytes.' % (len(data), self.save_size))
+        return data
+
+    def write_save(self, data):
+        self._call('PUT', 'cart/save?offset=0', body=bytes(data))
 
     def close(self):
         return int(self.json.loads(self._call('POST', 'cart/close', timeout=120)).get('games', 0))

@@ -112,10 +112,36 @@ class CartridgeTest(unittest.TestCase):
         self.assertGreater(store, gg + c.save_bytes(games[1]))
 
 
+class OwnGameTest(unittest.TestCase):
+    def test_replace_own_game(self):
+        tetris, other = gb_rom(), gb_rom(0x20000, b'POCKET', 0x80)
+        current = c.build(CAP, [game('A.gg', 0x8000, 1)], own_image=cart_with(tetris))
+        image, title, notes = c.own_game(other)
+        self.assertEqual((title, len(image), notes), ('POCKET', 0x20000, []))   # MBC5 (0x1b), 32 KiB save: fine
+        target = c.build(CAP, [game('A.gg', 0x8000, 1)], own_image=image)
+        cart = c.parse(target)
+        self.assertEqual((cart.own_title, cart.own_size, [g.name for g in cart.games]), ('POCKET', 0x20000, ['A.gg']))
+        self.assertEqual(target[:0x20000], other)
+        self.assertNotEqual(c.plan(current, target)[0][0], 'keep')   # block 0 now changes
+
+    def test_own_game_warnings(self):
+        rom = bytearray(gb_rom(0x8000, b'OLD'))
+        rom[0x147], rom[0x149] = 0x03, 4          # MBC1, 128 KiB save
+        rom[0x14d] = (-sum(rom[0x134:0x14d]) - (0x14d - 0x134)) & 0xff
+        _, _, notes = c.own_game(bytes(rom))
+        self.assertEqual(len(notes), 2)
+        self.assertIn('MBC1', notes[0]); self.assertIn('128 KB', notes[1])
+        with self.assertRaises(c.CartError):
+            c.own_game(b'\0' * 0x8000)           # no valid header
+        short = gb_rom(0x40000)[:0x30000]         # shorter than its header says: padded
+        self.assertEqual(len(c.own_game(short)[0]), 0x40000)
+
+
 class FakeWifi:
     """Wi-Fi Files' /api/cart routes over a bytearray cart."""
     def __init__(self, image):
         self.cart, self.calls = bytearray(image), []
+        self.save = bytearray(b'\x5a' * 32768)
 
     def _request(self, method, route, body=None, headers=None, timeout=None):
         import json, urllib.parse
@@ -123,7 +149,12 @@ class FakeWifi:
         q = {k: int(v[0]) for k, v in urllib.parse.parse_qs(query).items()}
         self.calls.append((method, path, q.get('offset'), len(body or b'')))
         if path == 'cart/open':
-            return json.dumps({'capacity': len(self.cart)}).encode()
+            return json.dumps({'capacity': len(self.cart), 'save': len(self.save)}).encode()
+        if path == 'cart/save' and method == 'GET':
+            return bytes(self.save[q['offset']:q['offset'] + q['length']])
+        if path == 'cart/save' and method == 'PUT':
+            self.save[q['offset']:q['offset'] + len(body)] = body
+            return b'{"ok":true}'
         if path == 'cart/read':
             return bytes(self.cart[q['offset']:q['offset'] + q['length']])
         if path == 'cart/crc':
@@ -154,6 +185,9 @@ class WifiCartTest(unittest.TestCase):
         writes = [x for x in fake.calls if x[1] == 'cart/write']
         self.assertTrue(writes and all(n <= cart.run_limit and n % c.BLOCK == 0 for *_, n in writes))
         self.assertLess(len(writes), c.plan_bytes(c.plan(current, target)) // c.BLOCK)   # batched
+        self.assertEqual((cart.save_size, cart.read_save()), (32768, b'\x5a' * 32768))
+        cart.write_save(b'\xff' * 32768)
+        self.assertEqual(bytes(fake.save), b'\xff' * 32768)
         self.assertEqual(cart.close(), 2)
 
     def test_changed_cart_is_refused(self):

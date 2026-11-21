@@ -403,7 +403,11 @@ static esp_err_t CartRequest(size_t Size)
         uint32_t Capacity = 0;
         if (Size != 1) return ESP_ERR_INVALID_ARG;
         const esp_err_t Result = CartStore_FlashBegin(&Capacity);
-        if (Result == ESP_OK) { CartOpen = true; printf("PCSD CART capacity=%lu\n", (unsigned long)Capacity); }
+        if (Result == ESP_OK)
+        {
+            CartOpen = true;
+            printf("PCSD CART capacity=%lu save=%lu\n", (unsigned long)Capacity, (unsigned long)CartStore_FlashSaveSize());
+        }
         return Result;
     }
     if (!CartOpen) return ESP_ERR_INVALID_STATE;
@@ -436,6 +440,24 @@ static esp_err_t CartRequest(size_t Size)
             return Result;
         }
         case 0x22: return Size == 5 ? CartStore_FlashErase(LE32(Payload + 1)) : ESP_ERR_INVALID_ARG;
+        case 0x26:   /* save memory read: offset, blocks <= 32 */
+        {
+            if (Size != 9) return ESP_ERR_INVALID_ARG;
+            const uint32_t Offset = LE32(Payload + 1), Blocks = LE32(Payload + 5);
+            if (Blocks == 0 || Blocks > 32) return ESP_ERR_INVALID_ARG;
+            for (uint32_t b = 0; b < Blocks; ++b)
+            {
+                ESP_RETURN_ON_ERROR(CartStore_FlashSaveRead(Offset + b * sizeof(Block), Block), "pc_sd", "save read");
+                size_t Written = 0;
+                if (mbedtls_base64_encode((unsigned char *)CartLine, sizeof(CartLine), &Written, Block, sizeof(Block)))
+                    return ESP_FAIL;
+                CartLine[Written] = 0;
+                printf("PCSD CDATA %lx %s\n", (unsigned long)(Offset + b * sizeof(Block)), CartLine);
+            }
+            return ESP_OK;
+        }
+        case 0x27: return Size == 5 + sizeof(Block) ? CartStore_FlashSaveWrite(LE32(Payload + 1), Payload + 5)
+                                                     : ESP_ERR_INVALID_ARG;
         case 0x23: return Size == 5 + sizeof(Block) ? CartStore_FlashProgram(LE32(Payload + 1), Payload + 5)
                                                      : ESP_ERR_INVALID_ARG;
         case 0x24:
