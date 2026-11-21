@@ -381,6 +381,13 @@ static esp_err_t ScanFn(void *pContext)
     char Own[kCartStoreNameSize] = "";
     if (Result == ESP_OK) OwnNameFromHeader(pBlock, Own, sizeof(Own));
     const uint32_t Spans = Result == ESP_OK && pBlock[0x148] <= 8 ? 0x8000u << pBlock[0x148] : 0;
+    /* Reading a cart into memory and writing its save back assume MBC5-style
+     * banking (ModRetro and flash carts). A plain cart (no Magic Trick games)
+     * is listed only when its header says so, or that it doesn't bank. */
+    const uint8_t Mapper = Result == ESP_OK ? pBlock[0x147] : 0xff;
+    const bool PlainOk = Own[0] && strncmp(Own, "MAGIC TRICK", 11) &&
+                         (Mapper == 0x00 || (Mapper >= 0x19 && Mapper <= 0x1e));
+    bool DirFound = false;
     for (size_t i = 0; Result == ESP_OK && i < CandidateCount; ++i)
     {
         Result = CartBulk_ReadCart(Candidates[i], pBlock, 1);
@@ -392,11 +399,20 @@ static esp_err_t ScanFn(void *pContext)
             EntryCount = (size_t)Count;
             /* Directory after the GB game (not a dedicated cart at 0x4000):
              * that game is still there to play. */
-            if (i > 0 && Count > 0) { memcpy(OwnName, Own, sizeof(OwnName)); OwnSize = Spans; }
+            DirFound = true;
+            if (i > 0) { memcpy(OwnName, Own, sizeof(OwnName)); OwnSize = Spans; }
             printf("CARTSTORE dir=0x%lx entries=%d own=\"%s\"\n", (unsigned long)Candidates[i], Count, OwnName);
             break;
         }
         OwnArtOffset = OwnArtSize = OwnArtCrc = 0; /* only from the directory that counts */
+    }
+    /* A plain cart (no Magic Trick directory): its own game still goes in the
+     * Cartridge list, so it can be picked (save states) with or without a card. */
+    if (Result == ESP_OK && !DirFound && PlainOk)
+    {
+        memcpy(OwnName, Own, sizeof(OwnName));
+        OwnSize = Spans;
+        printf("CARTSTORE plain own=\"%s\"\n", OwnName);
     }
     if (!OwnName[0]) OwnArtOffset = OwnArtSize = OwnArtCrc = 0;
     free(pBlock);
@@ -497,7 +513,7 @@ static void LoadDirectory(void)
         free(p);
     }
     Length = sizeof(OwnName);
-    if (!EntryCount || nvs_get_str(Handle, kNvsOwnKey, OwnName, &Length) != ESP_OK) OwnName[0] = 0;
+    if (nvs_get_str(Handle, kNvsOwnKey, OwnName, &Length) != ESP_OK) OwnName[0] = 0;
     nvs_close(Handle);
 }
 
@@ -552,7 +568,8 @@ esp_err_t CartStore_RestartCart(void)
  * cartridge session (CartStore_FlashEnd); it only reads two flags and NVS. */
 bool CartStore_HasGames(void)
 {
-    bool Has = Scanned && EntryCount > 0;
+    /* Anything for the Cartridge list: Magic Trick games or the cart's own game. */
+    bool Has = Scanned && (EntryCount > 0 || OwnName[0]);
     if (!Scanned)
     {
         nvs_handle_t Handle;
@@ -560,6 +577,8 @@ bool CartStore_HasGames(void)
         if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) == ESP_OK)
         {
             Has = nvs_get_blob(Handle, kNvsDirKey, NULL, &Length) == ESP_OK && Length >= 22; /* one packed entry */
+            Length = 0;
+            if (!Has) Has = nvs_get_str(Handle, kNvsOwnKey, NULL, &Length) == ESP_OK && Length > 1;
             nvs_close(Handle);
         }
     }

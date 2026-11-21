@@ -89,8 +89,10 @@ esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, size_t Size);
  * Returns the entry count (0: no cartridge or no Magic Trick directory). */
 size_t CartStore_Refresh(bool Force);
 size_t CartStore_Count(void);
-/* Path of the cartridge's own game, from the directory last read (false for a
- * dedicated Magic Trick cart or a cart without added games). */
+/* Path of the cartridge's own game, from the directory last read: a cart with
+ * Magic Trick games added after its game, or a plain cart whose header is
+ * MBC5 or unbanked (false for a dedicated Magic Trick cart, or a plain cart
+ * with another mapper: reading it into memory assumes MBC5 banking). */
 bool CartStore_OwnGame(char *pPath, size_t Size);
 /* The cart's own game played from the Chromatic's memory (picked in the
  * menu, so it has save states; power-on still boots the cartridge itself).
@@ -110,8 +112,10 @@ void CartStore_BootSync(void);
 /* GB core: restart the cartridge so its own game boots (taking over the
  * start-up hold when there is one). */
 esp_err_t CartStore_RestartCart(void);
-/* Whether the cartridge carries Magic Trick games, from the directory last
- * read (or the copy in NVS). Never touches the cartridge. */
+/* Whether the cartridge has anything for the Cartridge list (Magic Trick
+ * games, or a game of its own: CartStore_OwnGame), from the directory last
+ * read (or the copy in NVS). Never touches the cartridge. With no microSD
+ * card, this gives it the internal store for saves and states. */
 bool CartStore_HasGames(void);
 bool CartStore_Entry(size_t Index, CartStoreEntry_t *pEntry);
 

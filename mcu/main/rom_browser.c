@@ -283,8 +283,10 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
         Result = ESP_FAIL;
     }
     if (Result==ESP_OK) Result=AppendRecent();
-    /* The cartridge folder, when the inserted cart carries Magic Trick games. */
-    if (Result == ESP_OK && AtRoot() && CartStore_Refresh(false) > 0) {
+    /* The cartridge folder, when the inserted cart carries Magic Trick games
+     * or a game of its own. */
+    char OwnPath[kPathSize];
+    if (Result == ESP_OK && AtRoot() && (CartStore_Refresh(false) > 0 || CartStore_OwnGame(OwnPath, sizeof(OwnPath)))) {
         Result = AppendName(kCartFolder, true);
         if (Result == ESP_OK) Catalog.pEntries[Catalog.Count-1].Cart = true;
     }
