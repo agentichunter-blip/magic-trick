@@ -45,6 +45,12 @@ GG_SAVE_MAX, GG_MIRROR = 32 * 1024, 57 * 1024
 CLUSTER = 4096
 
 
+# Only the Chromatic's Game Boy side (the GB core) can reach a cartridge.
+GB_SIDE_ONLY = ('The Chromatic reaches the cart only from its Game Boy side, and it\'s on a Game Gear or Lynx game '
+                'now. Switch it off and on with the cart in. If the cart then starts a Game Gear or Lynx game, switch '
+                'off and on again holding B, to stay in the menu. Then try again.')
+
+
 class CartError(Exception):
     pass
 
@@ -828,7 +834,7 @@ class CartWifi(CartAccess):
                                       headers={'Content-Type': 'application/octet-stream'} if body else None)
         except Exception as exc:   # library.WifiError / ConnectionError: keep the device's words
             if getattr(exc, 'status', None) == 409:
-                raise CartError('Start a Game Boy game on the Chromatic first: only it can reach the cart.') from None
+                raise CartError(GB_SIDE_ONLY) from None
             raise CartError(str(exc)) from None
 
     def read(self, progress=None):

@@ -931,8 +931,10 @@ class App:
                 'WEB CODE: you\'ll type both here.' if self.cart_route == 'wifi' else
                 '3. Press Menu and open the System tab: set WI-FI off and USB TRANSFERS on. Plug it into this '
                 'computer with a USB cable.')
-        self.cart_steps.configure(text='1. Put the cart in and switch the Chromatic on.\n2. Start a Game Boy game (the '
-                                  'cart\'s own game is fine): Game Gear and Lynx games can\'t reach the cart.\n' + last)
+        self.cart_steps.configure(text='1. Put the cart in and switch the Chromatic on.\n2. Let it start the cart\'s '
+                                  'Game Boy game or open the menu. Only the Game Boy side reaches the cart: if the '
+                                  'cart starts a Game Gear or Lynx game, switch off and on holding B to stay in the '
+                                  'menu.\n' + last)
 
     def cart_connection(self):
         """On the UI thread: what cart_open needs, or None. USB: the port. Wi-Fi: the address and WEB CODE
@@ -954,8 +956,8 @@ class App:
             ports = []
         if len(ports) != 1:
             messagebox.showinfo('Connect your Chromatic', 'Plug your Chromatic into this computer with a USB cable, '
-                                'start a Game Boy game, then press Menu and open the System tab: set WI-FI off and USB '
-                                'TRANSFERS on. Then try again.')
+                                'switch it on (hold B as it starts if the cart starts a Game Gear or Lynx game), then press '
+                                'Menu and open the System tab: set WI-FI off and USB TRANSFERS on. Then try again.')
             return None
         return ('usb', ports[0])
 
@@ -979,8 +981,7 @@ class App:
         except Exception as exc:
             usb.close()
             if 'INVALID_STATE' in str(exc):
-                raise ValueError('The Chromatic can only reach the cart from a Game Boy game. Start one, then '
-                                 'try again.')
+                raise ValueError(cartridge.GB_SIDE_ONLY)
             if 'NOT_SUPPORTED' in str(exc):
                 raise ValueError('This cart\'s flash chip isn\'t one Magic Trick knows how to write. Nothing was '
                                  'changed.')
@@ -1273,9 +1274,10 @@ class App:
         self.draw_segments(self.cart_bar, parts[:-1], info.capacity, colours)
         free = info.capacity - used
         self.cart_bar_text.configure(
-            text='%.2f MB of %g MB used · %s' % (used / 1048576, info.capacity / 1048576,
-                                                 '%d KB free' % (free // 1024) if free >= 0 else
-                                                 '%d KB too much' % (-free // 1024)),
+            text='%d%% full · %.2f MB of %g MB used · %s' % (round(100 * used / info.capacity), used / 1048576,
+                                                             info.capacity / 1048576,
+                                                             '%d KB free' % (free // 1024) if free >= 0 else
+                                                             '%d KB too much' % (-free // 1024)),
             fg=RED if free < 0 else MUTED)
         store_parts, store = cartridge.store_usage(state['games'])
         self.draw_segments(self.store_bar, [(n, 'save', b) for n, b in store_parts], cartridge.STORE_BYTES,
