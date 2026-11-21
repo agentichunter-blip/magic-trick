@@ -76,6 +76,7 @@ class Cart:
     version: int = 0           # directory version, 0 for none
     games: list = field(default_factory=list)
     damaged: int = 0           # entries whose data doesn't match their CRC
+    own_art: bytes = None      # box art of the cart's own game (version 2 header), or None
 
 
 def crc32(data):
@@ -188,6 +189,8 @@ def parse(image):
             continue
         cart.games, cart.damaged = parsed
         cart.dedicated = d == DEDICATED_DIR
+        if cart.version == 2 and not cart.dedicated:
+            cart.own_art = _own_art(image, d)
         break
     if not cart.dedicated and size and header_ok(image) and not bytes(image[0x134:0x13f]).startswith(b'MAGIC TRICK'):
         cart.own_title, cart.own_size = header_title(image), size
@@ -237,7 +240,7 @@ def own_game(rom, save_size=32768):
 
 # ---------------------------------------------------------------- layout
 
-def _directory(games, placed):
+def _directory(games, placed, own_art=None, own_art_offset=0):
     entries = bytearray()
     for g, (offset, art_offset) in zip(games, placed):
         e = bytearray(ENTRY2_SIZE)
@@ -257,7 +260,23 @@ def _directory(games, placed):
     head[0:16] = DIR2_MAGIC
     head[16:28] = struct.pack('<III', len(games), crc32(bytes(entries)), size)
     head[28:32] = struct.pack('<I', crc32(bytes(head[:28])))
+    if own_art:
+        fields = struct.pack('<III', own_art_offset, len(own_art), crc32(own_art))
+        head[OWN_ART_AT:OWN_ART_AT + 16] = fields + struct.pack('<I', crc32(fields))
     return bytes(head + entries)
+
+
+OWN_ART_AT = 32   # in the version 2 header: own-game art offset, size, CRC, then a CRC-32 of those 12 bytes
+
+
+def _own_art(image, d):
+    """The own game's box art recorded in the version 2 header at d, or None."""
+    f = bytes(image[d + OWN_ART_AT:d + OWN_ART_AT + 16])
+    offset, size, art_crc, check = struct.unpack('<IIII', f)
+    if check != crc32(f[:12]) or not 0 < size <= 0x10000 or offset + size > len(image):
+        return None
+    art = bytes(image[offset:offset + size])
+    return art if crc32(art) == art_crc else None
 
 
 def _align(n, a=BLOCK):
@@ -268,7 +287,7 @@ def directory_bytes(count):
     return _align(DIR2_HEADER + count * ENTRY2_SIZE)
 
 
-def usage(capacity, games, own=0, dedicated=False):
+def usage(capacity, games, own=0, dedicated=False, own_art=None):
     """Where the space goes: [(label, kind, bytes)], kind in own/stub/directory/game/art/free."""
     parts = []
     base = own if not dedicated else 0x4000
@@ -276,7 +295,7 @@ def usage(capacity, games, own=0, dedicated=False):
     parts.append(('Game list', 'directory', directory_bytes(len(games))))
     for g in games:
         parts.append((g.name, 'game', _align(len(g.data))))
-    art = sum(_align(len(g.art)) for g in games if g.art)
+    art = sum(_align(len(g.art)) for g in games if g.art) + (_align(len(own_art)) if own_art and not dedicated else 0)
     if art:
         parts.append(('Box art', 'art', art))
     used = sum(p[2] for p in parts)
@@ -284,9 +303,10 @@ def usage(capacity, games, own=0, dedicated=False):
     return parts, used
 
 
-def build(capacity, games, own_image=None, dedicated=False):
+def build(capacity, games, own_image=None, dedicated=False, own_art=None):
     """A whole-cart image (0xFF where unused). own_image: the current cart
-    contents, whose own game is kept when not dedicated."""
+    contents, whose own game is kept when not dedicated; own_art: its box art."""
+    own_art = None if dedicated else own_art
     seen = set()
     for g in games:
         check_name(g.name)
@@ -313,13 +333,18 @@ def build(capacity, games, own_image=None, dedicated=False):
         if g.art:
             p[1] = offset
             offset = _align(offset + len(g.art))
+    own_art_offset = offset
+    if own_art:
+        offset = _align(offset + len(own_art))
     if offset > capacity:
         raise CartFull(offset, capacity)
     for (game_offset, art_offset), g in zip(placed, games):
         image[game_offset:game_offset + len(g.data)] = g.data
         if g.art:
             image[art_offset:art_offset + len(g.art)] = g.art
-    directory = _directory(games, placed)
+    if own_art:
+        image[own_art_offset:own_art_offset + len(own_art)] = own_art
+    directory = _directory(games, placed, own_art, own_art_offset)
     image[d:d + len(directory)] = directory
     if dedicated:
         finish_header(image)

@@ -1014,7 +1014,7 @@ class App:
                 path.with_suffix('.sav').write_bytes(save)   # the cart's save memory, next to its flash
             print('Backup saved: %s%s' % (path, ' (+ %d KB save memory)' % (len(save) // 1024) if save else ''))
             self.cart_loaded = {'image': image, 'info': info, 'backup': path, 'port': port, 'save': save,
-                                'games': list(info.games), 'mode': self.cart_mode_of(info)}
+                                'games': list(info.games), 'mode': self.cart_mode_of(info), 'own_art': info.own_art}
         self.cart_loaded = None
         self.run('cart_read', work, None)
 
@@ -1150,6 +1150,7 @@ class App:
             messagebox.showinfo('That game can\'t go first on the cart', str(exc))
             return
         self.cart['own_rom'] = {'name': name, 'image': image, 'title': title, 'notes': notes}
+        self.cart['own_art'] = None   # the old game's box art doesn't fit the new one
         self.cart['mode'] = 'replace'
         self.cart.setdefault('clear_save', True)
         self.draw_cart()
@@ -1198,8 +1199,10 @@ class App:
                 own = state.get('own_rom')
                 if not own:
                     return None, 'Choose the Game Boy game to put first on the cart (CHOOSE GAME…).'
-                return cartridge.build(info.capacity, state['games'], own_image=own['image']), ''
-            return cartridge.build(info.capacity, state['games'], own_image=state['image']), ''
+                return cartridge.build(info.capacity, state['games'], own_image=own['image'],
+                                       own_art=state.get('own_art')), ''
+            return cartridge.build(info.capacity, state['games'], own_image=state['image'],
+                                   own_art=state.get('own_art')), ''
         except cartridge.CartFull as exc:
             return None, str(exc)
         except cartridge.CartError as exc:
@@ -1253,9 +1256,10 @@ class App:
                  (info.own_title, info.own_size) if mode == 'keep' else None)
         self.cart_list_offset = 1 if first else 0
         if first:
-            self.cart_list.insert('end', '%-10s %7s  %s  %s' % ('Game Boy', '%d KB' % (first[1] // 1024), '   ',
+            self.cart_list.insert('end', '%-10s %7s  %s  %s' % ('Game Boy', '%d KB' % (first[1] // 1024),
+                                                              'ART' if state.get('own_art') else '   ',
                                                               '%s  (first on the cart, stays)' % first[0]))
-            self.cart_list.itemconfig(0, fg=ACCENT, selectbackground=PANEL, selectforeground=ACCENT)
+            self.cart_list.itemconfig(0, fg=ACCENT)
         for g in state['games']:
             self.cart_list.insert('end', '%-10s %7s  %s  %s' % (cartridge.SYSTEM_NAMES[g.system],
                                                                 '%d KB' % (len(g.data) // 1024),
@@ -1263,7 +1267,8 @@ class App:
         own_size = len(own['image']) if mode == 'replace' and own else info.own_size
         self.cart_legend[2].configure(text='TITLE CARD' if dedicated else (own['title'] if mode == 'replace' and own
                                                                           else info.own_title or 'CART PROGRAM'))
-        parts, used = cartridge.usage(info.capacity, state['games'], own=own_size, dedicated=dedicated)
+        parts, used = cartridge.usage(info.capacity, state['games'], own=own_size, dedicated=dedicated,
+                                      own_art=state.get('own_art'))
         colours = {'own': FAINT, 'stub': FAINT, 'directory': LINE, 'game': ACCENT, 'art': LILAC}
         self.draw_segments(self.cart_bar, parts[:-1], info.capacity, colours)
         free = info.capacity - used
@@ -1327,8 +1332,25 @@ class App:
             messagebox.showinfo('Already the cart\'s own game', '%s is the game that goes first on the cart, so it '
                                 'isn\'t added again.' % ', '.join(first))
 
+    def cart_own_selected(self):
+        return getattr(self, 'cart_list_offset', 0) == 1 and 0 in self.cart_list.curselection()
+
+    def cart_own_for_art(self):
+        """(name, ROM) of the game that goes first, for a box art lookup, or None."""
+        state, info = self.cart, self.cart['info']
+        if state['mode'] == 'replace' and state.get('own_rom'):
+            return state['own_rom']['name'], state['own_rom']['image']
+        if state['mode'] == 'keep' and info.own_title:
+            data = state['image'][:info.own_size]
+            return info.own_title + ('.gbc' if data[0x143] == 0xc0 else '.gb'), data
+        return None
+
     def cart_remove(self):
         chosen = self.cart_selected()
+        if self.cart_own_selected() and not chosen:
+            messagebox.showinfo('Remove games', 'The game that goes first stays on the cart. To change it, choose '
+                                'OWN GAME or MAGIC TRICK CART above.')
+            return
         if not chosen:
             messagebox.showinfo('Remove games', 'Click a game in the list first (Shift or Ctrl/Cmd for several).')
             return
@@ -1337,27 +1359,39 @@ class App:
 
     def cart_pick_art(self):
         chosen = self.cart_selected()
-        if len(chosen) != 1:
+        own = self.cart_own_selected() and not chosen and self.cart_own_for_art()
+        if len(chosen) != 1 and not own:
             messagebox.showinfo('Pick box art', 'Click one game in the list first.')
             return
-        path = ask_open_filename(title='Box art for ' + chosen[0].name,
+        path = ask_open_filename(title='Box art for ' + (own[0] if own else chosen[0].name),
                                  filetypes=[('Images', '*.png *.jpg *.jpeg *.bmp *.gif *.webp'), ('All files', '*')])
         if not path:
             return
         try:
-            chosen[0].art = library.cover_bytes(Path(path).read_bytes())
+            art = library.cover_bytes(Path(path).read_bytes())
+            if own:
+                self.cart['own_art'] = art
+            else:
+                chosen[0].art = art
         except Exception as exc:
             messagebox.showinfo('That image didn\'t work', 'It couldn\'t be read as an image: %s' % exc)
             return
         self.draw_cart()
 
     def cart_clear_art(self):
+        if self.cart_own_selected():
+            self.cart['own_art'] = None
         for g in self.cart_selected():
             g.art = None
         self.draw_cart()
 
     def cart_find_art(self):
-        todo = [g for g in (self.cart_selected() or self.cart['games']) if not g.art]
+        chosen = self.cart_selected()
+        own_picked = self.cart_own_selected()
+        todo = [g for g in (chosen or ([] if own_picked else self.cart['games'])) if not g.art]
+        own = self.cart_own_for_art() if (own_picked or not chosen) and not self.cart.get('own_art') else None
+        if own:   # the cart's own game too, so the menu shows it with a cover
+            todo.append(cartridge.Game(own[0], own[1]))
         if not todo:
             messagebox.showinfo('Box art', 'Every game in the list already has box art.')
             return
@@ -1374,7 +1408,10 @@ class App:
         def done():
             for g in todo:
                 if g.name in found:
-                    g.art = found[g.name]
+                    if own and g.name == own[0] and g not in self.cart['games']:
+                        self.cart['own_art'] = found[g.name]
+                    else:
+                        g.art = found[g.name]
             self.draw_cart()
             missing = [g.name for g in todo if g.name not in found]
             if '_error' in found:
@@ -1508,7 +1545,7 @@ class App:
             self.cart_result = self.cart_summary(info, operation, len(touched), save is not None and cart.save_size)
             if self.cart:
                 self.cart.update({'image': target, 'info': info, 'games': list(info.games),
-                                  'mode': self.cart_mode_of(info), 'own_rom': None})
+                                  'mode': self.cart_mode_of(info), 'own_rom': None, 'own_art': info.own_art})
                 if save is not None:
                     self.cart['save'] = bytes(save)
             print('The Chromatic reads %s games on the cart.' % games)

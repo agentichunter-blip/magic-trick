@@ -70,6 +70,9 @@ static CartStoreEntry_t *Entries;
 static size_t EntryCount, EntryCapacity;
 static bool Scanned;
 static char OwnName[kCartStoreNameSize]; /* "" for none (CartStore_OwnGame) */
+/* Box art of the cart's own game: version 2 header bytes 32-47 (offset, size,
+ * CRC, then a CRC-32 of those 12 bytes); size 0 for none. */
+static uint32_t OwnArtOffset, OwnArtSize, OwnArtCrc;
 
 static uint8_t Cache[kCacheBlocks * kBlock];
 static uint32_t CacheOffset;
@@ -172,6 +175,11 @@ static int ParseDirectory2(uint32_t Offset, const uint8_t *pBlock)
     if (memcmp(pBlock, kDir2Magic, sizeof(kDir2Magic)) != 0) return -1;
     if (Read32(&pBlock[28]) != esp_rom_crc32_le(0, pBlock, 28)) return -1;
     const uint32_t Count = Read32(&pBlock[16]), Bytes = Read32(&pBlock[24]);
+    if (Read32(&pBlock[44]) == esp_rom_crc32_le(0, &pBlock[32], 12) && Read32(&pBlock[36]) &&
+        Read32(&pBlock[36]) <= 64u * 1024u && Read32(&pBlock[32]) < (8u << 20))
+    {
+        OwnArtOffset = Read32(&pBlock[32]); OwnArtSize = Read32(&pBlock[36]); OwnArtCrc = Read32(&pBlock[40]);
+    }
     if (Count > kMaxEntries2 || Bytes < kDir2Header + Count * kEntry2Size || Bytes > (1u << 20)) return -1;
     const uint32_t Blocks = (kDir2Header + Count * kEntry2Size + kBlock - 1u) / kBlock;
     uint8_t *pDir = malloc(Blocks * kBlock);
@@ -358,6 +366,7 @@ static esp_err_t ScanFn(void *pContext)
     if (!pBlock) return ESP_ERR_NO_MEM;
     EntryCount = 0;
     OwnName[0] = 0;
+    OwnArtOffset = OwnArtSize = OwnArtCrc = 0;
     esp_err_t Result = CartBulk_ReadCart(0, pBlock, 1);
     uint32_t Candidates[2];
     const size_t CandidateCount = Result == ESP_OK ? DirectoryCandidates(pBlock, Candidates) : 0;
@@ -378,7 +387,9 @@ static esp_err_t ScanFn(void *pContext)
             printf("CARTSTORE dir=0x%lx entries=%d own=\"%s\"\n", (unsigned long)Candidates[i], Count, OwnName);
             break;
         }
+        OwnArtOffset = OwnArtSize = OwnArtCrc = 0; /* only from the directory that counts */
     }
+    if (!OwnName[0]) OwnArtOffset = OwnArtSize = OwnArtCrc = 0;
     free(pBlock);
     return Result;
 }
@@ -1746,6 +1757,50 @@ esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
  * mounted) to CART_STORE_ART_ROOT. Replace: also rewrite art that changed
  * and remove art of games no longer on the cartridge; otherwise only add
  * what's missing (a quick check before each cartridge game loads). */
+/* One box art file: Name.cma from the cartridge at Offset (Size bytes,
+ * CRC-32 Crc). Returns 1 copied, 0 already there, -1 failed. */
+static int CopyArtLocked(const char *pName, uint32_t Offset, uint32_t Size, uint32_t Crc, bool Replace,
+                         uint8_t *pChunk, uint32_t ChunkSize)
+{
+    char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
+    snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, pName);
+    struct stat Info;
+    const bool Have = stat(Path, &Info) == 0 && (uint32_t)Info.st_size == Size;
+    if (Have && !Replace) return 0;
+    if (Have)
+    {
+        FILE *pOld = fopen(Path, "rb");
+        uint32_t OldCrc = 0;
+        size_t Got;
+        while (pOld && (Got = fread(pChunk, 1, ChunkSize, pOld)) > 0) OldCrc = esp_rom_crc32_le(OldCrc, pChunk, Got);
+        if (pOld) fclose(pOld);
+        if (pOld && OldCrc == Crc) return 0;
+    }
+    (void)unlink(Path);
+    FILE *pFile = fopen(Path, "wb");
+    SDCard_TuneWrite(pFile);
+    bool Ok = pFile != NULL;
+    uint32_t Got = 0;
+    for (uint32_t At = 0; Ok && At < Size; At += ChunkSize)
+    {
+        const uint32_t Count = Size - At < ChunkSize ? Size - At : ChunkSize;
+        Ok = CartBulk_ReadCart(Offset + At, pChunk, (Count + kBlock - 1u) / kBlock) == ESP_OK &&
+             fwrite(pChunk, 1, Count, pFile) == Count;
+        Got = esp_rom_crc32_le(Got, pChunk, Count);
+    }
+    if (pFile && fclose(pFile) != 0) Ok = false;
+    if (Ok && Got != Crc) Ok = false;
+    if (Ok) return 1;
+    (void)unlink(Path);
+    printf("CARTSTORE art_failed=\"%s\" open=%u errno=%d\n", pName, pFile ? 1u : 0u, errno);
+    return -1;
+}
+
+/* Copies box art off the cartridge (session open, Lock held, storage
+ * mounted) to CART_STORE_ART_ROOT: each game's, and the cart's own game's
+ * (as "<TITLE> (CARTRIDGE).gb[c].cma"). Replace: also rewrite art that
+ * changed and remove art of games no longer on the cartridge; otherwise only
+ * add what's missing (a quick check before each cartridge game loads). */
 static void SyncArtLocked(bool Replace)
 {
     enum { kMaxArt = 64 * 1024 }; /* streamed: no big buffer */
@@ -1755,56 +1810,28 @@ static void SyncArtLocked(bool Replace)
     uint8_t *pChunk = malloc(kChunk);
     if (!pChunk) pChunk = malloc(kChunk = kBlock);
     if (!pChunk) { printf("CARTSTORE art_nomem\n"); return; }
-    char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
     unsigned Copied = 0, Failed = 0;
-    for (size_t i = 0; i < EntryCount; ++i)
+    for (size_t i = 0; i <= EntryCount; ++i)
     {
-        const CartStoreEntry_t *e = &Entries[i];
-        if (!e->ArtSize || e->ArtSize > kMaxArt) continue;
-        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, e->Name);
-        struct stat Info;
-        const bool Have = stat(Path, &Info) == 0 && (uint32_t)Info.st_size == e->ArtSize;
-        if (Have && !Replace) continue;
-        if (Have)
-        {
-            FILE *pOld = fopen(Path, "rb");
-            uint32_t Crc = 0;
-            size_t Got;
-            while (pOld && (Got = fread(pChunk, 1, kChunk, pOld)) > 0) Crc = esp_rom_crc32_le(Crc, pChunk, Got);
-            if (pOld) fclose(pOld);
-            if (pOld && Crc == e->ArtCrc) continue;
-        }
-        (void)unlink(Path);
-        FILE *pFile = fopen(Path, "wb");
-        SDCard_TuneWrite(pFile);
-        bool Ok = pFile != NULL;
-        uint32_t Crc = 0;
-        for (uint32_t At = 0; Ok && At < e->ArtSize; At += kChunk)
-        {
-            const uint32_t Count = e->ArtSize - At < kChunk ? e->ArtSize - At : kChunk;
-            Ok = CartBulk_ReadCart(e->ArtOffset + At, pChunk, (Count + kBlock - 1u) / kBlock) == ESP_OK &&
-                 fwrite(pChunk, 1, Count, pFile) == Count;
-            Crc = esp_rom_crc32_le(Crc, pChunk, Count);
-        }
-        if (pFile && fclose(pFile) != 0) Ok = false;
-        if (Ok && Crc != e->ArtCrc) Ok = false;
-        if (!Ok)
-        {
-            (void)unlink(Path);
-            ++Failed;
-            printf("CARTSTORE art_failed=\"%s\" open=%u errno=%d\n", e->Name, pFile ? 1u : 0u, errno);
-            continue;
-        }
-        ++Copied;
+        const bool Own = i == EntryCount;
+        const CartStoreEntry_t *e = Own ? NULL : &Entries[i];
+        const char *pName = Own ? OwnName : e->Name;
+        const uint32_t Size = Own ? OwnArtSize : e->ArtSize;
+        if (!Size || Size > kMaxArt || !pName[0]) continue;
+        const int Done = CopyArtLocked(pName, Own ? OwnArtOffset : e->ArtOffset, Size, Own ? OwnArtCrc : e->ArtCrc,
+                                       Replace, pChunk, kChunk);
+        if (Done > 0) ++Copied;
+        if (Done < 0) ++Failed;
     }
     free(pChunk);
     unsigned Removed = 0;
+    char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
     DIR *pDir = Replace ? opendir(CART_STORE_ART_ROOT) : NULL;
     for (struct dirent *d; pDir && (d = readdir(pDir)) != NULL; )
     {
         const size_t Length = strlen(d->d_name);
         if (Length < 5 || strcasecmp(d->d_name + Length - 4, ".cma")) continue;
-        bool Keep = false;
+        bool Keep = OwnArtSize && OwnName[0] && strlen(OwnName) == Length - 4 && !strncmp(OwnName, d->d_name, Length - 4);
         for (size_t i = 0; i < EntryCount && !Keep; ++i)
             Keep = Entries[i].ArtSize && strlen(Entries[i].Name) == Length - 4 &&
                    !strncmp(Entries[i].Name, d->d_name, Length - 4);
@@ -1824,12 +1851,13 @@ void CartStore_SyncArt(void)
     xSemaphoreTake(Lock, portMAX_DELAY);
     bool Needed = false;
     if (!Scanned) { Scanned = WithCart(ScanFn, NULL) == ESP_OK; if (Scanned) SaveDirectory(); }
-    for (size_t i = 0; i < EntryCount && !Needed; ++i)
+    for (size_t i = 0; i <= EntryCount && !Needed; ++i)
     {
-        if (!Entries[i].ArtSize) continue;
+        const bool Own = i == EntryCount;
+        if (Own ? !OwnArtSize || !OwnName[0] : !Entries[i].ArtSize) continue;
         char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
         struct stat Info;
-        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, Entries[i].Name);
+        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, Own ? OwnName : Entries[i].Name);
         Needed = stat(Path, &Info) != 0;
     }
     if (Needed) (void)WithCart(SyncArtFn, NULL); /* only then touch the cartridge */

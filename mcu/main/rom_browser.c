@@ -439,8 +439,10 @@ static bool ArtPath(size_t Index, char *Path, size_t Size)
 {
     char Rom[kPathSize];
     if (!RomPath(Index,Rom,sizeof(Rom))) return false;
-    if (CartStore_IsCartPath(Rom) && !CartStore_IsOwnGamePath(Rom)) {
-        const int Length = snprintf(Path, Size, "%s/%s.cma", CART_STORE_ART_ROOT, Rom + sizeof(CART_STORE_ROOT));
+    if (CartStore_IsCartPath(Rom)) {
+        /* Cart games, and the cart's own game ("/cart/.cartridge/<name>"): art copied off the cartridge. */
+        const char *pName = CartStore_IsOwnGamePath(Rom) ? Rom + sizeof(CART_STORE_OWN_ROOT) : Rom + sizeof(CART_STORE_ROOT);
+        const int Length = snprintf(Path, Size, "%s/%s.cma", CART_STORE_ART_ROOT, pName);
         return Length >= 0 && (size_t)Length < Size;
     }
     if (strncmp(Rom,RomDirectory,strlen(RomDirectory))) return false;

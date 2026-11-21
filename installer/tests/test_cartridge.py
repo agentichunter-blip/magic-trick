@@ -137,6 +137,29 @@ class OwnGameTest(unittest.TestCase):
         self.assertEqual(len(c.own_game(short)[0]), 0x40000)
 
 
+class OwnArtTest(unittest.TestCase):
+    def test_own_game_art_round_trip(self):
+        art = b'CMAR' + bytes(range(256)) * 40
+        games = [game('A.gg', 0x8000, 1), c.Game('B.lnx', b'\2' * 0x8000, b'CMAR' + bytes(100))]
+        image = c.build(CAP, games, own_image=cart_with(gb_rom()), own_art=art)
+        cart = c.parse(image)
+        self.assertEqual((cart.own_title, cart.own_art), ('MR.TETRIS', art))
+        self.assertEqual([g.data for g in cart.games], [g.data for g in games])
+        self.assertEqual(c.parse(c.build(CAP, games, own_image=image)).own_art, None)   # dropped when not passed
+        parts, used = c.usage(CAP, games, own=0x40000, own_art=art)
+        self.assertEqual(used, len(image.rstrip(b'\xff')) + (-len(image.rstrip(b'\xff'))) % c.BLOCK)
+
+    def test_own_art_needs_its_check(self):
+        art = b'CMAR' + bytes(64)
+        image = bytearray(c.build(CAP, [game('A.gg', 0x8000, 1)], own_image=cart_with(gb_rom()), own_art=art))
+        d = 0x40000
+        image[d + c.OWN_ART_AT + 4] ^= 1        # size changed, check no longer matches
+        self.assertIsNone(c.parse(bytes(image)).own_art)
+        self.assertEqual(len(c.parse(bytes(image)).games), 1)   # the games are unaffected
+        ded = c.build(CAP, [game('A.gg', 0x8000, 1)], dedicated=True, own_art=art)
+        self.assertIsNone(c.parse(ded).own_art)  # a Magic Trick cart has no own game
+
+
 class FakeWifi:
     """Wi-Fi Files' /api/cart routes over a bytearray cart."""
     def __init__(self, image):
