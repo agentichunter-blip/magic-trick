@@ -1747,6 +1747,10 @@ static esp_err_t PersistActiveDataForTransition(void)
 
 static void ClearActiveSave(void)
 {
+    /* Leaving the cart's own game: its save goes back onto the cartridge's
+     * chip (or, failing that, at the next power-on). */
+    if (CartStore_IsOwnGamePath(ActiveRomPath) && ActiveSavePath[0] && CartStore_CanReadCart())
+        (void)CartStore_OwnSaveExport(ActiveSavePath);
     memset(&ActiveInfo, 0, sizeof(ActiveInfo));
     ActiveSavePath[0] = '\0';
     ActiveRtcPath[0] = '\0';
@@ -1892,41 +1896,8 @@ static esp_err_t StartAndWaitForFrame(const VirtualCartInfo_t *pInfo,
     return ESP_ERR_TIMEOUT;
 }
 
-/* The cartridge's own game (cart_store.h): stop a virtual game (keeping its
- * save), then restart the cartridge here in the GB core, or switch there
- * (BootResume_Run lets the cartridge boot). */
-static esp_err_t RunOwnGame(const char *pPath)
-{
-    esp_err_t Result = ESP_OK;
-    if (Active)
-    {
-        sdmmc_card_t *pCard = NULL;
-        Result = SDCard_Mount(&pCard);
-        const bool Mounted = Result == ESP_OK;
-        if (Result == ESP_OK) Result = CartBulk_Begin();
-        const bool BulkOpen = Mounted && Result == ESP_OK;
-        if (Result == ESP_OK) Result = PersistActiveDataForTransition();
-        CartLinkResponse_t Stopped = {0};
-        if (Result == ESP_OK) Result = VirtualCommand(kVirtualCommandStop, NULL, &Stopped);
-        if (Result == ESP_OK) { SetActive(false); ClearActiveSave(); }
-        if (BulkOpen) CartBulk_End();
-        if (Mounted)
-        {
-            const esp_err_t UnmountResult = SDCard_Unmount(pCard);
-            if (Result == ESP_OK) Result = UnmountResult;
-        }
-    }
-    if (Result == ESP_OK)
-        Result = CartStore_CanReadCart() ? CartStore_RestartCart() : CoreSwitch_Request(pPath);
-    printf("VIRTUAL_CART_OWN path=%s result=%s\n", pPath, esp_err_to_name(Result));
-    if (Result != ESP_OK) RomBrowserUI_SetError(Result);
-    else if (RomBrowserUI_SetComplete()) (void)RomBrowser_CloseMenu();
-    return Result;
-}
-
 static esp_err_t RunLoad(const char *pPath)
 {
-    if (CartStore_IsOwnGamePath(pPath)) return RunOwnGame(pPath);
     esp_err_t Result = ESP_FAIL;
     sdmmc_card_t *pCard = NULL;
     FILE *pRom = NULL;
@@ -2084,6 +2055,12 @@ static esp_err_t RunLoad(const char *pPath)
         if (CoreSwitch_IsTarget(true)) Result=GGCheats_Install(&Cheats);
         else if(Cheats.Count) Result=ESP_ERR_NOT_SUPPORTED;
         if(Result!=ESP_OK) goto Cleanup;
+    }
+    /* The cart's own game: its save chip is the real save (cart_store.h). */
+    if (CartStore_IsOwnGamePath(pPath) && Info.RamSize && Info.Mapper.HasBattery)
+    {
+        char OwnSave[kPathSize];
+        if (MakeSavePath(pPath, false, OwnSave) == ESP_OK) (void)CartStore_OwnSaveImport(OwnSave, Info.RamSize);
     }
     Result = UploadSave(pPath, &Info, SelectedSavePath);
     if (Result != ESP_OK) goto Cleanup;

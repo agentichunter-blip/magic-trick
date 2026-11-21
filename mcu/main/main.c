@@ -408,6 +408,9 @@ void app_main(void)
     const bool IntroPlayed = BootResume_PlayIntro(&BootCartridge, (uint16_t *)buffy, intro_present);
     /* A core switch carrying a game keeps the hold until BootResume_Run
      * knows whether a cartridge game is staged next (no flash of its game). */
+    /* A cart's own game switched off while played from memory: its save goes
+     * back onto the cartridge before the cartridge starts. */
+    CartStore_OwnSaveBootSync();
     if (!CoreSwitch_HasPending()) BootResume_ReleaseCartridge();
     /* A start-up that continues a core switch shows the game being loaded
      * instead of each core's blank screen (still before the LVGL task). */

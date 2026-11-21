@@ -51,6 +51,9 @@ static const char kNvsKey[] = "stage";
 static const char kNvsDirKey[] = "dir2";    /* packed entries (PackDirectory) */
 static const char kNvsOldDirKey[] = "dir";  /* version 1 cache, removed on save */
 static const char kNvsOwnKey[] = "own"; /* file name of the cart's own game */
+/* A save of the cart's own game not yet written back to its chip: the file,
+ * its size, and the CRC-32 of the cartridge header it belongs to. */
+static const char kNvsOwnSaveKey[] = "osave", kNvsOwnSaveSizeKey[] = "osize", kNvsOwnSaveHeadKey[] = "ohead";
 /* 1 from staging until the target core has replayed it (the record itself
  * stays, so that core can still open the game for later reads). */
 static const char kNvsFreshKey[] = "fresh";
@@ -73,6 +76,7 @@ static char OwnName[kCartStoreNameSize]; /* "" for none (CartStore_OwnGame) */
 /* Box art of the cart's own game: version 2 header bytes 32-47 (offset, size,
  * CRC, then a CRC-32 of those 12 bytes); size 0 for none. */
 static uint32_t OwnArtOffset, OwnArtSize, OwnArtCrc;
+static uint32_t OwnSize; /* bytes the own game spans from offset 0 (its header's ROM size) */
 
 static uint8_t Cache[kCacheBlocks * kBlock];
 static uint32_t CacheOffset;
@@ -366,12 +370,14 @@ static esp_err_t ScanFn(void *pContext)
     if (!pBlock) return ESP_ERR_NO_MEM;
     EntryCount = 0;
     OwnName[0] = 0;
+    OwnSize = 0;
     OwnArtOffset = OwnArtSize = OwnArtCrc = 0;
     esp_err_t Result = CartBulk_ReadCart(0, pBlock, 1);
     uint32_t Candidates[2];
     const size_t CandidateCount = Result == ESP_OK ? DirectoryCandidates(pBlock, Candidates) : 0;
     char Own[kCartStoreNameSize] = "";
     if (Result == ESP_OK) OwnNameFromHeader(pBlock, Own, sizeof(Own));
+    const uint32_t Spans = Result == ESP_OK && pBlock[0x148] <= 8 ? 0x8000u << pBlock[0x148] : 0;
     for (size_t i = 0; Result == ESP_OK && i < CandidateCount; ++i)
     {
         Result = CartBulk_ReadCart(Candidates[i], pBlock, 1);
@@ -383,7 +389,7 @@ static esp_err_t ScanFn(void *pContext)
             EntryCount = (size_t)Count;
             /* Directory after the GB game (not a dedicated cart at 0x4000):
              * that game is still there to play. */
-            if (i > 0 && Count > 0) memcpy(OwnName, Own, sizeof(OwnName));
+            if (i > 0 && Count > 0) { memcpy(OwnName, Own, sizeof(OwnName)); OwnSize = Spans; }
             printf("CARTSTORE dir=0x%lx entries=%d own=\"%s\"\n", (unsigned long)Candidates[i], Count, OwnName);
             break;
         }
@@ -593,7 +599,8 @@ bool CartStore_IsCartPath(const char *pPath)
 esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, size_t Size)
 {
     if (!CartStore_IsCartPath(pPath)) return ESP_ERR_INVALID_ARG;
-    const int Length = snprintf(pOut, Size, "%s/%s", CART_STORE_SIDECAR_ROOT, pPath + sizeof(CART_STORE_ROOT));
+    const char *pName = CartStore_IsOwnGamePath(pPath) ? pPath + sizeof(CART_STORE_OWN_ROOT) : pPath + sizeof(CART_STORE_ROOT);
+    const int Length = snprintf(pOut, Size, "%s/%s", CART_STORE_SIDECAR_ROOT, pName);
     return Length > 0 && (size_t)Length < Size ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }
 
@@ -622,6 +629,17 @@ static void FreeRecord(void)
 
 static bool FindEntry(const char *pName, CartStoreEntry_t *pEntry)
 {
+    /* "/cart/.cartridge/<own name>": the cart's own game, from offset 0 (read
+     * in the GB core, so it can be played from memory with save states). */
+    static const char kOwnDir[] = ".cartridge/";
+    if (!strncmp(pName, kOwnDir, sizeof(kOwnDir) - 1))
+    {
+        if (!OwnName[0] || !OwnSize || strcmp(pName + sizeof(kOwnDir) - 1, OwnName)) return false;
+        memset(pEntry, 0, sizeof(*pEntry));
+        memcpy(pEntry->Name, OwnName, sizeof(pEntry->Name));
+        pEntry->Size = OwnSize;
+        return true;
+    }
     for (size_t i = 0; i < EntryCount; ++i)
         if (strcmp(Entries[i].Name, pName) == 0) { *pEntry = Entries[i]; return true; }
     return false;
@@ -875,6 +893,174 @@ void CartStore_ReplayDone(void)
         (void)nvs_commit(Handle);
         nvs_close(Handle);
     }
+}
+
+/* ------------------------------------------- the own game's save chip */
+
+enum { kOwnSaveMax = 32 * 1024 }; /* ModRetro carts: 32 KiB (MBC5 banks of 8 KiB) */
+
+typedef struct {
+    const char *pPath;   /* Import: the temporary file; Export: the save */
+    uint32_t Size;
+    bool Export;
+    uint32_t HeadCrc;   /* Import: out; Export: the cartridge must match */
+    uint32_t Written;   /* Export: blocks rewritten */
+} OwnSaveJob_t;
+
+/* One 1 KiB block of the save chip, through the MBC5 RAM window. */
+static esp_err_t OwnSaveBlock(uint32_t Offset, uint8_t *pData, bool Write)
+{
+    ESP_RETURN_ON_ERROR(CartBulk_CartWrite(0x0000, 0x0a), TAG, "save enable");
+    esp_err_t Result = CartBulk_CartWrite(0x4000, (uint8_t)(Offset / 8192u));
+    const uint16_t Address = (uint16_t)(0xa000u + Offset % 8192u);
+    if (Result == ESP_OK) Result = Write ? CartBulk_WriteCartBlock(Address, pData, kBlock) : CartBulk_ReadBlock(Address, pData);
+    (void)CartBulk_CartWrite(0x0000, 0x00);
+    return Result;
+}
+
+static uint32_t HeaderCrc(const uint8_t Block0[kBlock]) { return esp_rom_crc32_le(0, &Block0[0x134], 0x150 - 0x134); }
+
+static esp_err_t OwnSaveFn(void *pContext)
+{
+    OwnSaveJob_t *pJob = pContext;
+    uint8_t *pCart = malloc(kBlock), *pFile = malloc(kBlock);
+    FILE *pSave = NULL;
+    esp_err_t Result = pCart && pFile ? CartBulk_ReadCart(0, pCart, 1) : ESP_ERR_NO_MEM;
+    if (Result == ESP_OK)
+    {
+        const uint32_t Crc = HeaderCrc(pCart);
+        if (pJob->Export && Crc != pJob->HeadCrc) Result = ESP_ERR_INVALID_STATE; /* another cart is in */
+        pJob->HeadCrc = Crc;
+    }
+    if (Result == ESP_OK)
+    {
+        pSave = fopen(pJob->pPath, pJob->Export ? "rb" : "wb");
+        if (!pSave) Result = pJob->Export && errno == ENOENT ? ESP_ERR_NOT_FOUND : ESP_FAIL;
+        else if (!pJob->Export) SDCard_TuneWrite(pSave);
+    }
+    for (uint32_t At = 0; Result == ESP_OK && At < pJob->Size; At += kBlock)
+    {
+        Result = OwnSaveBlock(At, pCart, false);
+        if (Result != ESP_OK) break;
+        if (!pJob->Export)
+        {
+            if (fwrite(pCart, 1, kBlock, pSave) != kBlock) Result = ESP_FAIL;
+            continue;
+        }
+        if (fread(pFile, 1, kBlock, pSave) != kBlock) break; /* a shorter file: the rest stays */
+        if (!memcmp(pFile, pCart, kBlock)) continue;
+        Result = OwnSaveBlock(At, pFile, true);
+        if (Result == ESP_OK) Result = OwnSaveBlock(At, pCart, false);
+        if (Result == ESP_OK && memcmp(pFile, pCart, kBlock)) Result = ESP_ERR_INVALID_CRC;
+        if (Result == ESP_OK) ++pJob->Written;
+    }
+    if (pSave && fclose(pSave) != 0 && Result == ESP_OK) Result = ESP_FAIL;
+    free(pCart);
+    free(pFile);
+    return Result;
+}
+
+/* The pending write-back, if any: path (kPathSize-ish buffer), size, header CRC. */
+static bool OwnSavePending(char *pPath, size_t PathSize, uint32_t *pSize, uint32_t *pHead)
+{
+    nvs_handle_t Handle;
+    if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) != ESP_OK) return false;
+    size_t Length = PathSize;
+    const bool Found = nvs_get_str(Handle, kNvsOwnSaveKey, pPath, &Length) == ESP_OK &&
+                       nvs_get_u32(Handle, kNvsOwnSaveSizeKey, pSize) == ESP_OK &&
+                       nvs_get_u32(Handle, kNvsOwnSaveHeadKey, pHead) == ESP_OK;
+    nvs_close(Handle);
+    return Found;
+}
+
+static void OwnSaveRecord(const char *pPath, uint32_t Size, uint32_t Head)
+{
+    nvs_handle_t Handle;
+    if (nvs_open(kNvsNamespace, NVS_READWRITE, &Handle) != ESP_OK) return;
+    if (pPath)
+    {
+        (void)nvs_set_str(Handle, kNvsOwnSaveKey, pPath);
+        (void)nvs_set_u32(Handle, kNvsOwnSaveSizeKey, Size);
+        (void)nvs_set_u32(Handle, kNvsOwnSaveHeadKey, Head);
+    }
+    else
+    {
+        (void)nvs_erase_key(Handle, kNvsOwnSaveKey);
+        (void)nvs_erase_key(Handle, kNvsOwnSaveSizeKey);
+        (void)nvs_erase_key(Handle, kNvsOwnSaveHeadKey);
+    }
+    (void)nvs_commit(Handle);
+    nvs_close(Handle);
+}
+
+esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size)
+{
+    if (!pSavePath || !CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
+    if (Size > kOwnSaveMax) Size = kOwnSaveMax;
+    Size &= ~(kBlock - 1u);
+    if (!Size) return ESP_OK;
+    char Pending[160];
+    uint32_t PendingSize = 0, PendingHead = 0;
+    if (OwnSavePending(Pending, sizeof(Pending), &PendingSize, &PendingHead) && !strcmp(Pending, pSavePath))
+    {
+        /* Progress made here and not written back yet: the file is newer. */
+        printf("CARTSTORE own_save=keep path=%s\n", pSavePath);
+        return ESP_OK;
+    }
+    /* Read the whole chip into a temporary file first: a failed read never
+     * costs the save file already there. */
+    char Temp[168];
+    if (snprintf(Temp, sizeof(Temp), "%s.imp", pSavePath) >= (int)sizeof(Temp)) return ESP_ERR_INVALID_SIZE;
+    OwnSaveJob_t Job = {.pPath = Temp, .Size = Size};
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    CacheValid = false;
+    esp_err_t Result = WithCart(OwnSaveFn, &Job);
+    xSemaphoreGive(Lock);
+    if (Result != ESP_OK) (void)unlink(Temp);
+    else
+    {
+        (void)unlink(pSavePath);
+        if (rename(Temp, pSavePath) != 0) Result = ESP_FAIL; /* (the chip still holds the save) */
+    }
+    if (Result == ESP_OK) OwnSaveRecord(pSavePath, Size, Job.HeadCrc);
+    printf("CARTSTORE own_save=import path=%s bytes=%lu result=%s\n", pSavePath, (unsigned long)Size, esp_err_to_name(Result));
+    DiagLog_Append("own save import %s", esp_err_to_name(Result));
+    return Result;
+}
+
+esp_err_t CartStore_OwnSaveExport(const char *pSavePath)
+{
+    char Pending[160];
+    uint32_t Size = 0, Head = 0;
+    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head) || (pSavePath && strcmp(Pending, pSavePath)))
+        return ESP_OK; /* nothing to write back */
+    if (!CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
+    OwnSaveJob_t Job = {.pPath = Pending, .Size = Size, .Export = true, .HeadCrc = Head};
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    CacheValid = false;
+    const esp_err_t Result = WithCart(OwnSaveFn, &Job);
+    xSemaphoreGive(Lock);
+    /* Written back, or the file is gone: nothing left to do. Another cart in
+     * the slot keeps the record for when this one is back. */
+    if (Result == ESP_OK || Result == ESP_ERR_NOT_FOUND) OwnSaveRecord(NULL, 0, 0);
+    printf("CARTSTORE own_save=export path=%s blocks=%lu result=%s\n", Pending, (unsigned long)Job.Written,
+           esp_err_to_name(Result));
+    DiagLog_Append("own save export %s blocks=%lu", esp_err_to_name(Result), (unsigned long)Job.Written);
+    return Result;
+}
+
+void CartStore_OwnSaveBootSync(void)
+{
+    char Pending[160];
+    uint32_t Size = 0, Head = 0;
+    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head)) return;
+    if (!CartStore_CanReadCart() || !BootResume_CartridgeHeld()) return;
+    sdmmc_card_t *pCard = NULL;
+    if (SDCard_Mount(&pCard) != ESP_OK) { printf("CARTSTORE own_save=boot_no_storage\n"); return; }
+    CartHeld = true; /* borrow the start-up hold: the cartridge is already in maintenance */
+    (void)CartStore_OwnSaveExport(NULL);
+    CartHeld = false;
+    (void)SDCard_Unmount(pCard);
 }
 
 /* -------------------------------------------------------------------- VFS */

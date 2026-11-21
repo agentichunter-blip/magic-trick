@@ -92,6 +92,20 @@ size_t CartStore_Count(void);
 /* Path of the cartridge's own game, from the directory last read (false for a
  * dedicated Magic Trick cart or a cart without added games). */
 bool CartStore_OwnGame(char *pPath, size_t Size);
+/* The cart's own game played from the Chromatic's memory (picked in the
+ * menu, so it has save states; power-on still boots the cartridge itself).
+ * The cartridge's save chip stays the game's real save:
+ *  - Import (GB core, storage mounted, before the save is loaded): the chip's
+ *    save into pSavePath, unless that file holds progress not written back
+ *    yet. Records the pending write-back in NVS.
+ *  - Export (GB core, storage mounted): pSavePath back onto the chip, if
+ *    the cartridge is still the same game; clears the record. Called when
+ *    the game stops.
+ *  - BootSync: the start-up hold is on (main, before releasing it): export a
+ *    write-back left over from a game switched off mid-play. */
+esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size);
+esp_err_t CartStore_OwnSaveExport(const char *pSavePath);
+void CartStore_OwnSaveBootSync(void);
 /* GB core: restart the cartridge so its own game boots (taking over the
  * start-up hold when there is one). */
 esp_err_t CartStore_RestartCart(void);
@@ -164,7 +178,8 @@ static inline bool CartStore_IsCartPath(const char *pPath)
 static inline esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, size_t Size)
 {
     if (!CartStore_IsCartPath(pPath)) return ESP_ERR_INVALID_ARG;
-    const int Length = snprintf(pOut, Size, "%s/%s", CART_STORE_SIDECAR_ROOT, pPath + sizeof(CART_STORE_ROOT));
+    const char *pName = CartStore_IsOwnGamePath(pPath) ? pPath + sizeof(CART_STORE_OWN_ROOT) : pPath + sizeof(CART_STORE_ROOT);
+    const int Length = snprintf(pOut, Size, "%s/%s", CART_STORE_SIDECAR_ROOT, pName);
     return Length > 0 && (size_t)Length < Size ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }
 static inline size_t CartStore_Refresh(bool Force) { (void)Force; return 0; }
@@ -173,6 +188,9 @@ static inline size_t CartStore_Count(void) { return 0; }
 static inline bool CartStore_OwnGame(char *pPath, size_t Size) { (void)pPath; (void)Size; return false; }
 #endif
 static inline esp_err_t CartStore_RestartCart(void) { return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size) { (void)pSavePath; (void)Size; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_OwnSaveExport(const char *pSavePath) { (void)pSavePath; return ESP_OK; }
+static inline void CartStore_OwnSaveBootSync(void) {}
 static inline esp_err_t CartStore_FlashBegin(uint32_t *pCapacity) { (void)pCapacity; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
 { (void)Offset; (void)pData; (void)Blocks; return ESP_ERR_NOT_SUPPORTED; }

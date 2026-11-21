@@ -153,6 +153,8 @@ void BootResume_ReleaseCartridge(void)
     printf("BOOT_RESUME cartridge_release=%s status=%u\n", esp_err_to_name(Result), (unsigned)Reply.Status);
 }
 
+bool BootResume_CartridgeHeld(void) { return HeldForIntro; }
+
 bool BootResume_TakeHeldCartridge(void)
 {
     const bool Held = HeldForIntro;
@@ -371,8 +373,8 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
      * here takes it over (CartStore_HoldCart), anything else lets the
      * cartridge go now. */
     if (!(PendingResult == ESP_OK && CartStore_IsCartPath(Path) && CoreSwitch_IsCore(Target) &&
-          CartStore_CanReadCart()))
-        BootResume_ReleaseCartridge();
+          CartStore_CanReadCart() && CoreSwitch_SystemForPath(Path) != kCoreSystem_GB))
+        BootResume_ReleaseCartridge(); /* (a Game Boy cart game loads here like any other: no hold) */
     if (Interrupted()) { LYNX_DIAG("boot interrupted"); BootResume_ReleaseCartridge(); (void)EndCard(false); return; }
     PwrMgr_InhibitSleep();
     if (PendingResult == ESP_OK) {
@@ -383,12 +385,6 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
             const esp_err_t ContinueResult = CoreSwitch_ContinueTo(Path, Hops, Target);
             printf("CORE_SWITCH resume=wrong_core continue=%s; pending consumed\n", esp_err_to_name(ContinueResult));
             goto Fallback;
-        }
-        /* The cartridge's own game: let the held cartridge boot. */
-        if (CartStore_IsOwnGamePath(Path)) {
-            printf("CORE_SWITCH resume=cartridge\n");
-            BootResume_ReleaseCartridge();
-            goto Done;
         }
         /* Explicit selection outranks cartridge auto-resume. The pending record
          * is already durably removed: a failed load cannot cause a reboot loop. */
