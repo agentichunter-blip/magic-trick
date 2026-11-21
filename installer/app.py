@@ -1426,6 +1426,25 @@ class App:
             return
         self.cart_write_run('cart_restore', None, image, port, check=False, save=save)
 
+    @staticmethod
+    def cart_summary(info, operation, rewritten, save_written):
+        """The DONE screen's sentence: what is on the cart now."""
+        games = library.plural(len(info.games), 'game')
+        if info.dedicated:
+            what = 'is a Magic Trick cart with %s%s' % (games, ', which starts at power-on' if len(info.games) == 1
+                                                        else '')
+        elif info.own_title:
+            what = 'has ' + info.own_title + (' plus %s for the Chromatic' % games if info.games else
+                                              ' and no added games')
+        else:
+            what = 'has %s for the Chromatic' % games
+        if operation == 'cart_restore':
+            text = ('It already matched the backup, so nothing needed rewriting. ' if not rewritten else
+                    'Restored from the backup. ') + 'The cart %s.' % what
+            return text + (' Its save was put back too.' if save_written else '')
+        now = 'is now ' + what[3:] if what.startswith('is ') else 'now ' + what
+        return 'Written. The cart %s.' % now + (' Its save was wiped.' if save_written else '')
+
     def cart_write_run(self, operation, current, target, port, check, save=None):
         def work():
             library.emit('step', key='cart_connect')
@@ -1472,8 +1491,7 @@ class App:
             finally:
                 games = cart.close(); finish()
             info = cartridge.parse(target)
-            self.cart_result = ('The cart now has %s%s.' % (library.plural(len(info.games), 'game'),
-                                ' plus %s' % info.own_title if info.own_title else ''))
+            self.cart_result = self.cart_summary(info, operation, len(touched), save is not None and cart.save_size)
             if self.cart:
                 self.cart.update({'image': target, 'info': info, 'games': list(info.games),
                                   'mode': self.cart_mode_of(info), 'own_rom': None})
