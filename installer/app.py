@@ -101,10 +101,11 @@ def load_pixel_font(path):
 
 
 def _picker_text(options):
-    """macOS file and folder pickers don't show their title, so put it in the panel's message too
-    (otherwise the SD card picker that follows the games picker looks like the same one reopening)."""
+    """Older macOS file and folder pickers don't show their title, newer ones do: give macOS the text as the
+    panel's message only, so it shows exactly once (otherwise the SD card picker that follows the games picker
+    looks like the same one reopening, or the text appears twice)."""
     if sys.platform == 'darwin' and options.get('title'):
-        options['message'] = options['title']
+        options['message'] = options.pop('title')
     return options
 
 
