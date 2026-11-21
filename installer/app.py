@@ -5,7 +5,7 @@ try:
     from tkinter import messagebox, filedialog, simpledialog, font as tkfont
 except ImportError:   # command-line mode does not need a window
     tk = None
-import core, fpga, library
+import core, fpga, library, cartridge
 
 DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md'
 SOURCE = 'https://github.com/agentichunter-blip/magic-trick'
@@ -56,6 +56,21 @@ ROUTES = [('folder', 'CARD READER', 'Fastest. Take the SD card out of the Chroma
           ('wifi', 'WI-FI', 'No cable needed. On the Chromatic, open Settings, then Wi-Fi Files.'),
           ('usb', 'USB (SLOW)', 'Very slow. Fine for a few covers, but not for games or clips.')]
 SPINNER = '▖▘▝▗'
+# The Cartridge tab stays hidden until cartridge support is announced.
+CARTRIDGE = os.environ.get('MAGIC_TRICK_CARTRIDGE') == '1' or '--cartridge' in sys.argv
+CART_OPS = ('cart_read', 'cart_write', 'cart_restore')
+STEPS.update({
+    'cart_connect': ('CONNECTING', 'Opening the cartridge in your Chromatic.', 0.2),
+    'cart_read': ('READING CART', 'Copying the whole cartridge to this computer as a backup. About a minute per MB.', 1.8),
+    'cart_check': ('CHECKING CART', 'Comparing the cartridge with what will be written.', 0.3),
+    'cart_write': ('WRITING CART', 'Writing only the parts of the cartridge that change.', 2),
+    'cart_verify': ('VERIFYING', 'Reading back what was written and checking every byte.', 0.2),
+})
+PLANS.update({'cart_read': ['cart_connect', 'cart_read'],
+              'cart_write': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify'],
+              'cart_restore': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify']})
+TITLES.update({'cart_read': 'READING CART', 'cart_write': 'WRITING CART', 'cart_restore': 'RESTORING CART'})
+CART_BACKUPS = Path.home() / 'Documents' / 'Magic Trick' / 'Cartridge backups'
 
 
 def load_pixel_font(path):
@@ -237,6 +252,15 @@ class App:
         self.label(words, 'Add games, box art and gameplay clips to your SD card. Doesn\'t change the firmware, '
                    'and no backup is needed.', self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(5, 0))
         PixelButton(tile, 'OPEN ▶', self.show_library, self.f_pixel, 'secondary').pack(side='right', padx=16)
+        if CARTRIDGE:
+            tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
+            tile.pack(fill='x', pady=4)
+            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+            self.label(words, 'CARTRIDGE', self.f_pixel, AMBER).pack(anchor='w')
+            self.label(words, 'Back up a rewritable Game Boy cart (ModRetro carts, most flash carts) and put Game '
+                       'Gear, Lynx and Game Boy games on it, with box art. No SD card needed to play them.', self.f_body, MUTED,
+                       wrap=600).pack(anchor='w', pady=(5, 0))
+            PixelButton(tile, 'OPEN ▶', self.show_cartridge, self.f_pixel, 'secondary').pack(side='right', padx=16)
         self.refresh_device()
         self.fit_window()
 
@@ -652,7 +676,7 @@ class App:
                 error = str(exc) or exc.__class__.__name__
                 self.log('STOPPED: ' + error)
             finally:
-                if operation not in LIBRARY:
+                if operation not in LIBRARY + CART_OPS:
                     self.save_log(folder)
                 self.events.put(('finished', error))
         threading.Thread(target=worker, daemon=True).start()
@@ -661,6 +685,8 @@ class App:
         self.clear(); self.mode = 'running'
         self.status_dot.configure(fg=ACCENT)
         self.status_text.configure(text='WORKING…' if self.operation in LIBRARY else 'WORKING… KEEP IT PLUGGED IN')
+        if self.operation in CART_OPS:
+            self.status_text.configure(text='WORKING… LEAVE THE CART IN')
         top = tk.Frame(self.screen, bg=BG); top.pack(fill='x')
         self.run_title = self.label(top, TITLES[self.operation], self.f_pixel_big, INK)
         self.run_title.pack(side='left')
@@ -795,9 +821,451 @@ class App:
         if 'Waiting for the Chromatic to reconnect' in line:
             self.note = 'Waiting for the Chromatic to reconnect. The first time, Windows may set up drivers; this can take a minute or two.'
 
+    # ---------- cartridge ----------
+    def show_cartridge(self):
+        if self.busy:
+            return
+        self.clear(); self.mode = 'cartridge'
+        self.status_dot.configure(fg=AMBER); self.status_text.configure(text='CARTRIDGE')
+        top = tk.Frame(self.screen, bg=BG); top.pack(fill='x', pady=(4, 6))
+        self.label(top, 'CARTRIDGE', self.f_pixel_big, AMBER).pack(side='left')
+        PixelButton(top, '◀ BACK', self.show_home, self.f_pixel, 'secondary').pack(side='right')
+        state = getattr(self, 'cart', None)
+        if state:
+            return self.cart_editor(state)
+        self.label(self.screen, 'Put Game Gear, Lynx and Game Boy games on a rewritable Game Boy cart: a ModRetro cart or '
+                   'most flash carts. A Chromatic with Magic '
+                   'Trick lists them under Games > Cartridge and plays them, even without an SD card. First the '
+                   'whole cart is copied to this computer as a backup.', self.f_body_big, INK,
+                   wrap=840).pack(anchor='w')
+        self.label(self.screen, 'BEFORE YOU START, ON THE CHROMATIC', self.f_pixel, ACCENT).pack(anchor='w', pady=(14, 4))
+        for line in ('1. Put the cart in and switch the Chromatic on.',
+                     '2. Start a Game Boy game (the cart\'s own game is fine). Game Gear and Lynx games can\'t reach '
+                     'the cart.',
+                     '3. Open the menu: turn Wi-Fi off and USB TRANSFERS on.',
+                     '4. Plug it into this computer with a USB cable.'):
+            self.label(self.screen, line, self.f_body, MUTED, wrap=820).pack(anchor='w', pady=1)
+        for title, text, button, command, kind in [
+                ('READ CART', 'Back up the cart, then choose its games. About 2 minutes for a 2 MB cart.',
+                 'START ▶', self.begin_cart_read, 'primary'),
+                ('RESTORE A CART BACKUP', 'Write a backup made here back onto the cart, exactly as it was.',
+                 'CHOOSE ▶', self.begin_cart_restore, 'secondary')]:
+            tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2,
+                            highlightbackground=ACCENT if kind == 'primary' else LINE)
+            tile.pack(fill='x', pady=(10, 0))
+            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+            self.label(words, title, self.f_pixel, ACCENT if kind == 'primary' else INK).pack(anchor='w')
+            self.label(words, text, self.f_body, MUTED, wrap=560).pack(anchor='w', pady=(5, 0))
+            PixelButton(tile, button, command, self.f_pixel, kind).pack(side='right', padx=16)
+        self.fit_window()
+
+    def cart_port(self):
+        try:
+            ports = core.device_ports()
+        except Exception:
+            ports = []
+        if len(ports) != 1:
+            messagebox.showinfo('Connect your Chromatic', 'Plug your Chromatic into this computer with a USB cable, '
+                                'start a Game Boy game, and turn USB TRANSFERS on (Wi-Fi off). Then try again.')
+            return None
+        return ports[0]
+
+    def cart_open(self, port):
+        usb = library.UsbTarget(port)
+        try:
+            return usb, cartridge.CartUsb(usb)
+        except Exception as exc:
+            usb.close()
+            if 'INVALID_STATE' in str(exc):
+                raise ValueError('The Chromatic can only reach the cart from a Game Boy game. Start one, then '
+                                 'try again.')
+            if 'NOT_SUPPORTED' in str(exc):
+                raise ValueError('This cart\'s flash chip isn\'t one Magic Trick knows how to write. Nothing was '
+                                 'changed.')
+            if 'NOT_FOUND' in str(exc):
+                raise ValueError('No cart answered. Check it\'s pushed all the way in, then try again.')
+            raise
+
+    def begin_cart_read(self):
+        if self.busy:
+            return
+        port = self.cart_port()
+        if not port:
+            return
+
+        def work():
+            library.emit('step', key='cart_connect')
+            usb, cart = self.cart_open(port)
+            try:
+                library.emit('step', key='cart_read')
+                image = cart.read(lambda done, total: library.progress(done // 1024, total // 1024, 'KB read'))
+            finally:
+                cart.close(); usb.close()
+            info = cartridge.parse(image)
+            CART_BACKUPS.mkdir(parents=True, exist_ok=True)
+            stem = re.sub(r'[^0-9A-Za-z.-]+', '-', info.own_title or ('Magic-Trick-cart' if info.dedicated else 'cart'))
+            path = CART_BACKUPS / ('%s %s %08X.bin' % (stem, datetime.date.today().isoformat(), cartridge.crc32(image)))
+            if not path.exists():
+                path.write_bytes(image)
+            print('Backup saved: %s' % path)
+            self.cart_loaded = {'image': image, 'info': info, 'backup': path, 'port': port,
+                                'games': list(info.games), 'dedicated': info.dedicated or not info.own_title}
+        self.cart_loaded = None
+        self.run('cart_read', work, None)
+
+    def cart_finished(self, error):
+        self.clear(); self.mode = 'finished'; self.finish_colour = None
+        box = tk.Frame(self.screen, bg=BG); box.pack(fill='both', expand=True)
+        if error is None and self.operation == 'cart_read' and self.cart_loaded:
+            self.cart = self.cart_loaded
+            return self.show_cartridge()
+        if error is None:
+            word, colour = 'DONE!', GREEN
+            lines = self.cart_result
+            extra = ('Next: on the Chromatic, turn USB TRANSFERS off and open Games > Cartridge.')
+        else:
+            word, colour = 'STOPPED', RED
+            lines = 'It stopped before finishing: ' + error
+            extra = ('The cart is safe to read again. If a write stopped halfway, read the cart and write it again, '
+                     'or restore your backup: it puts back exactly what was there. Backups are in ' +
+                     str(CART_BACKUPS))
+        self.status_dot.configure(fg=colour); self.status_text.configure(text='ALL DONE' if error is None else 'STOPPED')
+        self.label(box, word, self.f_pixel_huge, colour).pack(anchor='w')
+        self.label(box, lines, self.f_body_big, INK, wrap=820).pack(anchor='w', pady=(14, 0))
+        self.label(box, extra, self.f_body, MUTED, wrap=820).pack(anchor='w', pady=(12, 0))
+        row = tk.Frame(box, bg=BG); row.pack(anchor='w', pady=(22, 0))
+        if CART_BACKUPS.is_dir():
+            PixelButton(row, 'OPEN BACKUPS', lambda: self.open_folder(str(CART_BACKUPS)), self.f_pixel,
+                        'secondary').pack(side='left', padx=(0, 10))
+        PixelButton(row, 'COPY LOG', self.copy_log, self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
+        PixelButton(row, 'BACK TO CARTRIDGE', self.show_cartridge, self.f_pixel, 'primary').pack(side='left')
+
+    # The editor: the cart's games, how full it gets, and WRITE.
+    def cart_editor(self, state):
+        info = state['info']
+        size = '%g MB' % (info.capacity / 1048576)
+        what = ('keeps its own game, %s' % info.own_title) if info.own_title else \
+            ('a Magic Trick cart' if info.dedicated else 'no game of its own')
+        head = tk.Frame(self.screen, bg=BG); head.pack(fill='x')
+        self.label(head, '%s CART · %s' % (size, what.upper()), self.f_pixel, INK).pack(side='left')
+        link = self.label(head, 'BACKUP SAVED ▸', self.f_pixel, GREEN, cursor='hand2'); link.pack(side='right')
+        link.bind('<Button-1>', lambda e: self.open_folder(str(state['backup'].parent)))
+        if info.own_title:
+            self.label(self.screen, 'WHAT KIND OF CART', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 2))
+            self.cart_modes = {}
+            for dedicated, text in [
+                    (False, 'Keep %s. It still plays on any Game Boy, and is listed first under Games > Cartridge.'
+                     % info.own_title),
+                    (True, 'Magic Trick cart. Replaces %s with a title card; with one game, the Chromatic starts '
+                     'straight into it.' % info.own_title)]:
+                row = tk.Frame(self.screen, bg=BG, cursor='hand2'); row.pack(fill='x', pady=1)
+                mark = self.label(row, '', self.f_pixel, INK, width=22); mark.pack(side='left')
+                note = self.label(row, text, self.f_body, MUTED, wrap=520); note.pack(side='left', padx=(10, 0))
+                for w in (row, mark, note):
+                    w.bind('<Button-1>', lambda e, d=dedicated: self.cart_set_mode(d))
+                self.cart_modes[dedicated] = mark
+        self.label(self.screen, 'GAMES ON THE CART', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 2))
+        frame = tk.Frame(self.screen, bg=BG); frame.pack(fill='x')
+        mono = 'Menlo' if sys.platform == 'darwin' else ('Consolas' if sys.platform == 'win32' else 'DejaVu Sans Mono')
+        self.cart_list = tk.Listbox(frame, selectmode='extended', activestyle='none', font=(mono, 12), height=8,
+                                    bg=PANEL, fg=INK, selectbackground=BLUE, selectforeground=INK, relief='flat',
+                                    highlightthickness=0, exportselection=False)
+        bar = tk.Scrollbar(frame, command=self.cart_list.yview); self.cart_list.configure(yscrollcommand=bar.set)
+        self.cart_list.pack(side='left', fill='x', expand=True); bar.pack(side='right', fill='y')
+        buttons = tk.Frame(self.screen, bg=BG); buttons.pack(fill='x', pady=(6, 0))
+        for text, command in [('ADD GAMES ▶', self.cart_add_games), ('REMOVE', self.cart_remove),
+                              ('FIND BOX ART ▶', self.cart_find_art), ('PICK ART…', self.cart_pick_art),
+                              ('NO ART', self.cart_clear_art)]:
+            PixelButton(buttons, text, command, self.f_pixel, 'secondary').pack(side='left', padx=(0, 8))
+        self.cart_note = self.label(self.screen, '', self.f_body, MUTED, wrap=820)
+        self.cart_note.pack(anchor='w', pady=(4, 0))
+        self.label(self.screen, 'CART SPACE', self.f_pixel, ACCENT).pack(anchor='w', pady=(10, 2))
+        self.cart_bar = tk.Canvas(self.screen, height=26, bg=BG, highlightthickness=0); self.cart_bar.pack(fill='x')
+        legend = tk.Frame(self.screen, bg=BG); legend.pack(anchor='w')
+        self.cart_bar_text = self.label(legend, '', self.f_pixel, MUTED); self.cart_bar_text.pack(side='left')
+        for text, colour in [(info.own_title or 'CART PROGRAM', FAINT), ('GAMES', ACCENT), ('BOX ART', LILAC)]:
+            self.label(legend, '  ■ ', self.f_pixel, colour).pack(side='left')
+            self.label(legend, text.upper(), self.f_pixel, MUTED).pack(side='left')
+        self.label(self.screen, 'SAVES & STATES WITHOUT AN SD CARD', self.f_pixel, ACCENT).pack(anchor='w', pady=(8, 2))
+        self.store_bar = tk.Canvas(self.screen, height=26, bg=BG, highlightthickness=0); self.store_bar.pack(fill='x')
+        self.store_bar_text = self.label(self.screen, '', self.f_body, MUTED, wrap=820); self.store_bar_text.pack(anchor='w')
+        row = tk.Frame(self.screen, bg=BG); row.pack(fill='x', pady=(12, 0))
+        self.cart_write_button = PixelButton(row, 'WRITE TO CART ▶', self.begin_cart_write, self.f_pixel, 'primary')
+        self.cart_write_button.pack(side='right')
+        PixelButton(row, 'READ AGAIN', self.cart_forget, self.f_pixel, 'secondary').pack(side='right', padx=(0, 10))
+        for canvas in (self.cart_bar, self.store_bar):
+            canvas.bind('<Configure>', lambda e: self.draw_cart())
+        self.screen.after(50, self.draw_cart)
+        self.fit_window()
+
+    def cart_forget(self):
+        self.cart = None
+        self.show_cartridge()
+
+    def cart_set_mode(self, dedicated):
+        self.cart['dedicated'] = dedicated
+        self.draw_cart()
+
+    def cart_target(self):
+        """(image or None, error text): the cart as it would be written."""
+        state = self.cart
+        info = state['info']
+        try:
+            if state['dedicated'] or not info.own_title:
+                if not state['games']:
+                    return None, 'Add at least one game.'
+                return cartridge.build(info.capacity, state['games'], dedicated=True), ''
+            return cartridge.build(info.capacity, state['games'], own_image=state['image']), ''
+        except cartridge.CartFull as exc:
+            return None, str(exc)
+        except cartridge.CartError as exc:
+            return None, str(exc)
+
+    def draw_segments(self, canvas, parts, total, colours):
+        canvas.delete('all')
+        width = max(canvas.winfo_width(), 400)
+        x, n = 0, 0
+        for label, kind, size in parts:
+            w = width * size / max(total, 1)
+            if w <= 0:
+                continue
+            colour = colours.get(kind, PANEL)
+            if kind == 'game':
+                colour, n = (ACCENT, BLUE)[n % 2], n + 1   # tell neighbouring games apart
+            canvas.create_rectangle(x, 2, min(x + w, width), 24, fill=colour, outline=BG)
+            x += w
+        if x < width:
+            canvas.create_rectangle(x, 2, width, 24, fill=PANEL, outline=LINE)
+
+    def draw_cart(self):
+        if self.mode != 'cartridge' or not getattr(self, 'cart', None):
+            return
+        state = self.cart
+        info = state['info']
+        dedicated = state['dedicated'] or not info.own_title
+        for d, mark in getattr(self, 'cart_modes', {}).items():
+            mark.configure(text=('[■] ' if d == dedicated else '[ ] ') + ('MAGIC TRICK CART' if d else 'KEEP IT'),
+                           fg=ACCENT if d == dedicated else MUTED)
+        self.cart_list.delete(0, 'end')
+        for g in state['games']:
+            self.cart_list.insert('end', '%-10s %7s  %s  %s' % (cartridge.SYSTEM_NAMES[g.system],
+                                                                '%d KB' % (len(g.data) // 1024),
+                                                                'ART' if g.art else '   ', g.name))
+        parts, used = cartridge.usage(info.capacity, state['games'], own=info.own_size, dedicated=dedicated)
+        colours = {'own': FAINT, 'stub': FAINT, 'directory': LINE, 'game': ACCENT, 'art': LILAC}
+        self.draw_segments(self.cart_bar, parts[:-1], info.capacity, colours)
+        free = info.capacity - used
+        self.cart_bar_text.configure(
+            text='%.2f MB OF %g MB USED · %s' % (used / 1048576, info.capacity / 1048576,
+                                                 '%d KB FREE' % (free // 1024) if free >= 0 else
+                                                 '%d KB TOO MUCH' % (-free // 1024)),
+            fg=RED if free < 0 else MUTED)
+        store_parts, store = cartridge.store_usage(state['games'])
+        self.draw_segments(self.store_bar, [(n, 'save', b) for n, b in store_parts], cartridge.STORE_BYTES,
+                           {'save': AMBER if store > cartridge.STORE_BYTES else GREEN})
+        text = ('Up to %.2f MB of about %.2f MB, if every game uses its save and all 3 save states. ' %
+                (store / 1048576, cartridge.STORE_BYTES / 1048576))
+        text += ('That could run out without an SD card: then the newest saves fail. With an SD card in, saves '
+                 'go on the card instead.' if store > cartridge.STORE_BYTES else
+                 'With an SD card in, saves go on the card instead.')
+        self.store_bar_text.configure(text=text, fg=AMBER if store > cartridge.STORE_BYTES else MUTED)
+        target, problem = self.cart_target()
+        changed = target is not None and target != state['image']
+        if target is not None:
+            steps = cartridge.plan(state['image'], target)
+            moved = cartridge.plan_bytes(steps)
+            note = ('Nothing to write yet.' if not changed else
+                    'Writing changes %d KB of the cart. %s' % (moved // 1024, 'With one game, the Chromatic starts '
+                                                               'straight into it.' if dedicated and
+                                                               len(state['games']) == 1 else ''))
+        else:
+            note = problem
+        self.cart_note.configure(text=note, fg=RED if target is None else MUTED)
+        self.cart_write_button.set_enabled(changed)
+
+    def cart_selected(self):
+        return [self.cart['games'][i] for i in self.cart_list.curselection()]
+
+    def cart_add_games(self):
+        paths = list(ask_open_filenames(title='Choose games for the cart', filetypes=[
+            ('Games', '*.gb *.gbc *.gg *.lnx *.lyx *.zip'), ('All files', '*')]))
+        if not paths:
+            return
+        have = {g.name.lower() for g in self.cart['games']}
+        added, skipped = 0, []
+        for name, load, _ in library.collect_games(paths):
+            name = cartridge.short_name(name)
+            if name.lower() in have:
+                skipped.append(name)
+                continue
+            if Path(name).suffix.lower() in cartridge.SYSTEMS:
+                self.cart['games'].append(cartridge.Game(name, load()))
+                have.add(name.lower()); added += 1
+        self.draw_cart()
+        if skipped:
+            messagebox.showinfo('Already on the cart', 'These are already in the list:\n\n' + '\n'.join(skipped[:10]))
+
+    def cart_remove(self):
+        chosen = self.cart_selected()
+        if not chosen:
+            messagebox.showinfo('Remove games', 'Click a game in the list first (Shift or Ctrl/Cmd for several).')
+            return
+        self.cart['games'] = [g for g in self.cart['games'] if g not in chosen]
+        self.draw_cart()
+
+    def cart_pick_art(self):
+        chosen = self.cart_selected()
+        if len(chosen) != 1:
+            messagebox.showinfo('Pick box art', 'Click one game in the list first.')
+            return
+        path = ask_open_filename(title='Box art for ' + chosen[0].name,
+                                 filetypes=[('Images', '*.png *.jpg *.jpeg *.bmp *.gif *.webp'), ('All files', '*')])
+        if not path:
+            return
+        try:
+            chosen[0].art = library.cover_bytes(Path(path).read_bytes())
+        except Exception as exc:
+            messagebox.showinfo('That image didn\'t work', 'It couldn\'t be read as an image: %s' % exc)
+            return
+        self.draw_cart()
+
+    def cart_clear_art(self):
+        for g in self.cart_selected():
+            g.art = None
+        self.draw_cart()
+
+    def cart_find_art(self):
+        todo = [g for g in (self.cart_selected() or self.cart['games']) if not g.art]
+        if not todo:
+            messagebox.showinfo('Box art', 'Every game in the list already has box art.')
+            return
+        self.cart_note.configure(text='Looking for box art for %s…' % library.plural(len(todo), 'game'), fg=ACCENT)
+        found = {}
+
+        def work():
+            try:
+                found.update(library.covers_for([(g.name, g.data) for g in todo], log=lambda *_: None))
+            except Exception as exc:
+                found['_error'] = str(exc)
+            self.events.put(('cart_art', None))
+
+        def done():
+            for g in todo:
+                if g.name in found:
+                    g.art = found[g.name]
+            self.draw_cart()
+            missing = [g.name for g in todo if g.name not in found]
+            if '_error' in found:
+                messagebox.showinfo('Box art', 'Couldn\'t reach the box art catalogue: %s' % found['_error'])
+            elif missing:
+                messagebox.showinfo('Box art', 'No box art was found for:\n\n' + '\n'.join(missing[:10]) +
+                                    '\n\nUse PICK ART… to choose an image yourself.')
+        self.cart_art_done = done
+        threading.Thread(target=work, daemon=True).start()
+
+    def begin_cart_write(self):
+        if self.busy:
+            return
+        target, problem = self.cart_target()
+        if target is None:
+            return
+        state = self.cart
+        steps = cartridge.plan(state['image'], target)
+        moved = cartridge.plan_bytes(steps)
+        before = {g.name for g in state['info'].games}
+        after = {g.name for g in state['games']}
+        lines = ['Add: ' + n for n in sorted(after - before)] + ['Remove: ' + n for n in sorted(before - after)]
+        if state['dedicated'] and state['info'].own_title:
+            lines.insert(0, 'Replace %s with the Magic Trick title card' % state['info'].own_title)
+        listing = '\n'.join('• ' + l for l in lines[:10]) + ('\n…and %d more' % (len(lines) - 10) if len(lines) > 10 else '')
+        if not messagebox.askyesno('Write to the cart?', (listing + '\n\n' if listing else '') +
+                                   'This changes %d KB of the cart. Your backup is saved in:\n%s\n\nKeep the cable in '
+                                   'and the Chromatic on until it says DONE. Continue?' %
+                                   (moved // 1024, state['backup'].parent), icon='warning'):
+            return
+        port = self.cart_port()
+        if not port:
+            return
+        self.cart_write_run('cart_write', state['image'], target, port, check=True)
+
+    def begin_cart_restore(self):
+        if self.busy:
+            return
+        path = ask_open_filename(title='Choose a cart backup', initialdir=str(CART_BACKUPS) if CART_BACKUPS.is_dir() else None,
+                                 filetypes=[('Cart backups', '*.bin'), ('All files', '*')])
+        if not path:
+            return
+        image = Path(path).read_bytes()
+        info = cartridge.parse(image)
+        what = info.own_title or ('a Magic Trick cart' if info.dedicated else 'a cart')
+        if not messagebox.askyesno('Restore this backup?', '%s\n\n%g MB, %s, %s.\n\nEverything on the cart is '
+                                   'replaced by this backup. Continue?' % (Path(path).name, len(image) / 1048576, what,
+                                   library.plural(len(info.games), 'added game')), icon='warning'):
+            return
+        port = self.cart_port()
+        if not port:
+            return
+        self.cart_write_run('cart_restore', None, image, port, check=False)
+
+    def cart_write_run(self, operation, current, target, port, check):
+        def work():
+            library.emit('step', key='cart_connect')
+            usb, cart = self.cart_open(port)
+            try:
+                if cart.capacity != len(target):
+                    raise ValueError('This cart holds %g MB, but the image is %g MB.' %
+                                     (cart.capacity / 1048576, len(target) / 1048576))
+                blocks = range(0, len(target), cartridge.ERASE_BLOCK)
+                if check:
+                    # Only the blocks that change, and block 0 (which cart this is), are checked: every
+                    # 1 KiB written is read back by the Chromatic as it goes.
+                    library.emit('step', key='cart_check')
+                    steps = cartridge.plan(current, target)
+                    touched = [s[1] for s in steps if s[0] != 'keep']
+                    if not cart.matches(current, sorted(set([0] + touched))):
+                        raise ValueError('The cart isn\'t the one that was read (or it changed since). Nothing '
+                                         'was written: press BACK TO CARTRIDGE, then READ AGAIN.')
+                else:
+                    # A restore: compare every block's checksum and rewrite only the ones that differ.
+                    differ = [o for o in blocks if cart.crc(o, cartridge.ERASE_BLOCK) !=
+                              cartridge.crc32(target[o:o + cartridge.ERASE_BLOCK])]
+                    steps = [('erase', o, [o + b for b in range(0, cartridge.ERASE_BLOCK, cartridge.BLOCK)
+                                           if target[o + b:o + b + cartridge.BLOCK] != b'\xff' * cartridge.BLOCK])
+                             for o in differ]
+                    touched = differ
+                library.emit('step', key='cart_write')
+                total, done = max(1, cartridge.plan_bytes(steps) // 1024), 0
+                for step in steps:
+                    if step[0] == 'keep':
+                        continue
+                    if step[0] == 'erase':
+                        print('Erasing 64 KB at 0x%x' % step[1])
+                        cart.erase(step[1])
+                    for at in step[2]:
+                        cart.program(at, target[at:at + cartridge.BLOCK])
+                        done += 1
+                        library.progress(done, total, 'KB written')
+                library.emit('step', key='cart_verify')
+                if not cart.matches(target, touched):
+                    raise ValueError('The cart doesn\'t match what was written. Write it again, or restore your '
+                                     'backup.')
+            finally:
+                games = cart.close(); usb.close()
+            info = cartridge.parse(target)
+            self.cart_result = ('The cart now has %s%s.' % (library.plural(len(info.games), 'game'),
+                                ' plus %s' % info.own_title if info.own_title else ''))
+            if self.cart:
+                self.cart.update({'image': target, 'info': info, 'games': list(info.games),
+                                  'dedicated': info.dedicated or not info.own_title})
+            print('The Chromatic reads %s games on the cart.' % games)
+        self.cart_result = ''
+        self.run(operation, work, None)
+
     # ---------- finished ----------
     def finished(self, error):
         self.busy = False
+        if self.operation in CART_OPS:
+            return self.cart_finished(error)
         stage = None
         try:
             stage = json.loads((Path(self.folder) / 'installation.json').read_text()).get('stage')
@@ -956,6 +1424,9 @@ class App:
                 self.pick_games(*payload)
             elif kind == 'finished':
                 self.finished(payload)
+            elif kind == 'cart_art':
+                if getattr(self, 'cart_art_done', None):
+                    self.cart_art_done()
             elif kind == 'recheck':
                 self.busy = False
                 if self.mode == 'finished':

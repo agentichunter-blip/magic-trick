@@ -782,6 +782,31 @@ def get_covers(target, replace=False, log=print, load_index=PackIndex.load, down
     return summary
 
 
+def covers_for(games, log=print, load_index=PackIndex.load, download=fetch):
+    """Box art for games that aren't on a card (the Cartridge tab): [(name, data)] -> {name: cover}."""
+    loaded, out = {}, {}
+    for name, data in games:
+        system = system_of(name, data)
+        if not system:
+            continue
+        indexes = []
+        for group, pack_system in PACKS[system]:
+            if (group, pack_system) not in loaded:
+                log('Downloading the %s cover list…' % pack_system)
+                loaded[(group, pack_system)] = load_index(group, pack_system)
+            indexes.append(loaded[(group, pack_system)])
+        found = resolve(os.path.splitext(name)[0], indexes, rom_crcs(name, data))
+        if not found:
+            log('No box art found for %s.' % name)
+            continue
+        index, key, _ = found
+        try:
+            out[name] = cover_bytes(download(index.url(key)))
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            log('Couldn\'t get box art for %s: %s' % (name, exc))
+    return out
+
+
 # ---------------------------------------------------------------- gameplay previews
 
 def find_ffmpeg():

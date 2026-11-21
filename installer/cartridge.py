@@ -30,7 +30,7 @@ SLOTS1, SLOT1_BASE, SLOT1_SIZE = 10, 64, 96
 DIR2_HEADER, ENTRY2_SIZE = 64, 128
 SYSTEMS = {'.gg': 1, '.lnx': 2, '.lyx': 2, '.o': 2, '.gb': 0, '.gbc': 0}
 SYSTEM_NAMES = {0: 'Game Boy', 1: 'Game Gear', 2: 'Atari Lynx'}
-ART_SIZE = 16 + 72 * 80 * 2          # the menu's .cma box art
+ART_SIZE = 16 + 128 * 92 * 2         # the menu's .cma box art (library.COVER_BYTES)
 ASSETS = Path(__file__).resolve().parent / 'assets'
 
 # Saves and states live on the microSD card, or with no card in the
@@ -663,10 +663,19 @@ class CartUsb:
     def program(self, offset, data):
         self.usb._exchange(b'\x23' + struct.pack('<I', offset) + data, seconds=30)
 
+    def matches(self, image, offsets):
+        """Whether the cart holds image's bytes in these 64 KiB blocks."""
+        return all(self.crc(o, ERASE_BLOCK) == crc32(image[o:o + ERASE_BLOCK]) for o in offsets)
+
     def write(self, current, target, progress=None, log=print):
-        """Change the cart from current to target (both whole-cart images),
-        then check the whole cart by CRC. Returns the plan's steps."""
+        """Change the cart from current to target (both whole-cart images).
+        Only the blocks that change (and block 0, the cart's identity) are
+        checked before and after: every programmed 1 KiB is read back by the
+        firmware as it goes. Returns the plan's steps."""
         steps = plan(current, target)
+        touched = [s[1] for s in steps if s[0] != 'keep']
+        if not self.matches(current, sorted(set([0] + touched))):
+            raise CartError('The cart isn\'t the one that was read (or it changed since). Nothing was written.')
         total, done = max(1, plan_bytes(steps)), 0
         for step in steps:
             if step[0] == 'keep':
@@ -678,7 +687,7 @@ class CartUsb:
                 done += BLOCK
                 if progress:
                     progress(done, total)
-        if self.crc(0, len(target)) != crc32(target):
+        if not self.matches(target, touched):
             raise CartError('The cart doesn\'t match what was written. Nothing was lost: write it again '
                             'or restore the backup.')
         return steps

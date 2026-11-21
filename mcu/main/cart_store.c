@@ -1029,8 +1029,9 @@ static const uint16_t kReset[][2] = {{0x0000, 0xf0}};
 static const uint16_t kIdentify[][2] = {{0x0aaa, 0xaa}, {0x0555, 0x55}, {0x0aaa, 0x90}};
 static const uint16_t kCfi[][2] = {{0x00aa, 0x98}};
 
-/* AMD-command flash chips on ModRetro carts (the ChroMagician/FlashGBX
- * "modretro" profiles): capacity and the cart engine's program mode. */
+/* AMD-command flash chips: the ones on ModRetro carts (the ChroMagician/
+ * FlashGBX "modretro" profiles) by ID, others by CFI. Capacity and the cart
+ * engine's program mode (0x82 byte, 0x83 32-byte buffer, 0x85 256-byte). */
 static esp_err_t IdentifyChip(uint32_t *pCapacity, uint8_t *pMode, uint8_t *pBlock)
 {
     ESP_RETURN_ON_ERROR(CartBulk_CartWrite(0x2000, 0), TAG, "bank 0");
@@ -1064,7 +1065,20 @@ static esp_err_t IdentifyChip(uint32_t *pCapacity, uint8_t *pMode, uint8_t *pBlo
         *pCapacity = 4u << 20; *pMode = pBlock[0x54] >= 8 ? 0x85 : 0x83; /* IS29GL032 / S29GL032 */
         return ESP_OK;
     }
-    return ESP_ERR_NOT_SUPPORTED;
+    /* Any other flash cart whose chip takes the same AMD commands at the same
+     * addresses (0xAAA/0x555, as the cart engine sends them): ask it for its
+     * size and write buffer (CFI). Anything else is refused untouched. */
+    ESP_RETURN_ON_ERROR(Writes(kCfi, 1), TAG, "CFI");
+    Result = CartBulk_ReadBlock(0, pBlock);
+    (void)Writes(kReset, 1);
+    if (Result != ESP_OK) return Result;
+    const bool Cfi = pBlock[0x20] == 'Q' && pBlock[0x22] == 'R' && pBlock[0x24] == 'Y';
+    const unsigned Algorithm = pBlock[0x26] | (pBlock[0x28] << 8), SizeLog = pBlock[0x4e], BufferLog = pBlock[0x54];
+    printf("CARTADD cfi=%u algorithm=%u size_log=%u buffer_log=%u\n", Cfi ? 1u : 0u, Algorithm, SizeLog, BufferLog);
+    if (!Cfi || (Algorithm != 2 && Algorithm != 4) || SizeLog < 17 || SizeLog > 26) return ESP_ERR_NOT_SUPPORTED;
+    *pCapacity = SizeLog > 23 ? 8u << 20 : 1u << SizeLog; /* MBC5 reaches 8 MiB */
+    *pMode = BufferLog >= 8 ? 0x85 : BufferLog >= 5 ? 0x83 : 0x82;
+    return ESP_OK;
 }
 
 static esp_err_t CheckErased(uint32_t Offset, uint32_t Blocks, uint8_t *pBlock)
@@ -1523,6 +1537,7 @@ static int WriteCommand(int argc, char **argv)
 
 /* ------------------------------------- installer access (pcsd, USB) */
 
+enum { kFlashScratchBlocks = 16 }; /* cartridge reads go 16 KiB at a time */
 static bool FlashOpen;
 static uint8_t FlashMode;
 static uint32_t FlashCapacity;
@@ -1536,7 +1551,7 @@ esp_err_t CartStore_FlashBegin(uint32_t *pCapacity)
     if (FlashOpen) { if (pCapacity) *pCapacity = FlashCapacity; return ESP_OK; }
     xSemaphoreTake(Lock, portMAX_DELAY);
     CacheValid = false;
-    pFlashScratch = malloc(kBlock);
+    pFlashScratch = malloc(kFlashScratchBlocks * kBlock);
     esp_err_t Result = pFlashScratch ? CartBulk_Begin() : ESP_ERR_NO_MEM;
     const bool Bulk = Result == ESP_OK;
     if (Result == ESP_OK) Result = CartBulk_CartEnter(NULL);
@@ -1605,11 +1620,8 @@ esp_err_t CartStore_FlashErase(uint32_t Offset)
     for (uint32_t At = Offset; Result == ESP_OK && At < Offset + kEraseBlock; )
     {
         bool Blank = true;
-        for (uint32_t b = 0; Result == ESP_OK && Blank && b < kChunk / kBlock; ++b)
-        {
-            Result = CartBulk_ReadCart(At + b * kBlock, pFlashScratch, 1);
-            for (size_t j = 0; Result == ESP_OK && Blank && j < kBlock; ++j) Blank = pFlashScratch[j] == 0xff;
-        }
+        Result = CartBulk_ReadCart(At, pFlashScratch, kChunk / kBlock);
+        for (size_t j = 0; Result == ESP_OK && Blank && j < kChunk; ++j) Blank = pFlashScratch[j] == 0xff;
         if (Result != ESP_OK) break;
         if (Blank) { At += kChunk; continue; }
         if (++Erases > 24) { Result = ESP_ERR_INVALID_STATE; break; }
@@ -1630,11 +1642,13 @@ esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
     if (!pCrc || !FlashRange(Offset, Length)) return ESP_ERR_INVALID_ARG;
     uint32_t Crc = 0;
     esp_err_t Result = ESP_OK;
-    for (uint32_t At = Offset; Result == ESP_OK && At < Offset + Length; At += kBlock)
+    for (uint32_t At = Offset; Result == ESP_OK && At < Offset + Length; )
     {
-        Result = CartBulk_ReadCart(At, pFlashScratch, 1);
-        const uint32_t Count = Offset + Length - At < kBlock ? Offset + Length - At : kBlock;
+        const uint32_t Left = Offset + Length - At;
+        const uint32_t Count = Left < kFlashScratchBlocks * kBlock ? Left : kFlashScratchBlocks * kBlock;
+        Result = CartBulk_ReadCart(At, pFlashScratch, (Count + kBlock - 1u) / kBlock);
         if (Result == ESP_OK) Crc = esp_rom_crc32_le(Crc, pFlashScratch, Count);
+        At += Count;
     }
     *pCrc = Crc;
     return Result;

@@ -428,16 +428,26 @@ static esp_err_t CartRequest(size_t Size)
             if (Size != 9) return ESP_ERR_INVALID_ARG;
             const uint32_t Offset = LE32(Payload + 1), Blocks = LE32(Payload + 5);
             if (Blocks == 0 || Blocks > 64) return ESP_ERR_INVALID_ARG;
-            for (uint32_t b = 0; b < Blocks; ++b)
+            enum { kChunk = 16 };
+            uint8_t *pData = malloc(kChunk * sizeof(Block));
+            if (!pData) return ESP_ERR_NO_MEM;
+            esp_err_t Result = ESP_OK;
+            for (uint32_t b = 0; Result == ESP_OK && b < Blocks; b += kChunk)
             {
-                ESP_RETURN_ON_ERROR(CartStore_FlashRead(Offset + b * sizeof(Block), Block, 1), "pc_sd", "cart read");
-                size_t Written = 0;
-                if (mbedtls_base64_encode((unsigned char *)CartLine, sizeof(CartLine), &Written, Block, sizeof(Block)))
-                    return ESP_FAIL;
-                CartLine[Written] = 0;
-                printf("PCSD CDATA %lx %s\n", (unsigned long)(Offset + b * sizeof(Block)), CartLine);
+                const uint32_t n = Blocks - b < kChunk ? Blocks - b : kChunk;
+                Result = CartStore_FlashRead(Offset + b * sizeof(Block), pData, n);
+                for (uint32_t i = 0; Result == ESP_OK && i < n; ++i)
+                {
+                    size_t Written = 0;
+                    if (mbedtls_base64_encode((unsigned char *)CartLine, sizeof(CartLine), &Written,
+                                              pData + i * sizeof(Block), sizeof(Block)))
+                    { Result = ESP_FAIL; break; }
+                    CartLine[Written] = 0;
+                    printf("PCSD CDATA %lx %s\n", (unsigned long)(Offset + (b + i) * sizeof(Block)), CartLine);
+                }
             }
-            return ESP_OK;
+            free(pData);
+            return Result;
         }
         case 0x22: return Size == 5 ? CartStore_FlashErase(LE32(Payload + 1)) : ESP_ERR_INVALID_ARG;
         case 0x23: return Size == 5 + sizeof(Block) ? CartStore_FlashProgram(LE32(Payload + 1), Payload + 5)
