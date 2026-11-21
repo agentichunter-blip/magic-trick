@@ -97,9 +97,10 @@ bool CartStore_OwnGame(char *pPath, size_t Size);
 /* The cart's own game played from the Chromatic's memory (picked in the
  * menu, so it has save states; power-on still boots the cartridge itself).
  * The cartridge's save chip stays the game's real save:
- *  - Import (GB core, storage mounted, before the save is loaded): the chip's
- *    save into pSavePath, unless that file holds progress not written back
- *    yet. Records the pending write-back in NVS.
+ *  - Import (GB core, storage mounted, while the cartridge is idle: before
+ *    the game is switched to memory): the chip's save into pSavePath, unless
+ *    that file holds progress not written back yet. Size 0: from the cart
+ *    header (battery RAM only). Records the pending write-back in NVS.
  *  - Export (GB core, storage mounted): pSavePath back onto the chip, if
  *    the cartridge is still the same game; clears the record. Called when
  *    the game stops.

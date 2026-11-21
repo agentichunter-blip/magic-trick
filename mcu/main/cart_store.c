@@ -957,6 +957,18 @@ static esp_err_t OwnSaveFn(void *pContext)
     uint8_t *pCart = malloc(kBlock), *pFile = malloc(kBlock);
     FILE *pSave = NULL;
     esp_err_t Result = pCart && pFile ? CartBulk_ReadCart(0, pCart, 1) : ESP_ERR_NO_MEM;
+    if (Result == ESP_OK && !pJob->Export && !pJob->Size)
+    {
+        /* Size from the cartridge header: battery-backed RAM only. */
+        static const uint32_t kSizes[] = {0, 2048, 8192, 32768, 131072, 65536};
+        const uint8_t Type = pCart[0x147], Code = pCart[0x149];
+        const bool Battery = Type == 0x03 || Type == 0x06 || Type == 0x09 || Type == 0x0d || Type == 0x0f ||
+                             Type == 0x10 || Type == 0x13 || Type == 0x1b || Type == 0x1e || Type == 0xff;
+        uint32_t Size = Battery && Code < 6 ? kSizes[Code] : 0;
+        if (Size > kOwnSaveMax) Size = kOwnSaveMax;
+        pJob->Size = Size & ~(kBlock - 1u);
+        if (!pJob->Size) Result = ESP_ERR_NOT_FOUND; /* no battery save to sync */
+    }
     if (Result == ESP_OK)
     {
         const uint32_t Crc = HeaderCrc(pCart);
@@ -1032,8 +1044,7 @@ esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size)
 {
     if (!pSavePath || !CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
     if (Size > kOwnSaveMax) Size = kOwnSaveMax;
-    Size &= ~(kBlock - 1u);
-    if (!Size) return ESP_OK;
+    Size &= ~(kBlock - 1u); /* 0: from the cartridge header */
     char Pending[160];
     uint32_t PendingSize = 0, PendingHead = 0;
     uint8_t PendingKind = 0;
@@ -1053,14 +1064,15 @@ esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size)
     CacheValid = false;
     esp_err_t Result = WithCart(OwnSaveFn, &Job);
     xSemaphoreGive(Lock);
+    if (Result == ESP_ERR_NOT_FOUND && !Job.Size) { (void)unlink(Temp); return ESP_OK; } /* no save */
     if (Result != ESP_OK) (void)unlink(Temp);
     else
     {
         (void)unlink(pSavePath);
         if (rename(Temp, pSavePath) != 0) Result = ESP_FAIL; /* (the chip still holds the save) */
     }
-    if (Result == ESP_OK) OwnSaveRecord(pSavePath, Size, Job.HeadCrc);
-    printf("CARTSTORE own_save=import path=%s bytes=%lu result=%s\n", pSavePath, (unsigned long)Size, esp_err_to_name(Result));
+    if (Result == ESP_OK) OwnSaveRecord(pSavePath, Job.Size, Job.HeadCrc);
+    printf("CARTSTORE own_save=import path=%s bytes=%lu result=%s\n", pSavePath, (unsigned long)Job.Size, esp_err_to_name(Result));
     DiagLog_Append("own save import %s", esp_err_to_name(Result));
     return Result;
 }

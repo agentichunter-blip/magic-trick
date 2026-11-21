@@ -1928,7 +1928,8 @@ static esp_err_t RunLoad(const char *pPath)
      * cartridge maintenance answers INVALID_RESPONSE): stop it, keeping its
      * save, before reading the cartridge. (This also writes the cart's own
      * game's save back to its chip, ClearActiveSave.) */
-    if (FromCart && CartStore_CanReadCart() && Active)
+    const bool OwnActive = CartStore_IsOwnGamePath(ActiveRomPath);
+    if ((FromCart || OwnActive) && CartStore_CanReadCart() && Active)
     {
         Result = CartBulk_Begin();
         if (Result != ESP_OK) goto Cleanup;
@@ -1939,6 +1940,13 @@ static esp_err_t RunLoad(const char *pPath)
         CartBulk_End();
         printf("VIRTUAL_CART_STOP_FOR_CART result=%s\n", esp_err_to_name(Result));
         if (Result != ESP_OK) goto Cleanup;
+    }
+    /* The cart's own game: its save chip into the save file now, while the
+     * cartridge is idle, before anything switches to playing from memory. */
+    if (CartStore_IsOwnGamePath(pPath) && CartStore_CanReadCart())
+    {
+        char OwnSave[kPathSize];
+        if (MakeSavePath(pPath, false, OwnSave) == ESP_OK) (void)CartStore_OwnSaveImport(OwnSave, 0);
     }
     /* Cartridge games: only the GB core reads the cart (cart_store.h). In
      * another core the game is either staged already (replay) or the GB core
@@ -2071,12 +2079,6 @@ static esp_err_t RunLoad(const char *pPath)
         if (CoreSwitch_IsTarget(true)) Result=GGCheats_Install(&Cheats);
         else if(Cheats.Count) Result=ESP_ERR_NOT_SUPPORTED;
         if(Result!=ESP_OK) goto Cleanup;
-    }
-    /* The cart's own game: its save chip is the real save (cart_store.h). */
-    if (CartStore_IsOwnGamePath(pPath) && Info.RamSize && Info.Mapper.HasBattery)
-    {
-        char OwnSave[kPathSize];
-        if (MakeSavePath(pPath, false, OwnSave) == ESP_OK) (void)CartStore_OwnSaveImport(OwnSave, Info.RamSize);
     }
     Result = UploadSave(pPath, &Info, SelectedSavePath);
     if (Result != ESP_OK) goto Cleanup;
