@@ -746,6 +746,7 @@ class App:
         self.output.insert('end', '\n'.join(self.history) + '\n'); self.output.configure(state='disabled')
         self.details_shown = False
         self.draw_steps(); self.draw_progress()
+        self.fit_window()
 
     def toggle_details(self):
         self.details_shown = not self.details_shown
@@ -796,7 +797,10 @@ class App:
             return
         fraction, left = self.progress()
         self.bar.delete('all')
-        width = max(self.bar.winfo_width(), 400); blocks = 24; gap = 4
+        # The canvas can reach past the window's right edge when the window is narrower than the screen asks
+        # for: draw only within what's visible.
+        visible = self.root.winfo_width() - (self.bar.winfo_rootx() - self.root.winfo_rootx()) - 28
+        width = max(min(self.bar.winfo_width(), visible), 240); blocks = 24; gap = 4
         size = (width - gap * (blocks - 1)) / blocks
         lit = fraction * blocks
         for i in range(blocks):
@@ -1244,6 +1248,14 @@ class App:
         self.cart_games_title.configure(text='MORE GAMES (FOR THE CHROMATIC)' if mode == 'replace' else
                                         'GAMES ON THE CART' if mode == 'magic' else 'ADDED GAMES (FOR THE CHROMATIC)')
         self.cart_list.delete(0, 'end')
+        # The game that goes first stays on the cart: show it as a fixed first row.
+        first = ((own['title'], len(own['image'])) if mode == 'replace' and own else
+                 (info.own_title, info.own_size) if mode == 'keep' else None)
+        self.cart_list_offset = 1 if first else 0
+        if first:
+            self.cart_list.insert('end', '%-10s %7s  %s  %s' % ('Game Boy', '%d KB' % (first[1] // 1024), '   ',
+                                                              '%s  (first on the cart, stays)' % first[0]))
+            self.cart_list.itemconfig(0, fg=ACCENT, selectbackground=PANEL, selectforeground=ACCENT)
         for g in state['games']:
             self.cart_list.insert('end', '%-10s %7s  %s  %s' % (cartridge.SYSTEM_NAMES[g.system],
                                                                 '%d KB' % (len(g.data) // 1024),
@@ -1286,7 +1298,8 @@ class App:
         self.cart_write_button.set_enabled(changed)
 
     def cart_selected(self):
-        return [self.cart['games'][i] for i in self.cart_list.curselection()]
+        offset = getattr(self, 'cart_list_offset', 0)
+        return [self.cart['games'][i - offset] for i in self.cart_list.curselection() if i >= offset]
 
     def cart_add_games(self):
         paths = list(ask_open_filenames(title='Choose games for the cart', filetypes=[
