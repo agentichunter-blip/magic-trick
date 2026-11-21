@@ -163,6 +163,7 @@ class App:
         self.f_small = (body, 11)
         self.events = queue.Queue(); self.busy = False; self.history = []
         self.operation = None; self.folder = None; self.tick = 0
+        self.cart = None   # the cart read in the Cartridge tab
         core.EVENT_HOOK = lambda kind, data: self.events.put(('event', (kind, data)))
 
         self.build_header()
