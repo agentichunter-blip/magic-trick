@@ -1126,6 +1126,7 @@ class App:
         if mode == 'replace' and not self.cart.get('own_rom'):
             self.cart_pick_own()
         self.draw_cart()
+        self.cart_drop_first_copies()
 
     def cart_pick_own(self):
         path = ask_open_filename(title='Choose the Game Boy or Game Boy Color game to put first on the cart',
@@ -1146,6 +1147,30 @@ class App:
         self.cart['mode'] = 'replace'
         self.cart.setdefault('clear_save', True)
         self.draw_cart()
+        self.cart_drop_first_copies()
+
+    def cart_first(self):
+        """The Game Boy game that goes first on the cart (KEEP IT or OWN GAME), or None."""
+        state = self.cart
+        if state['mode'] == 'replace':
+            return (state.get('own_rom') or {}).get('image')
+        if state['mode'] == 'keep':
+            return state['image'][:state['info'].own_size]
+        return None
+
+    def cart_is_first(self, data):
+        first = self.cart_first()
+        return bool(first) and 0x150 <= len(data) <= len(first) and first[:len(data)] == data
+
+    def cart_drop_first_copies(self):
+        """An added game that is the cart's own game would be on the cart twice (and listed twice)."""
+        copies = [g for g in self.cart['games'] if self.cart_is_first(g.data)]
+        if copies:
+            self.cart['games'] = [g for g in self.cart['games'] if g not in copies]
+            self.draw_cart()
+            messagebox.showinfo('Already the cart\'s own game', '%s is the game that goes first on the cart, so it '
+                                'was taken out of the added games (it would be on the cart twice).' %
+                                ', '.join(g.name for g in copies))
 
     def cart_toggle_clear(self):
         self.cart['clear_save'] = not self.cart.get('clear_save', True)
@@ -1267,18 +1292,25 @@ class App:
         if not paths:
             return
         have = {g.name.lower() for g in self.cart['games']}
-        added, skipped = 0, []
+        added, skipped, first = 0, [], []
         for name, load, _ in library.collect_games(paths):
             name = cartridge.short_name(name)
             if name.lower() in have:
                 skipped.append(name)
                 continue
             if Path(name).suffix.lower() in cartridge.SYSTEMS:
-                self.cart['games'].append(cartridge.Game(name, load()))
+                data = load()
+                if self.cart_is_first(data):
+                    first.append(name)
+                    continue
+                self.cart['games'].append(cartridge.Game(name, data))
                 have.add(name.lower()); added += 1
         self.draw_cart()
         if skipped:
             messagebox.showinfo('Already on the cart', 'These are already in the list:\n\n' + '\n'.join(skipped[:10]))
+        if first:
+            messagebox.showinfo('Already the cart\'s own game', '%s is the game that goes first on the cart, so it '
+                                'isn\'t added again.' % ', '.join(first))
 
     def cart_remove(self):
         chosen = self.cart_selected()
