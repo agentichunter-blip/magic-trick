@@ -384,6 +384,12 @@ void BootResume_Run(const BootResumeCartridge_t *Cartridge)
             printf("CORE_SWITCH resume=wrong_core continue=%s; pending consumed\n", esp_err_to_name(ContinueResult));
             goto Fallback;
         }
+        /* The cartridge's own game: let the held cartridge boot. */
+        if (CartStore_IsOwnGamePath(Path)) {
+            printf("CORE_SWITCH resume=cartridge\n");
+            BootResume_ReleaseCartridge();
+            goto Done;
+        }
         /* Explicit selection outranks cartridge auto-resume. The pending record
          * is already durably removed: a failed load cannot cause a reboot loop. */
         printf("CORE_SWITCH resume=%s\n", Path);

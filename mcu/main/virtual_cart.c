@@ -1892,8 +1892,41 @@ static esp_err_t StartAndWaitForFrame(const VirtualCartInfo_t *pInfo,
     return ESP_ERR_TIMEOUT;
 }
 
+/* The cartridge's own game (cart_store.h): stop a virtual game (keeping its
+ * save), then restart the cartridge here in the GB core, or switch there
+ * (BootResume_Run lets the cartridge boot). */
+static esp_err_t RunOwnGame(const char *pPath)
+{
+    esp_err_t Result = ESP_OK;
+    if (Active)
+    {
+        sdmmc_card_t *pCard = NULL;
+        Result = SDCard_Mount(&pCard);
+        const bool Mounted = Result == ESP_OK;
+        if (Result == ESP_OK) Result = CartBulk_Begin();
+        const bool BulkOpen = Mounted && Result == ESP_OK;
+        if (Result == ESP_OK) Result = PersistActiveDataForTransition();
+        CartLinkResponse_t Stopped = {0};
+        if (Result == ESP_OK) Result = VirtualCommand(kVirtualCommandStop, NULL, &Stopped);
+        if (Result == ESP_OK) { SetActive(false); ClearActiveSave(); }
+        if (BulkOpen) CartBulk_End();
+        if (Mounted)
+        {
+            const esp_err_t UnmountResult = SDCard_Unmount(pCard);
+            if (Result == ESP_OK) Result = UnmountResult;
+        }
+    }
+    if (Result == ESP_OK)
+        Result = CartStore_CanReadCart() ? CartStore_RestartCart() : CoreSwitch_Request(pPath);
+    printf("VIRTUAL_CART_OWN path=%s result=%s\n", pPath, esp_err_to_name(Result));
+    if (Result != ESP_OK) RomBrowserUI_SetError(Result);
+    else if (RomBrowserUI_SetComplete()) (void)RomBrowser_CloseMenu();
+    return Result;
+}
+
 static esp_err_t RunLoad(const char *pPath)
 {
+    if (CartStore_IsOwnGamePath(pPath)) return RunOwnGame(pPath);
     esp_err_t Result = ESP_FAIL;
     sdmmc_card_t *pCard = NULL;
     FILE *pRom = NULL;

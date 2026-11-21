@@ -42,6 +42,7 @@ static const char kEntryMagic[4] = {'M', 'T', 'E', '1'};
 static const char kNvsNamespace[] = "cartstore";
 static const char kNvsKey[] = "stage";
 static const char kNvsDirKey[] = "dir";
+static const char kNvsOwnKey[] = "own"; /* file name of the cart's own game */
 /* 1 from staging until the target core has replayed it (the record itself
  * stays, so that core can still open the game for later reads). */
 static const char kNvsFreshKey[] = "fresh";
@@ -60,6 +61,7 @@ static StaticSemaphore_t LockStorage;
 static CartStoreEntry_t Entries[kCartStoreSlots];
 static size_t EntryCount;
 static bool Scanned;
+static char OwnName[kCartStoreNameSize]; /* "" for none (CartStore_OwnGame) */
 
 static uint8_t Cache[kCacheBlocks * kBlock];
 static uint32_t CacheOffset;
@@ -167,6 +169,29 @@ static int ParseDirectory(const uint8_t *pBlock, CartStoreEntry_t *pOut, int *pF
     return Count;
 }
 
+/* "<TITLE> (CARTRIDGE).gb[c]" for a Game Boy header with a valid checksum,
+ * else "". */
+static void OwnNameFromHeader(const uint8_t Block0[kBlock], char *pOut, size_t Size)
+{
+    pOut[0] = 0;
+    uint8_t Sum = 0;
+    for (unsigned I = 0x134; I <= 0x14c; ++I) Sum = (uint8_t)(Sum - Block0[I] - 1);
+    if (Sum != Block0[0x14d]) return;
+    const bool Color = (Block0[0x143] & 0x80) != 0;
+    char Title[17];
+    size_t Used = 0;
+    for (unsigned I = 0x134; I < (Color ? 0x143u : 0x144u) && Block0[I]; ++I)
+    {
+        const char C = (char)Block0[I];
+        const bool Keep = (C >= 'A' && C <= 'Z') || (C >= 'a' && C <= 'z') || (C >= '0' && C <= '9') ||
+            C == '-' || C == '!' || C == '&' || C == '.' || C == '\'';
+        Title[Used++] = Keep ? C : ' ';
+    }
+    while (Used && Title[Used - 1] == ' ') --Used;
+    Title[Used] = 0;
+    snprintf(pOut, Size, "%s (CARTRIDGE).%s", Used ? Title : "GAME BOY", Color ? "gbc" : "gb");
+}
+
 /* Directory candidates: 0x4000 (dedicated cart), then the end of the GB game. */
 static size_t DirectoryCandidates(const uint8_t Block0[kBlock], uint32_t Out[2])
 {
@@ -271,9 +296,12 @@ static esp_err_t ScanFn(void *pContext)
     uint8_t *pBlock = malloc(kBlock);
     if (!pBlock) return ESP_ERR_NO_MEM;
     EntryCount = 0;
+    OwnName[0] = 0;
     esp_err_t Result = CartBulk_ReadCart(0, pBlock, 1);
     uint32_t Candidates[2];
     const size_t CandidateCount = Result == ESP_OK ? DirectoryCandidates(pBlock, Candidates) : 0;
+    char Own[kCartStoreNameSize] = "";
+    if (Result == ESP_OK) OwnNameFromHeader(pBlock, Own, sizeof(Own));
     for (size_t i = 0; Result == ESP_OK && i < CandidateCount; ++i)
     {
         Result = CartBulk_ReadCart(Candidates[i], pBlock, 1);
@@ -281,7 +309,10 @@ static esp_err_t ScanFn(void *pContext)
         if (Count >= 0)
         {
             EntryCount = (size_t)Count;
-            printf("CARTSTORE dir=0x%lx entries=%d\n", (unsigned long)Candidates[i], Count);
+            /* Directory after the GB game (not a dedicated cart at 0x4000):
+             * that game is still there to play. */
+            if (i > 0 && Count > 0) memcpy(OwnName, Own, sizeof(OwnName));
+            printf("CARTSTORE dir=0x%lx entries=%d own=\"%s\"\n", (unsigned long)Candidates[i], Count, OwnName);
             break;
         }
     }
@@ -306,17 +337,28 @@ static void SaveDirectory(void)
                                             : nvs_erase_key(Handle, kNvsDirKey);
         if (Result == ESP_OK) (void)nvs_commit(Handle);
     }
+    char OldOwn[kCartStoreNameSize] = "";
+    Length = sizeof(OldOwn);
+    if (nvs_get_str(Handle, kNvsOwnKey, OldOwn, &Length) != ESP_OK) OldOwn[0] = 0;
+    if (strcmp(OldOwn, OwnName))
+    {
+        const esp_err_t Result = OwnName[0] ? nvs_set_str(Handle, kNvsOwnKey, OwnName) : nvs_erase_key(Handle, kNvsOwnKey);
+        if (Result == ESP_OK) (void)nvs_commit(Handle);
+    }
     nvs_close(Handle);
 }
 
 static void LoadDirectory(void)
 {
     EntryCount = 0;
+    OwnName[0] = 0;
     nvs_handle_t Handle;
     if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) != ESP_OK) return;
     size_t Length = sizeof(Entries);
     if (nvs_get_blob(Handle, kNvsDirKey, Entries, &Length) == ESP_OK && Length % sizeof(CartStoreEntry_t) == 0)
         EntryCount = Length / sizeof(CartStoreEntry_t);
+    Length = sizeof(OwnName);
+    if (!EntryCount || nvs_get_str(Handle, kNvsOwnKey, OwnName, &Length) != ESP_OK) OwnName[0] = 0;
     nvs_close(Handle);
 }
 
@@ -346,6 +388,26 @@ size_t CartStore_Refresh(bool Force)
 }
 
 size_t CartStore_Count(void) { return EntryCount; }
+
+bool CartStore_OwnGame(char *pPath, size_t Size)
+{
+    if (!pPath || !Size) return false;
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    const int Length = OwnName[0] ? snprintf(pPath, Size, "%s/%s", CART_STORE_OWN_ROOT, OwnName) : 0;
+    xSemaphoreGive(Lock);
+    if (Length <= 0 || (size_t)Length >= Size) { pPath[0] = 0; return false; }
+    return true;
+}
+
+esp_err_t CartStore_RestartCart(void)
+{
+    if (!CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
+    /* Enter holds the GB core in reset; Exit lets the cartridge boot. */
+    const esp_err_t Result = CartStore_HoldCart();
+    if (Result == ESP_OK) CartStore_ReleaseCart(true);
+    printf("CARTSTORE restart=%s\n", esp_err_to_name(Result));
+    return Result;
+}
 
 bool CartStore_HasGames(void)
 {

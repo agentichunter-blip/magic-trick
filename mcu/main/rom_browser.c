@@ -54,6 +54,7 @@ typedef struct {
     bool Directory;
     bool Recent;
     bool Cart;
+    bool Pinned; /* the cartridge's own game: first in the Cartridge list */
 } RomEntry_t;
 
 typedef struct RomCatalog {
@@ -88,6 +89,7 @@ static bool IsRomName(const char *pName)
 static int CompareNames(const void *pLeft, const void *pRight)
 {
     const RomEntry_t *Left = pLeft, *Right = pRight;
+    if (Left->Pinned != Right->Pinned) return Left->Pinned ? -1 : 1;
     if (Left->Recent != Right->Recent) return Left->Recent ? -1 : 1;
     if (Left->Directory != Right->Directory) return Left->Directory ? -1 : 1;
     return RomTitle_Compare(Left->pName, Right->pName, Left->Directory);
@@ -194,6 +196,12 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
     /* No microSD card: the cartridge's games are the whole library. */
     if (CartView || SDCard_IsVirtual()) {
         const size_t Count = CartStore_Refresh(false);
+        char Own[kPathSize];
+        if (CartStore_OwnGame(Own, sizeof(Own))) {
+            Result = AppendName(strrchr(Own, '/') + 1, false);
+            if (Result == ESP_OK && !(Catalog.pEntries[Catalog.Count-1].pPath = strdup(Own))) Result = ESP_ERR_NO_MEM;
+            if (Result == ESP_OK) Catalog.pEntries[Catalog.Count-1].Pinned = true;
+        }
         for (size_t I = 0; Result == ESP_OK && I < Count; ++I) {
             CartStoreEntry_t Entry;
             char Path[kPathSize];

@@ -287,6 +287,13 @@ int main(void) {
     /* No pending switch: no card. */
     Reset(); CardMode=true; assert(!BootResume_ShowSwitchCard(CardHide) && !CardPulses);
 
+    /* The cartridge's own game, chosen in another core: the GB core lets the
+     * held cartridge boot instead of loading a file, and opens no menu. */
+    Reset(); Present=true; BootResumeCartridge_t Own=BootResume_CheckCartridge(); assert(Entered);
+    strcpy(SwitchPath,"/cart/.cartridge/TETRIS (CARTRIDGE).gb"); SwitchResult=ESP_OK;
+    BootResume_Run(&Own);
+    assert(!Starts && !Entered && Exits==1 && !MenuOpens && !SleepLocks);
+    puts("PASS: cartridge's own game after a core switch");
     puts("PASS: core-switch loading card");
     puts("PASS: persistent last game; cartridge held until after the intro; START-UP games menu; dedicated cart auto-boot; early cartridge probe avoids late reset; cartridge priority and recheck; fresh B bypass; missing/corrupt settings; failed load fallback; PC/manual interaction priority");
 }

@@ -31,9 +31,18 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #define CART_STORE_ROOT "/cart"
 #define CART_STORE_SIDECAR_ROOT "/sdcard/CHROMAGIC/CART"
+/* The cartridge's own Game Boy game (an ordinary cart with games added to its
+ * free flash): "/cart/.cartridge/<TITLE> (CARTRIDGE).gb[c]". Choosing it
+ * restarts the cartridge in the GB core instead of loading a file. */
+#define CART_STORE_OWN_ROOT CART_STORE_ROOT "/.cartridge"
+static inline bool CartStore_IsOwnGamePath(const char *pPath)
+{
+    return pPath && strncmp(pPath, CART_STORE_OWN_ROOT "/", sizeof(CART_STORE_OWN_ROOT)) == 0;
+}
 
 enum {
     kCartStoreSlots = 10,
@@ -67,6 +76,12 @@ esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, size_t Size);
  * Returns the entry count (0: no cartridge or no Magic Trick directory). */
 size_t CartStore_Refresh(bool Force);
 size_t CartStore_Count(void);
+/* Path of the cartridge's own game, from the directory last read (false for a
+ * dedicated Magic Trick cart or a cart without added games). */
+bool CartStore_OwnGame(char *pPath, size_t Size);
+/* GB core: restart the cartridge so its own game boots (taking over the
+ * start-up hold when there is one). */
+esp_err_t CartStore_RestartCart(void);
 /* Whether the cartridge carries Magic Trick games, from the directory last
  * read (or the copy in NVS). Never touches the cartridge. */
 bool CartStore_HasGames(void);
@@ -117,6 +132,10 @@ static inline esp_err_t CartStore_SidecarBase(const char *pPath, char *pOut, siz
 }
 static inline size_t CartStore_Refresh(bool Force) { (void)Force; return 0; }
 static inline size_t CartStore_Count(void) { return 0; }
+#ifndef CART_STORE_TEST_OWN_GAME
+static inline bool CartStore_OwnGame(char *pPath, size_t Size) { (void)pPath; (void)Size; return false; }
+#endif
+static inline esp_err_t CartStore_RestartCart(void) { return ESP_ERR_NOT_SUPPORTED; }
 #ifndef CART_STORE_TEST_HAS_GAMES
 static inline bool CartStore_HasGames(void) { return false; }
 #endif
