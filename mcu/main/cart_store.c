@@ -38,10 +38,14 @@ enum {
 };
 
 static const char kDirMagic[16] = "MAGICTRICKCART01";
+static const char kDir2Magic[16] = "MAGICTRICKCART02";
+static const char kEntry2Magic[4] = {'M', 'T', 'E', '2'};
+enum { kDir2Header = 64, kEntry2Size = 128, kEntry2Name = 32, kMaxEntries2 = 4096 };
 static const char kEntryMagic[4] = {'M', 'T', 'E', '1'};
 static const char kNvsNamespace[] = "cartstore";
 static const char kNvsKey[] = "stage";
-static const char kNvsDirKey[] = "dir";
+static const char kNvsDirKey[] = "dir2";    /* packed entries (PackDirectory) */
+static const char kNvsOldDirKey[] = "dir";  /* version 1 cache, removed on save */
 static const char kNvsOwnKey[] = "own"; /* file name of the cart's own game */
 /* 1 from staging until the target core has replayed it (the record itself
  * stays, so that core can still open the game for later reads). */
@@ -58,8 +62,8 @@ typedef struct { uint32_t Magic, EntryCrc, Size, Start, Length; } MirrorHeader_t
 static SemaphoreHandle_t Lock;
 static StaticSemaphore_t LockStorage;
 
-static CartStoreEntry_t Entries[kCartStoreSlots];
-static size_t EntryCount;
+static CartStoreEntry_t *Entries;
+static size_t EntryCount, EntryCapacity;
 static bool Scanned;
 static char OwnName[kCartStoreNameSize]; /* "" for none (CartStore_OwnGame) */
 
@@ -138,11 +142,63 @@ static bool ParseSlot(const uint8_t *pSlot, CartStoreEntry_t *pEntry)
     if ((Offset & (kBlock - 1u)) || Size == 0 || Offset + Size > (8u << 20) || Offset + Size < Offset)
         return false;
     memcpy(pEntry->Name, pName, Length + 1);
+    pEntry->ArtOffset = pEntry->ArtSize = 0;
     pEntry->System = pSlot[4];
     pEntry->Offset = Offset;
     pEntry->Size = Size;
     pEntry->Crc = Read32(&pSlot[16]);
     return true;
+}
+
+static bool ReserveEntries(size_t Count)
+{
+    if (Count <= EntryCapacity) return true;
+    CartStoreEntry_t *p = realloc(Entries, Count * sizeof(*p));
+    if (!p) return false;
+    Entries = p;
+    EntryCapacity = Count;
+    return true;
+}
+
+/* Version 2: the directory at Offset whose first block is pBlock (read the
+ * rest from the cartridge). Fills Entries; -1 if it is not a version 2
+ * directory or doesn't check out. Cartridge session open. */
+static int ParseDirectory2(uint32_t Offset, const uint8_t *pBlock)
+{
+    if (memcmp(pBlock, kDir2Magic, sizeof(kDir2Magic)) != 0) return -1;
+    if (Read32(&pBlock[28]) != esp_rom_crc32_le(0, pBlock, 28)) return -1;
+    const uint32_t Count = Read32(&pBlock[16]), Bytes = Read32(&pBlock[24]);
+    if (Count > kMaxEntries2 || Bytes < kDir2Header + Count * kEntry2Size || Bytes > (1u << 20)) return -1;
+    const uint32_t Blocks = (kDir2Header + Count * kEntry2Size + kBlock - 1u) / kBlock;
+    uint8_t *pDir = malloc(Blocks * kBlock);
+    if (!pDir || !ReserveEntries(Count ? Count : 1)) { free(pDir); return -1; }
+    memcpy(pDir, pBlock, kBlock);
+    esp_err_t Result = Blocks > 1 ? CartBulk_ReadCart(Offset + kBlock, pDir + kBlock, Blocks - 1) : ESP_OK;
+    int Parsed = -1;
+    if (Result == ESP_OK && esp_rom_crc32_le(0, pDir + kDir2Header, Count * kEntry2Size) == Read32(&pBlock[20]))
+    {
+        Parsed = 0;
+        for (uint32_t i = 0; i < Count; ++i)
+        {
+            const uint8_t *p = pDir + kDir2Header + i * kEntry2Size;
+            const char *pName = (const char *)&p[kEntry2Name];
+            const size_t Length = strnlen(pName, kCartStoreNameSize);
+            const uint32_t GameOffset = Read32(&p[8]), Size = Read32(&p[12]);
+            if (memcmp(p, kEntry2Magic, 4) || Length == 0 || Length >= kCartStoreNameSize || strchr(pName, '/') ||
+                pName[0] == '.' || (GameOffset & (kBlock - 1u)) || Size == 0 || GameOffset + Size > (8u << 20) ||
+                GameOffset + Size < GameOffset) continue;
+            CartStoreEntry_t *e = &Entries[Parsed++];
+            memcpy(e->Name, pName, Length + 1);
+            e->System = p[4];
+            e->Offset = GameOffset;
+            e->Size = Size;
+            e->Crc = Read32(&p[16]);
+            e->ArtOffset = Read32(&p[24]) ? Read32(&p[20]) : 0;
+            e->ArtSize = e->ArtOffset ? Read32(&p[24]) : 0;
+        }
+    }
+    free(pDir);
+    return Parsed;
 }
 
 /* Fills Out (may be NULL) and returns the valid entry count, or -1 if the
@@ -305,7 +361,9 @@ static esp_err_t ScanFn(void *pContext)
     for (size_t i = 0; Result == ESP_OK && i < CandidateCount; ++i)
     {
         Result = CartBulk_ReadCart(Candidates[i], pBlock, 1);
-        const int Count = Result == ESP_OK ? ParseDirectory(pBlock, Entries, NULL, NULL) : -1;
+        int Count = -1;
+        if (Result == ESP_OK && ReserveEntries(kCartStoreSlots)) Count = ParseDirectory(pBlock, Entries, NULL, NULL);
+        if (Result == ESP_OK && Count < 0) Count = ParseDirectory2(Candidates[i], pBlock);
         if (Count >= 0)
         {
             EntryCount = (size_t)Count;
@@ -322,29 +380,81 @@ static esp_err_t ScanFn(void *pContext)
 
 /* The directory as last read by the GB core, for cores that cannot read
  * the cartridge (their Cartridge folder lists it; choosing a game goes back
- * through the GB core to stage it). */
+ * through the GB core to stage it). Packed: per entry offset, size, CRC,
+ * art offset, art size (5 x u32), system, name length, name. */
+static uint8_t *PackDirectory(size_t *pLength)
+{
+    size_t Length = 0;
+    for (size_t i = 0; i < EntryCount; ++i) Length += 22 + strlen(Entries[i].Name);
+    uint8_t *pOut = malloc(Length ? Length : 1), *p = pOut;
+    if (!pOut) return NULL;
+    for (size_t i = 0; i < EntryCount; ++i)
+    {
+        const CartStoreEntry_t *e = &Entries[i];
+        const size_t NameLength = strlen(e->Name);
+        Write32(p, e->Offset); Write32(p + 4, e->Size); Write32(p + 8, e->Crc);
+        Write32(p + 12, e->ArtOffset); Write32(p + 16, e->ArtSize);
+        p[20] = e->System; p[21] = (uint8_t)NameLength;
+        memcpy(p + 22, e->Name, NameLength);
+        p += 22 + NameLength;
+    }
+    *pLength = Length;
+    return pOut;
+}
+
+static void UnpackDirectory(const uint8_t *p, size_t Length)
+{
+    EntryCount = 0;
+    size_t Count = 0;
+    for (size_t At = 0; At + 22 <= Length && p[At + 21] < kCartStoreNameSize; At += 22 + p[At + 21]) ++Count;
+    if (!Count || !ReserveEntries(Count)) return;
+    for (size_t At = 0; At + 22 <= Length && EntryCount < Count; At += 22 + p[At + 21])
+    {
+        const size_t NameLength = p[At + 21];
+        if (At + 22 + NameLength > Length) break;
+        CartStoreEntry_t *e = &Entries[EntryCount++];
+        e->Offset = Read32(p + At); e->Size = Read32(p + At + 4); e->Crc = Read32(p + At + 8);
+        e->ArtOffset = Read32(p + At + 12); e->ArtSize = Read32(p + At + 16);
+        e->System = p[At + 20];
+        memcpy(e->Name, p + At + 22, NameLength);
+        e->Name[NameLength] = 0;
+    }
+}
+
 static void SaveDirectory(void)
 {
     nvs_handle_t Handle;
     if (nvs_open(kNvsNamespace, NVS_READWRITE, &Handle) != ESP_OK) return;
-    CartStoreEntry_t Old[kCartStoreSlots];
-    size_t Length = sizeof(Old);
-    const bool Same = nvs_get_blob(Handle, kNvsDirKey, Old, &Length) == ESP_OK &&
-        Length == EntryCount * sizeof(CartStoreEntry_t) && !memcmp(Old, Entries, Length);
-    if (!Same)
+    bool Changed = nvs_erase_key(Handle, kNvsOldDirKey) == ESP_OK;
+    size_t Length = 0, OldLength = 0;
+    uint8_t *pPacked = PackDirectory(&Length);
+    if (pPacked)
     {
-        const esp_err_t Result = EntryCount ? nvs_set_blob(Handle, kNvsDirKey, Entries, EntryCount * sizeof(CartStoreEntry_t))
+        uint8_t *pOld = NULL;
+        const bool Same = nvs_get_blob(Handle, kNvsDirKey, NULL, &OldLength) == ESP_OK && OldLength == Length &&
+            (pOld = malloc(Length ? Length : 1)) && nvs_get_blob(Handle, kNvsDirKey, pOld, &OldLength) == ESP_OK &&
+            !memcmp(pOld, pPacked, Length);
+        free(pOld);
+        if (!Same)
+        {
+            const esp_err_t Result = Length ? nvs_set_blob(Handle, kNvsDirKey, pPacked, Length)
                                             : nvs_erase_key(Handle, kNvsDirKey);
-        if (Result == ESP_OK) (void)nvs_commit(Handle);
+            if (Result != ESP_OK && Result != ESP_ERR_NVS_NOT_FOUND)
+                printf("CARTSTORE dir_cache=%s bytes=%u\n", esp_err_to_name(Result), (unsigned)Length);
+            Changed = true;
+        }
+        free(pPacked);
     }
     char OldOwn[kCartStoreNameSize] = "";
     Length = sizeof(OldOwn);
     if (nvs_get_str(Handle, kNvsOwnKey, OldOwn, &Length) != ESP_OK) OldOwn[0] = 0;
     if (strcmp(OldOwn, OwnName))
     {
-        const esp_err_t Result = OwnName[0] ? nvs_set_str(Handle, kNvsOwnKey, OwnName) : nvs_erase_key(Handle, kNvsOwnKey);
-        if (Result == ESP_OK) (void)nvs_commit(Handle);
+        if (OwnName[0]) (void)nvs_set_str(Handle, kNvsOwnKey, OwnName);
+        else (void)nvs_erase_key(Handle, kNvsOwnKey);
+        Changed = true;
     }
+    if (Changed) (void)nvs_commit(Handle);
     nvs_close(Handle);
 }
 
@@ -354,9 +464,13 @@ static void LoadDirectory(void)
     OwnName[0] = 0;
     nvs_handle_t Handle;
     if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) != ESP_OK) return;
-    size_t Length = sizeof(Entries);
-    if (nvs_get_blob(Handle, kNvsDirKey, Entries, &Length) == ESP_OK && Length % sizeof(CartStoreEntry_t) == 0)
-        EntryCount = Length / sizeof(CartStoreEntry_t);
+    size_t Length = 0;
+    if (nvs_get_blob(Handle, kNvsDirKey, NULL, &Length) == ESP_OK && Length)
+    {
+        uint8_t *p = malloc(Length);
+        if (p && nvs_get_blob(Handle, kNvsDirKey, p, &Length) == ESP_OK) UnpackDirectory(p, Length);
+        free(p);
+    }
     Length = sizeof(OwnName);
     if (!EntryCount || nvs_get_str(Handle, kNvsOwnKey, OwnName, &Length) != ESP_OK) OwnName[0] = 0;
     nvs_close(Handle);
@@ -419,7 +533,7 @@ bool CartStore_HasGames(void)
         size_t Length = 0;
         if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) == ESP_OK)
         {
-            Has = nvs_get_blob(Handle, kNvsDirKey, NULL, &Length) == ESP_OK && Length >= sizeof(CartStoreEntry_t);
+            Has = nvs_get_blob(Handle, kNvsDirKey, NULL, &Length) == ESP_OK && Length >= 22; /* one packed entry */
             nvs_close(Handle);
         }
     }
@@ -968,6 +1082,44 @@ static esp_err_t CheckErased(uint32_t Offset, uint32_t Blocks, uint8_t *pBlock)
     return ESP_OK;
 }
 
+/* Program one 1 KiB block at At (pBlock: wanted bytes, pCart: scratch):
+ * blank, partly written by an interrupted run, or already right. Programs
+ * only where that just clears bits (NOR programming can't set a 0 back to
+ * 1). *pProgrammed: whether it had to program. */
+static esp_err_t ProgramBlock(uint32_t At, const uint8_t *pBlock, uint8_t Mode, uint8_t *pCart, const char *pTag,
+                              bool *pProgrammed)
+{
+    esp_err_t Result = ESP_OK;
+    if (pProgrammed) *pProgrammed = false;
+    for (int Attempt = 0; Result == ESP_OK; ++Attempt)
+    {
+        Result = CartBulk_ReadCart(At, pCart, 1);
+        if (Result != ESP_OK) break;
+        if (!memcmp(pCart, pBlock, kBlock)) break;
+        bool Programmable = true;
+        for (size_t j = 0; j < kBlock && Programmable; ++j) Programmable = (pBlock[j] & ~pCart[j]) == 0;
+        if (!Programmable)
+        {
+            printf("%s not_erased offset=0x%lx\n", pTag, (unsigned long)At);
+            Result = ESP_ERR_INVALID_STATE;
+            break;
+        }
+        if (Attempt == 3) { Result = ESP_ERR_TIMEOUT; break; }
+        if (Attempt > 0) printf("%s retry offset=0x%lx attempt=%d\n", pTag, (unsigned long)At, Attempt);
+        const esp_err_t ProgramResult = CartBulk_ProgramCart(At, pBlock, Mode);
+        if (ProgramResult == ESP_OK && Attempt == 0 && pProgrammed) *pProgrammed = true;
+        if (ProgramResult != ESP_OK)
+        {
+            printf("%s program_error offset=0x%lx error=%s\n", pTag, (unsigned long)At, esp_err_to_name(ProgramResult));
+            (void)CartBulk_ReadRangeAbort();
+            (void)Writes(kReset, 1); /* back to read mode */
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        /* Any outcome: read back and decide again. */
+    }
+    return Result;
+}
+
 /* Program Size bytes of pFile at cartridge Offset, then verify by CRC.
  * Each block is blank, partly written by an interrupted run, or already
  * right: program it only where that just clears bits (NOR programming can't
@@ -986,32 +1138,9 @@ static esp_err_t ProgramFile(FILE *pFile, uint32_t Offset, uint32_t Size, uint8_
         const size_t Count = Size - b * kBlock < kBlock ? Size - b * kBlock : kBlock;
         if (fread(pBlock, 1, Count, pFile) != Count) { Result = ESP_FAIL; break; }
         Crc = esp_rom_crc32_le(Crc, pBlock, Count);
-        for (int Attempt = 0; Result == ESP_OK; ++Attempt)
-        {
-            Result = CartBulk_ReadCart(At, pCart, 1);
-            if (Result != ESP_OK) break;
-            if (!memcmp(pCart, pBlock, kBlock)) { if (Attempt == 0) ++Kept; break; }
-            bool Programmable = true;
-            for (size_t j = 0; j < kBlock && Programmable; ++j) Programmable = (pBlock[j] & ~pCart[j]) == 0;
-            if (!Programmable)
-            {
-                printf("%s not_erased offset=0x%lx\n", pTag, (unsigned long)At);
-                Result = ESP_ERR_INVALID_STATE;
-                break;
-            }
-            if (Attempt == 3) { Result = ESP_ERR_TIMEOUT; break; }
-            if (Attempt > 0) printf("%s retry offset=0x%lx attempt=%d\n", pTag, (unsigned long)At, Attempt);
-            const esp_err_t ProgramResult = CartBulk_ProgramCart(At, pBlock, Mode);
-            if (ProgramResult == ESP_OK && Attempt == 0) ++Programmed;
-            if (ProgramResult != ESP_OK)
-            {
-                printf("%s program_error offset=0x%lx error=%s\n", pTag, (unsigned long)At, esp_err_to_name(ProgramResult));
-                (void)CartBulk_ReadRangeAbort();
-                (void)Writes(kReset, 1); /* back to read mode */
-                vTaskDelay(pdMS_TO_TICKS(50));
-            }
-            /* Any outcome: read back and decide again. */
-        }
+        bool Did = false;
+        Result = ProgramBlock(At, pBlock, Mode, pCart, pTag, &Did);
+        if (Result == ESP_OK) { if (Did) ++Programmed; else ++Kept; }
         if (Result != ESP_OK) printf("%s FAIL stage=program offset=0x%lx error=%s\n",
                                      pTag, (unsigned long)At, esp_err_to_name(Result));
         if ((b & 63u) == 63u) printf("%s progress=%lu/%lu\n", pTag, (unsigned long)(b + 1), (unsigned long)Blocks);
@@ -1071,6 +1200,12 @@ static esp_err_t AddFn(void *pContext)
         for (size_t i = 0; Result == ESP_OK && i < CandidateCount; ++i)
         {
             Result = CartBulk_ReadCart(Candidates[i], pDir, 1);
+            if (Result == ESP_OK && !memcmp(pDir, kDir2Magic, sizeof(kDir2Magic)))
+            {
+                printf("CARTADD FAIL version 2 directory: change this cart's games with the installer\n");
+                Result = ESP_ERR_NOT_SUPPORTED;
+                break;
+            }
             if (Result == ESP_OK && ParseDirectory(pDir, NULL, &FreeSlot, &End) >= 0)
             {
                 DirOffset = Candidates[i];
@@ -1384,6 +1519,143 @@ static int WriteCommand(int argc, char **argv)
     printf("CARTWRITE %s error=%s\n", Result == ESP_OK ? "PASS" : "FAIL", esp_err_to_name(Result));
     (void)CartStore_Refresh(true);
     return Result != ESP_OK;
+}
+
+/* ------------------------------------- installer access (pcsd, USB) */
+
+static bool FlashOpen;
+static uint8_t FlashMode;
+static uint32_t FlashCapacity;
+static uint8_t *pFlashScratch;
+static const uint16_t kEraseUnlock[][2] = {{0x0aaa, 0xaa}, {0x0555, 0x55}, {0x0aaa, 0x80},
+                                           {0x0aaa, 0xaa}, {0x0555, 0x55}};
+
+esp_err_t CartStore_FlashBegin(uint32_t *pCapacity)
+{
+    if (!CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
+    if (FlashOpen) { if (pCapacity) *pCapacity = FlashCapacity; return ESP_OK; }
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    CacheValid = false;
+    pFlashScratch = malloc(kBlock);
+    esp_err_t Result = pFlashScratch ? CartBulk_Begin() : ESP_ERR_NO_MEM;
+    const bool Bulk = Result == ESP_OK;
+    if (Result == ESP_OK) Result = CartBulk_CartEnter(NULL);
+    const bool Entered = Result == ESP_OK;
+    if (Result == ESP_OK) Result = IdentifyChip(&FlashCapacity, &FlashMode, pFlashScratch);
+    if (Result != ESP_OK)
+    {
+        if (Entered) (void)CartBulk_CartExit();
+        if (Bulk) CartBulk_End();
+        free(pFlashScratch); pFlashScratch = NULL;
+        xSemaphoreGive(Lock);
+        return Result;
+    }
+    FlashOpen = true;
+    if (pCapacity) *pCapacity = FlashCapacity;
+    printf("CARTFLASH open capacity=%lu mode=0x%02x\n", (unsigned long)FlashCapacity, FlashMode);
+    return ESP_OK;
+}
+
+static bool FlashRange(uint32_t Offset, uint32_t Length)
+{
+    return FlashOpen && !(Offset & (kBlock - 1u)) && Length && Offset < FlashCapacity && Length <= FlashCapacity - Offset;
+}
+
+esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
+{
+    if (!pData || !FlashRange(Offset, Blocks * kBlock)) return ESP_ERR_INVALID_ARG;
+    return CartBulk_ReadCart(Offset, pData, Blocks);
+}
+
+/* Sector erase at Offset. The bank is selected first and status is polled
+ * through the 0x4000 window without bank writes (a bank value of 0xB0 would
+ * be an erase-suspend command to the chip). */
+static esp_err_t EraseSector(uint32_t Offset)
+{
+    ESP_RETURN_ON_ERROR(CartBulk_CartWrite(0x3000, (uint8_t)((Offset >> 22) & 1u)), TAG, "bank high");
+    ESP_RETURN_ON_ERROR(CartBulk_CartWrite(0x2000, (uint8_t)(Offset >> 14)), TAG, "bank");
+    ESP_RETURN_ON_ERROR(Writes(kEraseUnlock, sizeof(kEraseUnlock) / sizeof(kEraseUnlock[0])), TAG, "unlock");
+    const uint16_t Window = (uint16_t)(0x4000u | (Offset & 0x3c00u));
+    ESP_RETURN_ON_ERROR(CartBulk_CartWrite(Window, 0x30), TAG, "erase");
+    const int64_t Start = esp_timer_get_time();
+    unsigned Settled = 0;
+    esp_err_t Result = ESP_OK;
+    while (Result == ESP_OK && Settled < 2)
+    {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        Result = CartBulk_ReadBlock(Window, pFlashScratch);
+        if (Result != ESP_OK) break;
+        Settled = pFlashScratch[0] == 0xff ? Settled + 1 : 0;
+        if (esp_timer_get_time() - Start > 10000000) Result = ESP_ERR_TIMEOUT;
+    }
+    (void)Writes(kReset, 1);
+    return Result;
+}
+
+/* Erase the 64 KiB block at Offset (64 KiB aligned): every chip's sectors
+ * are 64 KiB or smaller and aligned, so nothing outside it is touched.
+ * Erases wherever it doesn't read blank yet (one command for a 64 KiB
+ * sector, several for 4 or 8 KiB ones), then checks it all reads 0xFF. */
+esp_err_t CartStore_FlashErase(uint32_t Offset)
+{
+    enum { kEraseBlock = 64 * 1024, kChunk = 4 * 1024 };
+    if ((Offset & (kEraseBlock - 1u)) || !FlashRange(Offset, kEraseBlock)) return ESP_ERR_INVALID_ARG;
+    esp_err_t Result = ESP_OK;
+    unsigned Erases = 0;
+    for (uint32_t At = Offset; Result == ESP_OK && At < Offset + kEraseBlock; )
+    {
+        bool Blank = true;
+        for (uint32_t b = 0; Result == ESP_OK && Blank && b < kChunk / kBlock; ++b)
+        {
+            Result = CartBulk_ReadCart(At + b * kBlock, pFlashScratch, 1);
+            for (size_t j = 0; Result == ESP_OK && Blank && j < kBlock; ++j) Blank = pFlashScratch[j] == 0xff;
+        }
+        if (Result != ESP_OK) break;
+        if (Blank) { At += kChunk; continue; }
+        if (++Erases > 24) { Result = ESP_ERR_INVALID_STATE; break; }
+        Result = EraseSector(At);
+    }
+    printf("CARTFLASH erase offset=0x%lx sectors=%u result=%s\n", (unsigned long)Offset, Erases, esp_err_to_name(Result));
+    return Result;
+}
+
+esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData)
+{
+    if (!pData || !FlashRange(Offset, kBlock)) return ESP_ERR_INVALID_ARG;
+    return ProgramBlock(Offset, pData, FlashMode, pFlashScratch, "CARTFLASH", NULL);
+}
+
+esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
+{
+    if (!pCrc || !FlashRange(Offset, Length)) return ESP_ERR_INVALID_ARG;
+    uint32_t Crc = 0;
+    esp_err_t Result = ESP_OK;
+    for (uint32_t At = Offset; Result == ESP_OK && At < Offset + Length; At += kBlock)
+    {
+        Result = CartBulk_ReadCart(At, pFlashScratch, 1);
+        const uint32_t Count = Offset + Length - At < kBlock ? Offset + Length - At : kBlock;
+        if (Result == ESP_OK) Crc = esp_rom_crc32_le(Crc, pFlashScratch, Count);
+    }
+    *pCrc = Crc;
+    return Result;
+}
+
+/* Re-read the directory (for the menu and the other cores), then let the
+ * cartridge go: it restarts. Returns the game count. */
+size_t CartStore_FlashEnd(void)
+{
+    if (!FlashOpen) return 0;
+    (void)Writes(kReset, 1);
+    Scanned = ScanFn(NULL) == ESP_OK;
+    if (Scanned) SaveDirectory();
+    const size_t Count = EntryCount;
+    (void)CartBulk_CartExit();
+    CartBulk_End();
+    free(pFlashScratch); pFlashScratch = NULL;
+    FlashOpen = false;
+    xSemaphoreGive(Lock);
+    printf("CARTFLASH close games=%u own=\"%s\"\n", (unsigned)Count, OwnName);
+    return Count;
 }
 
 esp_err_t CartStore_RegisterConsoleCommands(void)

@@ -4,7 +4,14 @@
  * Boy cartridge (ModRetro carts and other AMD-flash MBC5 carts), loaded into
  * PSRAM like an SD game.
  *
- * Layout (1 KiB blocks, MBC5 linear offsets):
+ * Layout (1 KiB blocks, MBC5 linear offsets). Version 2 (written by the
+ * installer's Cartridge tab, tools/mtcart.py):
+ *  - Directory at the same places as version 1 (below): a 64-byte header
+ *    ("MAGICTRICKCART02", entry count, CRC-32 of the entries, directory
+ *    bytes, CRC-32 of the header's first 28 bytes) followed by 128-byte
+ *    entries ("MTE2", system, flags, offset, size, CRC, art offset, art
+ *    size, art CRC, 72-byte name), as many as fit the cart.
+ * Version 1 (console cartadd, appended without erasing):
  *  - A directory block with kCartStoreMagic, at 0x4000 (a dedicated Magic
  *    Trick cart, whose bank 0 is a small Game Boy program explaining it) or
  *    else right after the Game Boy game named by the header's ROM size (games
@@ -45,7 +52,7 @@ static inline bool CartStore_IsOwnGamePath(const char *pPath)
 }
 
 enum {
-    kCartStoreSlots = 10,
+    kCartStoreSlots = 10, /* version 1 directory; version 2 has no fixed limit */
     kCartStoreNameSize = 72,
     kCartStoreHeadSize = 1024,
 };
@@ -56,6 +63,8 @@ typedef struct {
     uint32_t Offset;
     uint32_t Size;
     uint32_t Crc;
+    uint32_t ArtOffset; /* box art (.cma) on the cartridge, 0 for none */
+    uint32_t ArtSize;
 } CartStoreEntry_t;
 
 /* Power-on boot of a dedicated cart: "/cart/<name>" when the cartridge's
@@ -93,6 +102,16 @@ bool CartStore_CanReadCart(void);
 /* Staging across the core switch: Stage* run in the GB core alongside the
  * normal PSRAM upload; Replay* in the target core instead of the upload. */
 bool CartStore_PsramHazard(uint32_t Address);
+/* Installer access over USB (pc_sd.c), GB core: one cartridge session from
+ * Begin to End (the cartridge's game is held in reset meanwhile). Offsets
+ * are 1 KiB aligned; Erase takes one 64 KiB aligned block. End re-reads the
+ * directory and restarts the cartridge. */
+esp_err_t CartStore_FlashBegin(uint32_t *pCapacity);
+esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks);
+esp_err_t CartStore_FlashErase(uint32_t Offset);
+esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData);
+esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc);
+size_t CartStore_FlashEnd(void);
 /* One cartridge session (core held in reset) for all of a staging's reads,
  * so the cartridge's own game doesn't run between them; takes over the hold
  * from power-on/core-switch start-up (BootResume) when there is one.
@@ -136,6 +155,15 @@ static inline size_t CartStore_Count(void) { return 0; }
 static inline bool CartStore_OwnGame(char *pPath, size_t Size) { (void)pPath; (void)Size; return false; }
 #endif
 static inline esp_err_t CartStore_RestartCart(void) { return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashBegin(uint32_t *pCapacity) { (void)pCapacity; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
+{ (void)Offset; (void)pData; (void)Blocks; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashErase(uint32_t Offset) { (void)Offset; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData)
+{ (void)Offset; (void)pData; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
+{ (void)Offset; (void)Length; (void)pCrc; return ESP_ERR_NOT_SUPPORTED; }
+static inline size_t CartStore_FlashEnd(void) { return 0; }
 #ifndef CART_STORE_TEST_HAS_GAMES
 static inline bool CartStore_HasGames(void) { return false; }
 #endif

@@ -4,6 +4,9 @@
 #include "cart_backup.h"
 #include "cart_bulk.h"
 #include "cart_link.h"
+#include "cart_store.h"
+#include "mbedtls/base64.h"
+#include "esp_check.h"
 #include "sd_card.h"
 #include "sd_list.h"
 #include "sd_publish.h"
@@ -377,9 +380,90 @@ static esp_err_t BackupCart(bool Save)
     return Result;
 }
 
+/* Cartridge flash for the installer's Cartridge tab (GB core; no SD card
+ * needed). 0x20 open, 0x21 read (offset, blocks <= 64: one CDATA line of
+ * base64 per 1 KiB), 0x22 erase a 64 KiB block, 0x23 program (offset,
+ * 1 KiB), 0x24 CRC (offset, length), 0x25 close (re-reads the directory,
+ * restarts the cartridge). */
+static bool CartOpen, CartRestorePCMode;
+static char CartLine[1400];
+
+/* USB TRANSFERS holds the cartridge in maintenance (PC mode); the flash
+ * session takes its own hold, and PC mode comes back when it ends. */
+static size_t CartClose(void)
+{
+    CartOpen = false;
+    const size_t Games = CartStore_FlashEnd();
+    if (CartRestorePCMode)
+    {
+        CartRestorePCMode = false;
+        const esp_err_t Result = CartBackup_SetPCMode(true);
+        if (Result != ESP_OK) printf("PCSD cart_pcmode_restore=%s\n", esp_err_to_name(Result));
+    }
+    return Games;
+}
+
+static esp_err_t CartRequest(size_t Size)
+{
+    const uint8_t Op = Payload[0];
+    if (Op == 0x20)
+    {
+        uint32_t Capacity = 0;
+        if (Size != 1) return ESP_ERR_INVALID_ARG;
+        if (!CartOpen && CartBackup_IsPCModeActive())
+        {
+            ESP_RETURN_ON_ERROR(CartBackup_SetPCMode(false), "pc_sd", "leave PC mode");
+            CartRestorePCMode = true;
+        }
+        const esp_err_t Result = CartStore_FlashBegin(&Capacity);
+        if (Result == ESP_OK) { CartOpen = true; printf("PCSD CART capacity=%lu\n", (unsigned long)Capacity); }
+        else if (CartRestorePCMode) { CartRestorePCMode = false; (void)CartBackup_SetPCMode(true); }
+        return Result;
+    }
+    if (!CartOpen) return ESP_ERR_INVALID_STATE;
+    switch (Op)
+    {
+        case 0x21:
+        {
+            if (Size != 9) return ESP_ERR_INVALID_ARG;
+            const uint32_t Offset = LE32(Payload + 1), Blocks = LE32(Payload + 5);
+            if (Blocks == 0 || Blocks > 64) return ESP_ERR_INVALID_ARG;
+            for (uint32_t b = 0; b < Blocks; ++b)
+            {
+                ESP_RETURN_ON_ERROR(CartStore_FlashRead(Offset + b * sizeof(Block), Block, 1), "pc_sd", "cart read");
+                size_t Written = 0;
+                if (mbedtls_base64_encode((unsigned char *)CartLine, sizeof(CartLine), &Written, Block, sizeof(Block)))
+                    return ESP_FAIL;
+                CartLine[Written] = 0;
+                printf("PCSD CDATA %lx %s\n", (unsigned long)(Offset + b * sizeof(Block)), CartLine);
+            }
+            return ESP_OK;
+        }
+        case 0x22: return Size == 5 ? CartStore_FlashErase(LE32(Payload + 1)) : ESP_ERR_INVALID_ARG;
+        case 0x23: return Size == 5 + sizeof(Block) ? CartStore_FlashProgram(LE32(Payload + 1), Payload + 5)
+                                                     : ESP_ERR_INVALID_ARG;
+        case 0x24:
+        {
+            if (Size != 9) return ESP_ERR_INVALID_ARG;
+            uint32_t Crc = 0;
+            ESP_RETURN_ON_ERROR(CartStore_FlashCrc(LE32(Payload + 1), LE32(Payload + 5), &Crc), "pc_sd", "cart crc");
+            printf("PCSD CCRC crc=%08lx\n", (unsigned long)Crc);
+            return ESP_OK;
+        }
+        case 0x25:
+        {
+            if (Size != 1) return ESP_ERR_INVALID_ARG;
+            printf("PCSD CDIR games=%u\n", (unsigned)CartClose());
+            return ESP_OK;
+        }
+        default: return ESP_ERR_NOT_SUPPORTED;
+    }
+}
+
 static esp_err_t Request(size_t Size, esp_err_t Mount)
 {
     const uint8_t Op = Payload[0];
+    if (Op >= 0x20 && Op <= 0x2f) return Upload != NULL ? ESP_ERR_INVALID_STATE : CartRequest(Size);
     if (Op == 0 || Op == 1)
     {
         if (Size != 1 || Upload != NULL) return ESP_ERR_INVALID_ARG;
@@ -472,6 +556,7 @@ static esp_err_t Run(void)
     }
     if (Result != ESP_OK) FailureErrno = errno;
     AbortUpload();
+    if (CartOpen) (void)CartClose();
     if (Card != NULL)
     {
         esp_err_t Unmount = SDCard_Unmount(Card);

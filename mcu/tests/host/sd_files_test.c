@@ -8,6 +8,9 @@ static char TestRoot[] = "/tmp/chromagician-sd-test-XXXXXX";
 #include "../../main/pc_sd.c"
 #undef rename
 extern int rename(const char *, const char *);
+/* Cartridge ops are not exercised here (no cartridge on the host). */
+int mbedtls_base64_encode(unsigned char *d, size_t n, size_t *o, const unsigned char *s, size_t l)
+{ (void)d; (void)n; (void)s; (void)l; *o = 0; return -1; }
 static bool FailPublish;
 int TestRename(const char *From, const char *To) {
     if (FailPublish && strstr(From, ".TMP") && strstr(To, ".sav")) {
