@@ -54,6 +54,9 @@ static const char kNvsOwnKey[] = "own"; /* file name of the cart's own game */
 /* A save of the cart's own game not yet written back to its chip: the file,
  * its size, and the CRC-32 of the cartridge header it belongs to. */
 static const char kNvsOwnSaveKey[] = "osave", kNvsOwnSaveSizeKey[] = "osize", kNvsOwnSaveHeadKey[] = "ohead";
+/* Which storage held it (1 = the internal store, 0 = the microSD card): the
+ * same path names a different file on the other one. */
+static const char kNvsOwnSaveKindKey[] = "okind";
 /* 1 from staging until the target core has replayed it (the record itself
  * stays, so that core can still open the game for later reads). */
 static const char kNvsFreshKey[] = "fresh";
@@ -970,14 +973,16 @@ static esp_err_t OwnSaveFn(void *pContext)
 }
 
 /* The pending write-back, if any: path (kPathSize-ish buffer), size, header CRC. */
-static bool OwnSavePending(char *pPath, size_t PathSize, uint32_t *pSize, uint32_t *pHead)
+static bool OwnSavePending(char *pPath, size_t PathSize, uint32_t *pSize, uint32_t *pHead, uint8_t *pKind)
 {
     nvs_handle_t Handle;
     if (nvs_open(kNvsNamespace, NVS_READONLY, &Handle) != ESP_OK) return false;
     size_t Length = PathSize;
+    *pKind = 0;
     const bool Found = nvs_get_str(Handle, kNvsOwnSaveKey, pPath, &Length) == ESP_OK &&
                        nvs_get_u32(Handle, kNvsOwnSaveSizeKey, pSize) == ESP_OK &&
                        nvs_get_u32(Handle, kNvsOwnSaveHeadKey, pHead) == ESP_OK;
+    (void)nvs_get_u8(Handle, kNvsOwnSaveKindKey, pKind);
     nvs_close(Handle);
     return Found;
 }
@@ -991,12 +996,14 @@ static void OwnSaveRecord(const char *pPath, uint32_t Size, uint32_t Head)
         (void)nvs_set_str(Handle, kNvsOwnSaveKey, pPath);
         (void)nvs_set_u32(Handle, kNvsOwnSaveSizeKey, Size);
         (void)nvs_set_u32(Handle, kNvsOwnSaveHeadKey, Head);
+        (void)nvs_set_u8(Handle, kNvsOwnSaveKindKey, SDCard_IsVirtual() ? 1 : 0);
     }
     else
     {
         (void)nvs_erase_key(Handle, kNvsOwnSaveKey);
         (void)nvs_erase_key(Handle, kNvsOwnSaveSizeKey);
         (void)nvs_erase_key(Handle, kNvsOwnSaveHeadKey);
+        (void)nvs_erase_key(Handle, kNvsOwnSaveKindKey);
     }
     (void)nvs_commit(Handle);
     nvs_close(Handle);
@@ -1010,7 +1017,9 @@ esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size)
     if (!Size) return ESP_OK;
     char Pending[160];
     uint32_t PendingSize = 0, PendingHead = 0;
-    if (OwnSavePending(Pending, sizeof(Pending), &PendingSize, &PendingHead) && !strcmp(Pending, pSavePath))
+    uint8_t PendingKind = 0;
+    if (OwnSavePending(Pending, sizeof(Pending), &PendingSize, &PendingHead, &PendingKind) &&
+        !strcmp(Pending, pSavePath) && PendingKind == (SDCard_IsVirtual() ? 1 : 0))
     {
         /* Progress made here and not written back yet: the file is newer. */
         printf("CARTSTORE own_save=keep path=%s\n", pSavePath);
@@ -1041,8 +1050,16 @@ esp_err_t CartStore_OwnSaveExport(const char *pSavePath)
 {
     char Pending[160];
     uint32_t Size = 0, Head = 0;
-    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head) || (pSavePath && strcmp(Pending, pSavePath)))
+    uint8_t Kind = 0;
+    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head, &Kind) || (pSavePath && strcmp(Pending, pSavePath)))
         return ESP_OK; /* nothing to write back */
+    if (Kind != (SDCard_IsVirtual() ? 1 : 0))
+    {
+        /* Saved on the other storage (the card was put in or taken out):
+         * wait until that storage is back. */
+        DiagLog_Append("own save export wait storage=%s", Kind ? "internal" : "sd");
+        return ESP_ERR_INVALID_STATE;
+    }
     if (!CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
     OwnSaveJob_t Job = {.pPath = Pending, .Size = Size, .Export = true, .HeadCrc = Head};
     xSemaphoreTake(Lock, portMAX_DELAY);
@@ -1062,7 +1079,8 @@ void CartStore_OwnSaveBootSync(void)
 {
     char Pending[160];
     uint32_t Size = 0, Head = 0;
-    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head)) return;
+    uint8_t Kind = 0;
+    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head, &Kind)) return;
     if (!CartStore_CanReadCart() || !BootResume_CartridgeHeld())
     {
         DiagLog_Append("own save boot skip core=%d held=%u", (int)CoreSwitch_Current(), BootResume_CartridgeHeld() ? 1u : 0u);
