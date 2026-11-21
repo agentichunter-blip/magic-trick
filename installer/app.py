@@ -1069,6 +1069,10 @@ class App:
         return 'keep' if info.own_title and not info.dedicated else 'magic'
 
     def cart_finished(self, error):
+        # A closing line, so a copied log says how it ended and how long it took.
+        took = int(time.monotonic() - getattr(self, 'started', time.monotonic()))
+        self.history.append('%s after %d:%02d: %s' % ('DONE' if error is None else 'STOPPED', took // 60, took % 60,
+                                                     (self.cart_result or 'cart read') if error is None else error))
         self.clear(); self.mode = 'finished'; self.finish_colour = None
         box = tk.Frame(self.screen, bg=BG); box.pack(fill='both', expand=True)
         if error is None and self.operation == 'cart_read' and self.cart_loaded:
@@ -1723,8 +1727,18 @@ class App:
     # ---------- plumbing ----------
     def log(self, text):
         if text and text.strip():
-            self.history.append(text.rstrip())
-            self.events.put(('log', text.rstrip()))
+            line = text.rstrip()
+            # Progress lines drive the bar; the saved/copied log keeps one per 10% (and the last).
+            m = re.match(r'Progress: (\d+) of (\d+)', line)
+            if m:
+                done, total = int(m.group(1)), max(int(m.group(2)), 1)
+                step = done * 10 // total
+                if step != getattr(self, 'progress_logged', None) or done >= total:
+                    self.progress_logged = step
+                    self.history.append(line)
+            else:
+                self.history.append(line)
+            self.events.put(('log', line))
 
     def copy_log(self):
         self.root.clipboard_clear()
