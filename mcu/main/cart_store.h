@@ -102,10 +102,11 @@ bool CartStore_OwnGame(char *pPath, size_t Size);
  *    the cartridge is still the same game; clears the record. Called when
  *    the game stops.
  *  - BootSync: the start-up hold is on (main, before releasing it): export a
- *    write-back left over from a game switched off mid-play. */
+ *    write-back left over from a game switched off mid-play, and copy any
+ *    box art the storage now mounted is missing (a card just put in). */
 esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size);
 esp_err_t CartStore_OwnSaveExport(const char *pSavePath);
-void CartStore_OwnSaveBootSync(void);
+void CartStore_BootSync(void);
 /* GB core: restart the cartridge so its own game boots (taking over the
  * start-up hold when there is one). */
 esp_err_t CartStore_RestartCart(void);
@@ -190,7 +191,7 @@ static inline bool CartStore_OwnGame(char *pPath, size_t Size) { (void)pPath; (v
 static inline esp_err_t CartStore_RestartCart(void) { return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_OwnSaveImport(const char *pSavePath, uint32_t Size) { (void)pSavePath; (void)Size; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_OwnSaveExport(const char *pSavePath) { (void)pSavePath; return ESP_OK; }
-static inline void CartStore_OwnSaveBootSync(void) {}
+static inline void CartStore_BootSync(void) {}
 static inline esp_err_t CartStore_FlashBegin(uint32_t *pCapacity) { (void)pCapacity; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
 { (void)Offset; (void)pData; (void)Blocks; return ESP_ERR_NOT_SUPPORTED; }

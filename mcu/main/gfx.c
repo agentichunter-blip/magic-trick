@@ -1,4 +1,6 @@
 #include "gfx.h"
+#include "box_art_format.h"
+#include <stdlib.h>
 
 #include "osd.h"
 #include "button.h"
@@ -20,6 +22,8 @@ static TimerCtx_t _Ctx;
 /* Core-switch loading card: its own screen, so the menu's widgets are left
  * alone underneath. Shown before the LVGL task starts; hidden from that task. */
 static lv_obj_t *pCard;
+static uint8_t *pCardArt;      /* the card's box art pixels (freed with the card) */
+static lv_img_dsc_t CardArt;
 static volatile bool CardHideRequested;
 
 static void anim_timer_cb(lv_timer_t *timer)
@@ -35,6 +39,8 @@ static void anim_timer_cb(lv_timer_t *timer)
         lv_scr_load(pScreen);
         lv_obj_del(pCard);
         pCard = NULL;
+        free(pCardArt);
+        pCardArt = NULL;
         CardHideRequested = false;
         lv_obj_invalidate(pScreen);
         Button_ResetAll();
@@ -71,9 +77,9 @@ void Gfx_Start(lv_obj_t *const pScreen)
     lv_timer_create(anim_timer_cb, 20, &_Ctx);
 }
 
-void Gfx_ShowCard(const char *pTitle)
+void Gfx_ShowCard(const char *pTitle, uint8_t *pArt)
 {
-    if (pCard) return;
+    if (pCard) { free(pArt); return; }
     CardHideRequested = false;
     pCard = lv_obj_create(NULL);
     lv_obj_remove_style_all(pCard);
@@ -87,7 +93,18 @@ void Gfx_ShowCard(const char *pTitle)
     lv_obj_set_style_text_color(pHeading, lv_color_white(), 0);
     lv_obj_set_style_text_align(pHeading, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text_static(pHeading, "LOADING GAME");
-    lv_obj_set_pos(pHeading, 0, 52);
+    /* With box art (72x80, RGB565): the cover on top, the words below it. */
+    const lv_coord_t Top = pArt ? 94 : 52;
+    lv_obj_set_pos(pHeading, 0, Top);
+    if (pArt)
+    {
+        pCardArt = pArt;
+        CardArt = (lv_img_dsc_t){.header = {.cf = LV_IMG_CF_TRUE_COLOR, .w = BOX_ART_WIDTH, .h = BOX_ART_HEIGHT},
+                                 .data_size = BOX_ART_BYTES, .data = pCardArt};
+        lv_obj_t *pImage = lv_img_create(pCard);
+        lv_img_set_src(pImage, &CardArt);
+        lv_obj_set_pos(pImage, (160 - BOX_ART_WIDTH) / 2, 8);
+    }
 
     lv_obj_t *pName = lv_label_create(pCard);
     /* Up to two lines of the 8 px banner font, then "...". */
@@ -98,7 +115,7 @@ void Gfx_ShowCard(const char *pTitle)
     lv_obj_set_style_text_align(pName, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(pName, LV_LABEL_LONG_DOT);
     lv_label_set_text(pName, pTitle ? pTitle : "");
-    lv_obj_set_pos(pName, 8, 70);
+    lv_obj_set_pos(pName, 8, Top + 18);
 
     lv_scr_load(pCard);
     lv_refr_now(lv_obj_get_disp(pCard));

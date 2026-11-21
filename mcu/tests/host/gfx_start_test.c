@@ -38,7 +38,7 @@ int main(void)
      * while it is up, and the menu screen back after Gfx_HideCard. */
     lv_obj_t *Menu=lv_scr_act();
     const unsigned Frames=FrameStarts;
-    Gfx_ShowCard("SHINOBI");
+    Gfx_ShowCard("SHINOBI", NULL);
     lv_obj_t *Card=lv_scr_act();
     assert(Card!=Menu && FrameStarts>Frames);
     lv_tick_inc(25); lv_timer_handler();

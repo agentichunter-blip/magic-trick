@@ -22,6 +22,7 @@
 #include "color_correct_usb.h"
 #include "cart_bulk.h"
 #include "cart_store.h"
+#include "box_art.h"
 #include "core_switch.h"
 #include "rom_title.h"
 #include <string.h>
@@ -278,6 +279,32 @@ static esp_console_repl_t *pRepl = NULL;
 static esp_console_repl_config_t ReplConfig = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
 static esp_console_dev_uart_config_t ReplHWConfig = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
 
+/* The box art the menu shows for a game (cart games: copied off the
+ * cartridge; SD games: CHROMAGIC/ART), for the start-up loading card; NULL
+ * when there is none. */
+static uint8_t *LoadCardArt(const char *pRom)
+{
+    static const char kBackups[] = "/sdcard/CHROMAGIC/BACKUPS/";
+    char Path[LAST_GAME_PATH_SIZE + 64];
+    int Length = -1;
+    if (CartStore_IsOwnGamePath(pRom))
+        Length = snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, pRom + sizeof(CART_STORE_OWN_ROOT));
+    else if (CartStore_IsCartPath(pRom))
+        Length = snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, pRom + sizeof(CART_STORE_ROOT));
+    else if (!strncmp(pRom, kBackups, sizeof(kBackups) - 1))
+        Length = snprintf(Path, sizeof(Path), "/sdcard/CHROMAGIC/ART/%s.cma", pRom + sizeof(kBackups) - 1);
+    if (Length < 0 || (size_t)Length >= sizeof(Path)) return NULL;
+    sdmmc_card_t *pCard = NULL;
+    if (SDCard_MountArt(&pCard) != ESP_OK) return NULL;
+    uint8_t *pArt = malloc(BOX_ART_BYTES);
+    FILE *pFile = pArt ? fopen(Path, "rb") : NULL;
+    const bool Ok = pFile && BoxArt_Read(pFile, pArt);
+    if (pFile) fclose(pFile);
+    (void)SDCard_Unmount(pCard);
+    if (!Ok) { free(pArt); return NULL; }
+    return pArt;
+}
+
 void app_main(void)
 {
     persist_storage_init();
@@ -408,9 +435,10 @@ void app_main(void)
     const bool IntroPlayed = BootResume_PlayIntro(&BootCartridge, (uint16_t *)buffy, intro_present);
     /* A core switch carrying a game keeps the hold until BootResume_Run
      * knows whether a cartridge game is staged next (no flash of its game). */
-    /* A cart's own game switched off while played from memory: its save goes
-     * back onto the cartridge before the cartridge starts. */
-    CartStore_OwnSaveBootSync();
+    /* While the cartridge is still held: a cart's own game switched off while
+     * played from memory gets its save back on the chip, and box art missing
+     * on this storage is copied off the cartridge. */
+    CartStore_BootSync();
     if (!CoreSwitch_HasPending()) BootResume_ReleaseCartridge();
     /* A start-up that continues a core switch shows the game being loaded
      * instead of each core's blank screen (still before the LVGL task). */
@@ -421,7 +449,7 @@ void app_main(void)
         {
             const char *pName = strrchr(SwitchPath, '/');
             RomTitle_Make(pName ? pName + 1 : SwitchPath, false, SwitchTitle, sizeof(SwitchTitle));
-            Gfx_ShowCard(SwitchTitle);
+            Gfx_ShowCard(SwitchTitle, LoadCardArt(SwitchPath));
             if (!BootResume_ShowSwitchCard(Gfx_HideCard)) Gfx_HideCard();
         }
     }

@@ -1075,23 +1075,57 @@ esp_err_t CartStore_OwnSaveExport(const char *pSavePath)
     return Result;
 }
 
-void CartStore_OwnSaveBootSync(void)
+static esp_err_t SyncArtFn(void *pContext);
+
+/* Missing box art on the storage now mounted (Lock held). */
+static bool ArtMissingLocked(void)
+{
+    char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
+    struct stat Info;
+    for (size_t i = 0; i <= EntryCount; ++i)
+    {
+        const bool Own = i == EntryCount;
+        if (Own ? !OwnArtSize || !OwnName[0] : !Entries[i].ArtSize) continue;
+        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, Own ? OwnName : Entries[i].Name);
+        if (stat(Path, &Info) != 0) return true;
+    }
+    return false;
+}
+
+void CartStore_BootSync(void)
 {
     char Pending[160];
     uint32_t Size = 0, Head = 0;
     uint8_t Kind = 0;
-    if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head, &Kind)) return;
+    const bool SaveDue = OwnSavePending(Pending, sizeof(Pending), &Size, &Head, &Kind);
+    if (!SaveDue && !CartStore_HasGames()) return;
     if (!CartStore_CanReadCart() || !BootResume_CartridgeHeld())
     {
-        DiagLog_Append("own save boot skip core=%d held=%u", (int)CoreSwitch_Current(), BootResume_CartridgeHeld() ? 1u : 0u);
+        if (SaveDue) DiagLog_Append("own save boot skip core=%d held=%u", (int)CoreSwitch_Current(),
+                                    BootResume_CartridgeHeld() ? 1u : 0u);
         return;
     }
     sdmmc_card_t *pCard = NULL;
     const esp_err_t Mounted = SDCard_Mount(&pCard);
-    if (Mounted != ESP_OK) { DiagLog_Append("own save boot storage=%s", esp_err_to_name(Mounted)); return; }
-    DiagLog_Append("own save boot sync");
+    if (Mounted != ESP_OK)
+    {
+        if (SaveDue) DiagLog_Append("own save boot storage=%s", esp_err_to_name(Mounted));
+        return;
+    }
     CartHeld = true; /* borrow the start-up hold: the cartridge is already in maintenance */
-    (void)CartStore_OwnSaveExport(NULL);
+    if (SaveDue)
+    {
+        DiagLog_Append("own save boot sync");
+        (void)CartStore_OwnSaveExport(NULL);
+    }
+    /* Box art for the menu on this storage (e.g. a card just put in): the
+     * cartridge is held anyway, so no game restarts for it. */
+    xSemaphoreTake(Lock, portMAX_DELAY);
+    if (!Scanned) { Scanned = WithCart(ScanFn, NULL) == ESP_OK; if (Scanned) SaveDirectory(); }
+    const bool Missing = Scanned && ArtMissingLocked();
+    if (Missing) (void)WithCart(SyncArtFn, NULL);
+    xSemaphoreGive(Lock);
+    if (Missing) DiagLog_Append("cart art boot sync");
     CartHeld = false;
     (void)SDCard_Unmount(pCard);
 }
@@ -2070,15 +2104,7 @@ void CartStore_SyncArt(void)
     xSemaphoreTake(Lock, portMAX_DELAY);
     bool Needed = false;
     if (!Scanned) { Scanned = WithCart(ScanFn, NULL) == ESP_OK; if (Scanned) SaveDirectory(); }
-    for (size_t i = 0; i <= EntryCount && !Needed; ++i)
-    {
-        const bool Own = i == EntryCount;
-        if (Own ? !OwnArtSize || !OwnName[0] : !Entries[i].ArtSize) continue;
-        char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
-        struct stat Info;
-        snprintf(Path, sizeof(Path), "%s/%s.cma", CART_STORE_ART_ROOT, Own ? OwnName : Entries[i].Name);
-        Needed = stat(Path, &Info) != 0;
-    }
+    Needed = ArtMissingLocked();
     if (Needed) (void)WithCart(SyncArtFn, NULL); /* only then touch the cartridge */
     xSemaphoreGive(Lock);
 }
