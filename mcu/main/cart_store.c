@@ -907,6 +907,15 @@ typedef struct {
     uint32_t Written;   /* Export: blocks rewritten */
 } OwnSaveJob_t;
 
+/* Leave the save chip as a cartridge starts: RAM bank 0 selected, RAM off.
+ * (A game that boots next often reads its save without selecting a bank, so
+ * a bank left selected here hides the save until the next cold power-on.) */
+static void SaveWindowClose(void)
+{
+    (void)CartBulk_CartWrite(0x4000, 0x00);
+    (void)CartBulk_CartWrite(0x0000, 0x00);
+}
+
 /* One 1 KiB block of the save chip, through the MBC5 RAM window. */
 static esp_err_t OwnSaveBlock(uint32_t Offset, uint8_t *pData, bool Write)
 {
@@ -914,7 +923,7 @@ static esp_err_t OwnSaveBlock(uint32_t Offset, uint8_t *pData, bool Write)
     esp_err_t Result = CartBulk_CartWrite(0x4000, (uint8_t)(Offset / 8192u));
     const uint16_t Address = (uint16_t)(0xa000u + Offset % 8192u);
     if (Result == ESP_OK) Result = Write ? CartBulk_WriteCartBlock(Address, pData, kBlock) : CartBulk_ReadBlock(Address, pData);
-    (void)CartBulk_CartWrite(0x0000, 0x00);
+    SaveWindowClose();
     return Result;
 }
 
@@ -1054,9 +1063,15 @@ void CartStore_OwnSaveBootSync(void)
     char Pending[160];
     uint32_t Size = 0, Head = 0;
     if (!OwnSavePending(Pending, sizeof(Pending), &Size, &Head)) return;
-    if (!CartStore_CanReadCart() || !BootResume_CartridgeHeld()) return;
+    if (!CartStore_CanReadCart() || !BootResume_CartridgeHeld())
+    {
+        DiagLog_Append("own save boot skip core=%d held=%u", (int)CoreSwitch_Current(), BootResume_CartridgeHeld() ? 1u : 0u);
+        return;
+    }
     sdmmc_card_t *pCard = NULL;
-    if (SDCard_Mount(&pCard) != ESP_OK) { printf("CARTSTORE own_save=boot_no_storage\n"); return; }
+    const esp_err_t Mounted = SDCard_Mount(&pCard);
+    if (Mounted != ESP_OK) { DiagLog_Append("own save boot storage=%s", esp_err_to_name(Mounted)); return; }
+    DiagLog_Append("own save boot sync");
     CartHeld = true; /* borrow the start-up hold: the cartridge is already in maintenance */
     (void)CartStore_OwnSaveExport(NULL);
     CartHeld = false;
@@ -1907,7 +1922,7 @@ esp_err_t CartStore_FlashSaveRead(uint32_t Offset, uint8_t *pData)
     uint16_t Address;
     ESP_RETURN_ON_ERROR(SaveWindow(Offset, &Address), TAG, "save window");
     const esp_err_t Result = CartBulk_ReadBlock(Address, pData);
-    (void)CartBulk_CartWrite(0x0000, 0x00);
+    SaveWindowClose();
     return Result;
 }
 
@@ -1918,7 +1933,7 @@ esp_err_t CartStore_FlashSaveWrite(uint32_t Offset, const uint8_t *pData)
     esp_err_t Result = CartBulk_WriteCartBlock(Address, pData, kBlock);
     if (Result == ESP_OK) Result = CartBulk_ReadBlock(Address, pFlashScratch);
     if (Result == ESP_OK && memcmp(pFlashScratch, pData, kBlock)) Result = ESP_ERR_INVALID_CRC;
-    (void)CartBulk_CartWrite(0x0000, 0x00);
+    SaveWindowClose();
     return Result;
 }
 
