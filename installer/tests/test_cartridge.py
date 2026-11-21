@@ -112,5 +112,59 @@ class CartridgeTest(unittest.TestCase):
         self.assertGreater(store, gg + c.save_bytes(games[1]))
 
 
+class FakeWifi:
+    """Wi-Fi Files' /api/cart routes over a bytearray cart."""
+    def __init__(self, image):
+        self.cart, self.calls = bytearray(image), []
+
+    def _request(self, method, route, body=None, headers=None, timeout=None):
+        import json, urllib.parse
+        path, _, query = route.partition('?')
+        q = {k: int(v[0]) for k, v in urllib.parse.parse_qs(query).items()}
+        self.calls.append((method, path, q.get('offset'), len(body or b'')))
+        if path == 'cart/open':
+            return json.dumps({'capacity': len(self.cart)}).encode()
+        if path == 'cart/read':
+            return bytes(self.cart[q['offset']:q['offset'] + q['length']])
+        if path == 'cart/crc':
+            return json.dumps({'crc32': '%08x' % c.crc32(bytes(self.cart[q['offset']:q['offset'] + q['length']]))}).encode()
+        if path == 'cart/erase':
+            self.cart[q['offset']:q['offset'] + c.ERASE_BLOCK] = b'\xff' * c.ERASE_BLOCK
+            return b'{"ok":true}'
+        if path == 'cart/write':
+            o = q['offset']
+            assert all(old & new == new for old, new in zip(self.cart[o:o + len(body)], body)), 'programs only clear bits'
+            self.cart[o:o + len(body)] = body
+            return b'{"ok":true}'
+        if path == 'cart/close':
+            return json.dumps({'games': len(c.parse(bytes(self.cart)).games)}).encode()
+        raise AssertionError(route)
+
+
+class WifiCartTest(unittest.TestCase):
+    def test_read_and_write_over_wifi(self):
+        rom = gb_rom()
+        current = c.build(CAP, [game('A.gg', 0x8000, 1)], own_image=cart_with(rom))
+        fake = FakeWifi(current)
+        cart = c.CartWifi(fake)
+        self.assertEqual((cart.capacity, cart.read()), (CAP, current))
+        target = c.build(CAP, [game('A.gg', 0x8000, 1), game('B.lnx', 0x30000, 2)], own_image=current)
+        cart.write(current, target)
+        self.assertEqual(bytes(fake.cart), target)
+        writes = [x for x in fake.calls if x[1] == 'cart/write']
+        self.assertTrue(writes and all(n <= cart.run_limit and n % c.BLOCK == 0 for *_, n in writes))
+        self.assertLess(len(writes), c.plan_bytes(c.plan(current, target)) // c.BLOCK)   # batched
+        self.assertEqual(cart.close(), 2)
+
+    def test_changed_cart_is_refused(self):
+        rom = gb_rom()
+        current = c.build(CAP, [game('A.gg', 0x8000, 1)], own_image=cart_with(rom))
+        fake = FakeWifi(current)
+        fake.cart[0x150] ^= 0xff
+        with self.assertRaises(c.CartError):
+            c.CartWifi(fake).write(current, c.build(CAP, [], own_image=current))
+        self.assertFalse([x for x in fake.calls if x[1] in ('cart/write', 'cart/erase')])
+
+
 if __name__ == '__main__':
     unittest.main()

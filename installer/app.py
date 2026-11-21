@@ -71,6 +71,8 @@ PLANS.update({'cart_read': ['cart_connect', 'cart_read'],
               'cart_restore': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify']})
 TITLES.update({'cart_read': 'READING CART', 'cart_write': 'WRITING CART', 'cart_restore': 'RESTORING CART'})
 CART_BACKUPS = Path.home() / 'Documents' / 'Magic Trick' / 'Cartridge backups'
+CART_ROUTES = [('wifi', 'WI-FI', 'Faster, no cable. Needs a Wi-Fi network (or the Chromatic\'s own hotspot).'),
+               ('usb', 'USB', 'Plug in a USB cable. Slower; handy without Wi-Fi.')]
 
 
 def load_pixel_font(path):
@@ -493,12 +495,12 @@ class App:
                 return None, None
             return (lambda: library.FolderTarget(root)), root
         if self.route == 'wifi':
-            address = simpledialog.askstring('Wi-Fi: step 1 of 2', 'On the Chromatic, open Settings, then Wi-Fi '
+            address = self.ask_text('Wi-Fi: step 1 of 2', 'On the Chromatic, open Settings, then Wi-Fi '
                                              'Files.\n\nType the address it shows.\nIt looks like 192.168.1.23',
                                              parent=self.root)
             if not address:
                 return None, None
-            code = simpledialog.askstring('Wi-Fi: step 2 of 2', 'On the Chromatic, press A to see the WEB CODE.'
+            code = self.ask_text('Wi-Fi: step 2 of 2', 'On the Chromatic, press A to see the WEB CODE.'
                                           '\n\nType its 6 numbers:', parent=self.root)
             if not code:
                 return None, None
@@ -519,6 +521,33 @@ class App:
             return None, None
         port = ports[0]
         return (lambda: library.UsbTarget(port)), None
+
+    def ask_text(self, title, prompt, parent=None):
+        """A one-line question in the installer's own style (Tk's simpledialog fails on some Mac Tk builds)."""
+        win = tk.Toplevel(self.root); win.title(title); win.configure(bg=BG); win.transient(self.root)
+        win.resizable(False, False)
+        self.label(win, prompt, self.f_body, INK, wrap=460).pack(anchor='w', padx=18, pady=(16, 8))
+        value = tk.StringVar()
+        entry = tk.Entry(win, textvariable=value, font=self.f_body_big, bg=PANEL, fg=INK, insertbackground=INK,
+                         relief='flat', highlightthickness=2, highlightbackground=LINE, highlightcolor=ACCENT)
+        entry.pack(fill='x', padx=18)
+        answer = {'text': None}
+
+        def finish(text):
+            answer['text'] = text
+            win.grab_release(); win.destroy()
+        row = tk.Frame(win, bg=BG); row.pack(anchor='e', padx=18, pady=14)
+        PixelButton(row, 'CANCEL', lambda: finish(None), self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
+        PixelButton(row, 'OK ▶', lambda: finish(value.get().strip() or None), self.f_pixel, 'primary').pack(side='left')
+        entry.bind('<Return>', lambda e: finish(value.get().strip() or None))
+        win.bind('<Escape>', lambda e: finish(None))
+        win.protocol('WM_DELETE_WINDOW', lambda: finish(None))
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
+        y = self.root.winfo_rooty() + 160
+        win.geometry('+%d+%d' % (max(x, 0), max(y, 0)))
+        entry.focus_set(); win.grab_set(); self.root.wait_window(win)
+        return answer['text']
 
     def fit_window(self):
         """Grow the window to fit its content (high-DPI Windows needs more room), within the screen."""
@@ -838,13 +867,20 @@ class App:
                    'Trick lists them under Games > Cartridge and plays them, even without an SD card. First the '
                    'whole cart is copied to this computer as a backup.', self.f_body_big, INK,
                    wrap=840).pack(anchor='w')
-        self.label(self.screen, 'BEFORE YOU START, ON THE CHROMATIC', self.f_pixel, ACCENT).pack(anchor='w', pady=(14, 4))
-        for line in ('1. Put the cart in and switch the Chromatic on.',
-                     '2. Start a Game Boy game (the cart\'s own game is fine). Game Gear and Lynx games can\'t reach '
-                     'the cart.',
-                     '3. Open the menu: turn Wi-Fi off and USB TRANSFERS on.',
-                     '4. Plug it into this computer with a USB cable.'):
-            self.label(self.screen, line, self.f_body, MUTED, wrap=820).pack(anchor='w', pady=1)
+        self.cart_route = getattr(self, 'cart_route', 'wifi')
+        self.label(self.screen, 'HOW TO REACH THE CHROMATIC', self.f_pixel, ACCENT).pack(anchor='w', pady=(14, 4))
+        self.cart_route_rows = {}
+        for key, name, note in CART_ROUTES:
+            row = tk.Frame(self.screen, bg=BG, cursor='hand2'); row.pack(fill='x', pady=2)
+            mark = self.label(row, '', self.f_pixel, INK); mark.pack(side='left')
+            text = self.label(row, note, self.f_body, MUTED, wrap=560); text.pack(side='left', padx=(12, 0))
+            for w in (row, mark, text):
+                w.bind('<Button-1>', lambda e, k=key: self.pick_cart_route(k))
+            self.cart_route_rows[key] = (mark, name)
+        self.label(self.screen, 'BEFORE YOU START, ON THE CHROMATIC', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
+        self.cart_steps = self.label(self.screen, '', self.f_body, MUTED, wrap=820)
+        self.cart_steps.pack(anchor='w')
+        self.draw_cart_routes()
         for title, text, button, command, kind in [
                 ('READ CART', 'Back up the cart, then choose its games. About 2 minutes for a 2 MB cart.',
                  'START ▶', self.begin_cart_read, 'primary'),
@@ -859,7 +895,34 @@ class App:
             PixelButton(tile, button, command, self.f_pixel, kind).pack(side='right', padx=16)
         self.fit_window()
 
-    def cart_port(self):
+    def pick_cart_route(self, key):
+        self.cart_route = key
+        self.draw_cart_routes()
+
+    def draw_cart_routes(self):
+        for key, (mark, name) in self.cart_route_rows.items():
+            mark.configure(text=('[■] ' if key == self.cart_route else '[ ] ') + name,
+                           fg=ACCENT if key == self.cart_route else MUTED)
+        last = ('3. Open Settings > Wi-Fi Files (USB TRANSFERS off). It shows an address and, after you press A, a '
+                'WEB CODE: you\'ll type both here.' if self.cart_route == 'wifi' else
+                '3. Open the menu: turn Wi-Fi off and USB TRANSFERS on. Plug it into this computer with a USB cable.')
+        self.cart_steps.configure(text='1. Put the cart in and switch the Chromatic on.\n2. Start a Game Boy game (the '
+                                  'cart\'s own game is fine): Game Gear and Lynx games can\'t reach the cart.\n' + last)
+
+    def cart_connection(self):
+        """On the UI thread: what cart_open needs, or None. USB: the port. Wi-Fi: the address and WEB CODE
+        (asked once; the pairing is kept while Wi-Fi Files stays open)."""
+        if getattr(self, 'cart_route', 'wifi') == 'wifi':
+            if getattr(self, 'cart_wifi', None):
+                return ('wifi', None)
+            address = self.ask_text('Wi-Fi: step 1 of 2', 'On the Chromatic, in a Game Boy game, open '
+                                             'Settings, then Wi-Fi Files.\n\nType the address it shows.\nIt looks '
+                                             'like 192.168.1.23', parent=self.root)
+            if not address:
+                return None
+            code = self.ask_text('Wi-Fi: step 2 of 2', 'On the Chromatic, press A to see the WEB CODE.'
+                                          '\n\nType its 6 numbers:', parent=self.root)
+            return ('wifi', (address, code)) if code else None
         try:
             ports = core.device_ports()
         except Exception:
@@ -868,12 +931,25 @@ class App:
             messagebox.showinfo('Connect your Chromatic', 'Plug your Chromatic into this computer with a USB cable, '
                                 'start a Game Boy game, and turn USB TRANSFERS on (Wi-Fi off). Then try again.')
             return None
-        return ports[0]
+        return ('usb', ports[0])
 
-    def cart_open(self, port):
-        usb = library.UsbTarget(port)
+    def cart_open(self, connection):
+        """From the worker: (close function, cart access)."""
+        kind, detail = connection
+        if kind == 'wifi':
+            try:
+                if detail:
+                    self.cart_wifi = library.WifiTarget(*detail)
+                return (lambda: None), cartridge.CartWifi(self.cart_wifi)
+            except Exception as exc:
+                self.cart_wifi = None   # ask again next time
+                if '(401)' in str(exc):
+                    raise ValueError('The Chromatic didn\'t accept the pairing. Wi-Fi Files may have restarted: '
+                                     'try again and type the WEB CODE it shows now.') from None
+                raise
+        usb = library.UsbTarget(detail)
         try:
-            return usb, cartridge.CartUsb(usb)
+            return usb.close, cartridge.CartUsb(usb)
         except Exception as exc:
             usb.close()
             if 'INVALID_STATE' in str(exc):
@@ -889,18 +965,18 @@ class App:
     def begin_cart_read(self):
         if self.busy:
             return
-        port = self.cart_port()
+        port = self.cart_connection()
         if not port:
             return
 
         def work():
             library.emit('step', key='cart_connect')
-            usb, cart = self.cart_open(port)
+            finish, cart = self.cart_open(port)
             try:
                 library.emit('step', key='cart_read')
                 image = cart.read(lambda done, total: library.progress(done // 1024, total // 1024, 'KB read'))
             finally:
-                cart.close(); usb.close()
+                cart.close(); finish()
             info = cartridge.parse(image)
             CART_BACKUPS.mkdir(parents=True, exist_ok=True)
             stem = re.sub(r'[^0-9A-Za-z.-]+', '-', info.own_title or ('Magic-Trick-cart' if info.dedicated else 'cart'))
@@ -1183,7 +1259,7 @@ class App:
                                    'and the Chromatic on until it says DONE. Continue?' %
                                    (moved // 1024, state['backup'].parent), icon='warning'):
             return
-        port = self.cart_port()
+        port = self.cart_connection()
         if not port:
             return
         self.cart_write_run('cart_write', state['image'], target, port, check=True)
@@ -1202,7 +1278,7 @@ class App:
                                    'replaced by this backup. Continue?' % (Path(path).name, len(image) / 1048576, what,
                                    library.plural(len(info.games), 'added game')), icon='warning'):
             return
-        port = self.cart_port()
+        port = self.cart_connection()
         if not port:
             return
         self.cart_write_run('cart_restore', None, image, port, check=False)
@@ -1210,7 +1286,7 @@ class App:
     def cart_write_run(self, operation, current, target, port, check):
         def work():
             library.emit('step', key='cart_connect')
-            usb, cart = self.cart_open(port)
+            finish, cart = self.cart_open(port)
             try:
                 if cart.capacity != len(target):
                     raise ValueError('This cart holds %g MB, but the image is %g MB.' %
@@ -1234,23 +1310,21 @@ class App:
                              for o in differ]
                     touched = differ
                 library.emit('step', key='cart_write')
-                total, done = max(1, cartridge.plan_bytes(steps) // 1024), 0
+                total, done = max(1, cartridge.plan_bytes(steps)), 0
+                shown = lambda d, t: library.progress(d // 1024, t // 1024, 'KB written')
                 for step in steps:
                     if step[0] == 'keep':
                         continue
                     if step[0] == 'erase':
                         print('Erasing 64 KB at 0x%x' % step[1])
                         cart.erase(step[1])
-                    for at in step[2]:
-                        cart.program(at, target[at:at + cartridge.BLOCK])
-                        done += 1
-                        library.progress(done, total, 'KB written')
+                    done = cart.program_blocks(target, step[2], shown, done, total)
                 library.emit('step', key='cart_verify')
                 if not cart.matches(target, touched):
                     raise ValueError('The cart doesn\'t match what was written. Write it again, or restore your '
                                      'backup.')
             finally:
-                games = cart.close(); usb.close()
+                games = cart.close(); finish()
             info = cartridge.parse(target)
             self.cart_result = ('The cart now has %s%s.' % (library.plural(len(info.games), 'game'),
                                 ' plus %s' % info.own_title if info.own_title else ''))

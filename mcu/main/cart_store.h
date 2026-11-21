@@ -112,10 +112,15 @@ bool CartStore_PsramHazard(uint32_t Address);
  * directory and restarts the cartridge. */
 esp_err_t CartStore_FlashBegin(uint32_t *pCapacity);
 esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks);
+/* Reads up to *pBlocks (lowered to what fits) into the session's own buffer,
+ * valid until the next call: no extra RAM (Wi-Fi Files has little). */
+esp_err_t CartStore_FlashReadShared(uint32_t Offset, uint32_t *pBlocks, const uint8_t **ppData);
 esp_err_t CartStore_FlashErase(uint32_t Offset);
 esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData);
 esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc);
 size_t CartStore_FlashEnd(bool StorageMounted);
+/* True from Begin until End: PC-mode owners must not re-take the cartridge. */
+bool CartStore_FlashIsOpen(void);
 /* GB core, storage mounted: copy box art the menu doesn't have yet off the
  * cartridge (holding it unless the caller already does). */
 void CartStore_SyncArt(void);
@@ -166,11 +171,14 @@ static inline esp_err_t CartStore_FlashBegin(uint32_t *pCapacity) { (void)pCapac
 static inline esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
 { (void)Offset; (void)pData; (void)Blocks; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_FlashErase(uint32_t Offset) { (void)Offset; return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t CartStore_FlashReadShared(uint32_t Offset, uint32_t *pBlocks, const uint8_t **ppData)
+{ (void)Offset; (void)pBlocks; (void)ppData; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_FlashProgram(uint32_t Offset, const uint8_t *pData)
 { (void)Offset; (void)pData; return ESP_ERR_NOT_SUPPORTED; }
 static inline esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
 { (void)Offset; (void)Length; (void)pCrc; return ESP_ERR_NOT_SUPPORTED; }
 static inline size_t CartStore_FlashEnd(bool StorageMounted) { (void)StorageMounted; return 0; }
+static inline bool CartStore_FlashIsOpen(void) { return false; }
 static inline void CartStore_SyncArt(void) {}
 #ifndef CART_STORE_TEST_HAS_GAMES
 static inline bool CartStore_HasGames(void) { return false; }

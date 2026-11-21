@@ -1,11 +1,14 @@
 #include "cart_store.h"
 
 #include "boot_resume.h"
+#include "cart_backup.h"
 #include "cart_bulk.h"
 #include "core_switch.h"
 #include "sd_card.h"
 
 #include "esp_check.h"
+#include "esp_heap_caps.h"
+#include "diag_log.h"
 #include "esp_console.h"
 #include "esp_rom_crc.h"
 #include "esp_vfs.h"
@@ -1539,8 +1542,15 @@ static int WriteCommand(int argc, char **argv)
 
 /* ------------------------------------- installer access (pcsd, USB) */
 
-enum { kFlashScratchBlocks = 16 }; /* cartridge reads go 16 KiB at a time */
+/* Cartridge reads go up to 16 KiB at a time (less when RAM is short, e.g.
+ * with Wi-Fi running). */
+static uint32_t FlashScratchBlocks;
 static bool FlashOpen;
+/* From the start of Begin to the end of End: USB TRANSFERS and Wi-Fi Files
+ * keep re-asserting PC mode, which must leave the cartridge to the session. */
+static volatile bool FlashWanted;
+static bool FlashRestorePCMode;
+bool CartStore_FlashIsOpen(void) { return FlashWanted; }
 static uint8_t FlashMode;
 static uint32_t FlashCapacity;
 static uint8_t *pFlashScratch;
@@ -1551,9 +1561,27 @@ esp_err_t CartStore_FlashBegin(uint32_t *pCapacity)
 {
     if (!CartStore_CanReadCart()) return ESP_ERR_INVALID_STATE;
     if (FlashOpen) { if (pCapacity) *pCapacity = FlashCapacity; return ESP_OK; }
+    /* PC mode (USB TRANSFERS, Wi-Fi Files) holds the cartridge in maintenance:
+     * leave it for this session's own hold, and come back to it at End. */
+    FlashWanted = true;
+    FlashRestorePCMode = false;
+    if (CartBackup_IsPCModeActive())
+    {
+        const esp_err_t Left = CartBackup_SetPCMode(false);
+        if (Left != ESP_OK) { FlashWanted = false; return Left; }
+        FlashRestorePCMode = true;
+    }
     xSemaphoreTake(Lock, portMAX_DELAY);
     CacheValid = false;
-    pFlashScratch = malloc(kFlashScratchBlocks * kBlock);
+    /* Leave ~12 KiB for whatever else runs (Wi-Fi Files idles at ~15 KiB
+     * free): a 1 KiB scratch only costs speed. */
+    const size_t Free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    const size_t Largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    for (FlashScratchBlocks = 16; FlashScratchBlocks > 1; FlashScratchBlocks /= 4)
+        if (FlashScratchBlocks * kBlock <= Largest && Free >= FlashScratchBlocks * kBlock + 12 * 1024) break;
+    pFlashScratch = malloc(FlashScratchBlocks * kBlock);
+    DiagLog_Append("cartflash open free=%u largest=%u scratch=%u", (unsigned)Free, (unsigned)Largest,
+                   pFlashScratch ? (unsigned)FlashScratchBlocks : 0u);
     esp_err_t Result = pFlashScratch ? CartBulk_Begin() : ESP_ERR_NO_MEM;
     const bool Bulk = Result == ESP_OK;
     if (Result == ESP_OK) Result = CartBulk_CartEnter(NULL);
@@ -1565,17 +1593,29 @@ esp_err_t CartStore_FlashBegin(uint32_t *pCapacity)
         if (Bulk) CartBulk_End();
         free(pFlashScratch); pFlashScratch = NULL;
         xSemaphoreGive(Lock);
+        if (FlashRestorePCMode) (void)CartBackup_SetPCMode(true);
+        FlashRestorePCMode = FlashWanted = false;
         return Result;
     }
     FlashOpen = true;
     if (pCapacity) *pCapacity = FlashCapacity;
-    printf("CARTFLASH open capacity=%lu mode=0x%02x\n", (unsigned long)FlashCapacity, FlashMode);
+    printf("CARTFLASH open capacity=%lu mode=0x%02x scratch=%lu\n", (unsigned long)FlashCapacity, FlashMode,
+           (unsigned long)FlashScratchBlocks);
     return ESP_OK;
 }
 
 static bool FlashRange(uint32_t Offset, uint32_t Length)
 {
     return FlashOpen && !(Offset & (kBlock - 1u)) && Length && Offset < FlashCapacity && Length <= FlashCapacity - Offset;
+}
+
+esp_err_t CartStore_FlashReadShared(uint32_t Offset, uint32_t *pBlocks, const uint8_t **ppData)
+{
+    if (!pBlocks || !ppData || !*pBlocks) return ESP_ERR_INVALID_ARG;
+    if (*pBlocks > FlashScratchBlocks) *pBlocks = FlashScratchBlocks;
+    if (!FlashRange(Offset, *pBlocks * kBlock)) return ESP_ERR_INVALID_ARG;
+    *ppData = pFlashScratch;
+    return CartBulk_ReadCart(Offset, pFlashScratch, *pBlocks);
 }
 
 esp_err_t CartStore_FlashRead(uint32_t Offset, uint8_t *pData, uint32_t Blocks)
@@ -1622,8 +1662,12 @@ esp_err_t CartStore_FlashErase(uint32_t Offset)
     for (uint32_t At = Offset; Result == ESP_OK && At < Offset + kEraseBlock; )
     {
         bool Blank = true;
-        Result = CartBulk_ReadCart(At, pFlashScratch, kChunk / kBlock);
-        for (size_t j = 0; Result == ESP_OK && Blank && j < kChunk; ++j) Blank = pFlashScratch[j] == 0xff;
+        const uint32_t Step = FlashScratchBlocks < kChunk / kBlock ? FlashScratchBlocks : kChunk / kBlock;
+        for (uint32_t b = 0; Result == ESP_OK && Blank && b < kChunk / kBlock; b += Step)
+        {
+            Result = CartBulk_ReadCart(At + b * kBlock, pFlashScratch, Step);
+            for (size_t j = 0; Result == ESP_OK && Blank && j < Step * kBlock; ++j) Blank = pFlashScratch[j] == 0xff;
+        }
         if (Result != ESP_OK) break;
         if (Blank) { At += kChunk; continue; }
         if (++Erases > 24) { Result = ESP_ERR_INVALID_STATE; break; }
@@ -1647,7 +1691,7 @@ esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
     for (uint32_t At = Offset; Result == ESP_OK && At < Offset + Length; )
     {
         const uint32_t Left = Offset + Length - At;
-        const uint32_t Count = Left < kFlashScratchBlocks * kBlock ? Left : kFlashScratchBlocks * kBlock;
+        const uint32_t Count = Left < FlashScratchBlocks * kBlock ? Left : FlashScratchBlocks * kBlock;
         Result = CartBulk_ReadCart(At, pFlashScratch, (Count + kBlock - 1u) / kBlock);
         if (Result == ESP_OK) Crc = esp_rom_crc32_le(Crc, pFlashScratch, Count);
         At += Count;
@@ -1662,10 +1706,12 @@ esp_err_t CartStore_FlashCrc(uint32_t Offset, uint32_t Length, uint32_t *pCrc)
  * what's missing (a quick check before each cartridge game loads). */
 static void SyncArtLocked(bool Replace)
 {
-    enum { kMaxArt = 64 * 1024, kChunk = 4 * 1024 }; /* streamed: no big buffer */
+    enum { kMaxArt = 64 * 1024 }; /* streamed: no big buffer */
     if (mkdir(CART_STORE_SIDECAR_ROOT, 0775) != 0 && errno != EEXIST) return;
     if (mkdir(CART_STORE_ART_ROOT, 0775) != 0 && errno != EEXIST) return;
+    uint32_t kChunk = 4 * 1024;
     uint8_t *pChunk = malloc(kChunk);
+    if (!pChunk) pChunk = malloc(kChunk = kBlock);
     if (!pChunk) { printf("CARTSTORE art_nomem\n"); return; }
     char Path[sizeof(CART_STORE_ART_ROOT) + kCartStoreNameSize + 8];
     unsigned Copied = 0, Failed = 0;
@@ -1769,6 +1815,12 @@ size_t CartStore_FlashEnd(bool StorageMounted)
     free(pFlashScratch); pFlashScratch = NULL;
     FlashOpen = false;
     xSemaphoreGive(Lock);
+    if (FlashRestorePCMode)
+    {
+        const esp_err_t Back = CartBackup_SetPCMode(true);
+        if (Back != ESP_OK) printf("CARTFLASH pcmode_restore=%s\n", esp_err_to_name(Back));
+    }
+    FlashRestorePCMode = FlashWanted = false;
     printf("CARTFLASH close games=%u own=\"%s\"\n", (unsigned)Count, OwnName);
     return Count;
 }

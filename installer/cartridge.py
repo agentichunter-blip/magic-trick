@@ -607,11 +607,59 @@ def finish_header(image, title=b'MAGIC TRICK'):
     image[0x14e:0x150] = struct.pack('>H', total)
 
 
-# ------------------------------------------------------------ USB access
+# --------------------------------------------------------- USB and Wi-Fi
 
-class CartUsb:
-    """The cartridge in a Chromatic on USB (Game Boy core, USB TRANSFERS on),
-    through library.UsbTarget's session."""
+class CartAccess:
+    """The cartridge in a Chromatic's Game Boy core: read, erase 64 KiB blocks,
+    program, CRC. Subclasses move the bytes (USB console or Wi-Fi Files)."""
+    capacity = 0
+    run_limit = BLOCK            # bytes per program request
+
+    def matches(self, image, offsets):
+        """Whether the cart holds image's bytes in these 64 KiB blocks."""
+        return all(self.crc(o, ERASE_BLOCK) == crc32(image[o:o + ERASE_BLOCK]) for o in offsets)
+
+    def program_blocks(self, target, offsets, progress=None, done=0, total=None):
+        """Program these 1 KiB blocks of target, contiguous ones together."""
+        offsets = sorted(offsets)
+        total = total or len(offsets) * BLOCK
+        i = 0
+        while i < len(offsets):
+            j = i + 1
+            while j < len(offsets) and offsets[j] == offsets[j - 1] + BLOCK and (j - i + 1) * BLOCK <= self.run_limit:
+                j += 1
+            start, end = offsets[i], offsets[j - 1] + BLOCK
+            self.program(start, target[start:end])
+            done += end - start
+            if progress:
+                progress(done, total)
+            i = j
+        return done
+
+    def write(self, current, target, progress=None, log=print):
+        """Change the cart from current to target (both whole-cart images).
+        Only the blocks that change (and block 0, the cart's identity) are
+        checked before and after: every programmed 1 KiB is read back by the
+        firmware as it goes. Returns the plan's steps."""
+        steps = plan(current, target)
+        touched = [s[1] for s in steps if s[0] != 'keep']
+        if not self.matches(current, sorted(set([0] + touched))):
+            raise CartError('The cart isn\'t the one that was read (or it changed since). Nothing was written.')
+        total, done = max(1, plan_bytes(steps)), 0
+        for step in steps:
+            if step[0] == 'keep':
+                continue
+            if step[0] == 'erase':
+                self.erase(step[1])
+            done = self.program_blocks(target, step[2], progress, done, total)
+        if not self.matches(target, touched):
+            raise CartError('The cart doesn\'t match what was written. Nothing was lost: write it again '
+                            'or restore the backup.')
+        return steps
+
+
+class CartUsb(CartAccess):
+    """Over USB (USB TRANSFERS on), through library.UsbTarget's session."""
 
     def __init__(self, usb):
         self.usb = usb
@@ -661,36 +709,8 @@ class CartUsb:
         self.usb._exchange(b'\x22' + struct.pack('<I', offset), seconds=180)
 
     def program(self, offset, data):
-        self.usb._exchange(b'\x23' + struct.pack('<I', offset) + data, seconds=30)
-
-    def matches(self, image, offsets):
-        """Whether the cart holds image's bytes in these 64 KiB blocks."""
-        return all(self.crc(o, ERASE_BLOCK) == crc32(image[o:o + ERASE_BLOCK]) for o in offsets)
-
-    def write(self, current, target, progress=None, log=print):
-        """Change the cart from current to target (both whole-cart images).
-        Only the blocks that change (and block 0, the cart's identity) are
-        checked before and after: every programmed 1 KiB is read back by the
-        firmware as it goes. Returns the plan's steps."""
-        steps = plan(current, target)
-        touched = [s[1] for s in steps if s[0] != 'keep']
-        if not self.matches(current, sorted(set([0] + touched))):
-            raise CartError('The cart isn\'t the one that was read (or it changed since). Nothing was written.')
-        total, done = max(1, plan_bytes(steps)), 0
-        for step in steps:
-            if step[0] == 'keep':
-                continue
-            if step[0] == 'erase':
-                self.erase(step[1])
-            for at in step[2]:
-                self.program(at, target[at:at + BLOCK])
-                done += BLOCK
-                if progress:
-                    progress(done, total)
-        if not self.matches(target, touched):
-            raise CartError('The cart doesn\'t match what was written. Nothing was lost: write it again '
-                            'or restore the backup.')
-        return steps
+        for at in range(0, len(data), BLOCK):
+            self.usb._exchange(b'\x23' + struct.pack('<I', offset + at) + data[at:at + BLOCK], seconds=30)
 
     def close(self):
         self.usb._timeout(60)
@@ -698,3 +718,54 @@ class CartUsb:
         rec = self.usb._record()
         self.usb._ok()
         return int(rec.split('=', 1)[1]) if rec.startswith('CDIR games=') else None
+
+
+class CartWifi(CartAccess):
+    """Over Wi-Fi Files (MCU with /api/cart), through library.WifiTarget's session."""
+    run_limit = 32 * BLOCK
+
+    def __init__(self, wifi):
+        import json
+        self.wifi, self.json = wifi, json
+        try:
+            reply = json.loads(self._call('POST', 'cart/open', timeout=60))
+        except CartError as exc:
+            if '(404)' in str(exc) or '(405)' in str(exc):
+                raise CartError('This Chromatic\'s firmware can\'t reach the cart over Wi-Fi yet. Update Magic '
+                                'Trick, or use USB.') from None
+            raise
+        self.capacity = int(reply['capacity'])
+
+    def _call(self, method, route, body=None, timeout=120):
+        try:
+            return self.wifi._request(method, route, body=body, timeout=timeout,
+                                      headers={'Content-Type': 'application/octet-stream'} if body else None)
+        except Exception as exc:   # library.WifiError / ConnectionError: keep the device's words
+            if getattr(exc, 'status', None) == 409:
+                raise CartError('Start a Game Boy game on the Chromatic first: only it can reach the cart.') from None
+            raise CartError(str(exc)) from None
+
+    def read(self, progress=None):
+        out = bytearray(self.capacity)
+        step = 64 * BLOCK
+        for o in range(0, self.capacity, step):
+            n = min(step, self.capacity - o)
+            data = self._call('GET', 'cart/read?offset=%d&length=%d' % (o, n))
+            if len(data) != n:
+                raise CartError('The Chromatic sent %d of %d bytes at 0x%x.' % (len(data), n, o))
+            out[o:o + n] = data
+            if progress:
+                progress(o + n, self.capacity)
+        return bytes(out)
+
+    def crc(self, offset, length):
+        return int(self.json.loads(self._call('GET', 'cart/crc?offset=%d&length=%d' % (offset, length)))['crc32'], 16)
+
+    def erase(self, offset):
+        self._call('POST', 'cart/erase?offset=%d' % offset, timeout=180)
+
+    def program(self, offset, data):
+        self._call('PUT', 'cart/write?offset=%d' % offset, body=bytes(data))
+
+    def close(self):
+        return int(self.json.loads(self._call('POST', 'cart/close', timeout=120)).get('games', 0))

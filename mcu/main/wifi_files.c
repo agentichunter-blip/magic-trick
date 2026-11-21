@@ -11,6 +11,8 @@
 #include <ctype.h>
 #include "pc_backup.h"
 #include "cart_backup.h"
+#include "cart_store.h"
+#include "diag_log.h"
 #include "sd_card.h"
 #include "sd_list.h"
 #include "esp_event.h"
@@ -430,6 +432,130 @@ static esp_err_t Checksum(httpd_req_t *Req)
     if(Reply) { cJSON_AddStringToObject(Reply,"crc32",Hex); cJSON_AddNumberToObject(Reply,"bytes",Total); }
     return Json(Req,Reply);
 }
+/* ---- Cartridge flash for the installer's Cartridge tab (GB core) ----
+ * POST open, GET read?offset&length (<= 64 KiB, binary), POST erase?offset
+ * (one 64 KiB block), PUT write?offset (body: whole 1 KiB blocks, <= 64 KiB),
+ * GET crc?offset&length, POST close. Works without an SD card. */
+static bool CardMounted;   /* the transfer task's SD mount (art goes there) */
+static bool CartQuery(httpd_req_t *Req, uint32_t *pOffset, uint32_t *pLength)
+{
+    char Query[96], Value[16];
+    if (httpd_req_get_url_query_str(Req, Query, sizeof(Query)) != ESP_OK) return false;
+    if (httpd_query_key_value(Query, "offset", Value, sizeof(Value)) != ESP_OK) return false;
+    char *End; *pOffset = strtoul(Value, &End, 10); if (*End) return false;
+    if (pLength)
+    {
+        if (httpd_query_key_value(Query, "length", Value, sizeof(Value)) != ESP_OK) return false;
+        *pLength = strtoul(Value, &End, 10); if (*End) return false;
+    }
+    return true;
+}
+static esp_err_t CartFailed(httpd_req_t *Req, esp_err_t Result)
+{
+    printf("WIFI_FILES cart error=%s\n", esp_err_to_name(Result));
+    DiagLog_Append("wificart %s heap=%u", esp_err_to_name(Result), (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    if (Result == ESP_ERR_INVALID_STATE) return Error(Req, "409 Conflict", "Start a Game Boy game first: only it can reach the cartridge.");
+    if (Result == ESP_ERR_NOT_SUPPORTED) return Error(Req, "422 Unprocessable Content", "This cartridge's flash chip isn't supported.");
+    if (Result == ESP_ERR_NOT_FOUND) return Error(Req, "404 Not Found", "No cartridge answered.");
+    if (Result == ESP_ERR_INVALID_ARG) return Error(Req, "400 Bad Request", "Invalid cartridge range.");
+    if (Result == ESP_ERR_NO_MEM) return Error(Req, "503 Service Unavailable", "Not enough memory.");
+    char Text[64]; snprintf(Text, sizeof(Text), "Cartridge error %s.", esp_err_to_name(Result));
+    return Error(Req, "500 Internal Server Error", Text);
+}
+static esp_err_t CartOpen(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Capacity = 0;
+    const esp_err_t Result = CartStore_FlashBegin(&Capacity);
+    if (Result != ESP_OK) return CartFailed(Req, Result);
+    cJSON *Reply = cJSON_CreateObject();
+    if (Reply) cJSON_AddNumberToObject(Reply, "capacity", Capacity);
+    return Json(Req, Reply);
+}
+static esp_err_t CartRead(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Offset, Length;
+    if (!CartQuery(Req, &Offset, &Length) || !Length || Length > 64 * 1024 || (Length & 1023u))
+        return Error(Req, "400 Bad Request", "Invalid cartridge range.");
+    /* The cart session's own buffer: no allocation here (RAM is tight). */
+    const uint8_t *Data = NULL;
+    uint32_t Blocks = Length / 1024u;
+    esp_err_t Result = CartStore_FlashReadShared(Offset, &Blocks, &Data);   /* checked before any data */
+    if (Result != ESP_OK) return CartFailed(Req, Result);
+    httpd_resp_set_type(Req, "application/octet-stream");
+    for (uint32_t At = 0; Result == ESP_OK && At < Length && !Stopping(); )
+    {
+        if (At) { Blocks = (Length - At) / 1024u; Result = CartStore_FlashReadShared(Offset + At, &Blocks, &Data); }
+        if (Result == ESP_OK) Result = httpd_resp_send_chunk(Req, (const char *)Data, Blocks * 1024u);
+        At += Blocks * 1024u;
+        Touch();
+    }
+    if (Result != ESP_OK || Stopping()) { DiagLog_Append("wificart read %s", esp_err_to_name(Result)); return ESP_FAIL; }
+    return httpd_resp_send_chunk(Req, NULL, 0);
+}
+static esp_err_t CartErase(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Offset;
+    if (!CartQuery(Req, &Offset, NULL) || Req->content_len) return Error(Req, "400 Bad Request", "Invalid cartridge range.");
+    const esp_err_t Result = CartStore_FlashErase(Offset);
+    Touch();
+    if (Result != ESP_OK) return CartFailed(Req, Result);
+    httpd_resp_set_type(Req, "application/json");
+    return httpd_resp_sendstr(Req, "{\"ok\":true}");
+}
+static esp_err_t CartWrite(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Offset;
+    if (!CartQuery(Req, &Offset, NULL) || !Req->content_len || Req->content_len > 64 * 1024 || (Req->content_len & 1023u))
+        return Error(Req, "400 Bad Request", "Invalid cartridge range.");
+    uint8_t *Block = malloc(1024);
+    if (!Block) return Error(Req, "503 Service Unavailable", "Not enough memory.");
+    esp_err_t Result = ESP_OK;
+    unsigned Stalls = 0;
+    for (size_t Done = 0; Result == ESP_OK && Done < Req->content_len; )
+    {
+        size_t Got = 0;
+        while (Got < 1024)
+        {
+            const int Count = httpd_req_recv(Req, (char *)Block + Got, 1024 - Got);
+            if (Count == HTTPD_SOCK_ERR_TIMEOUT && ++Stalls < kUploadStallLimit) continue;
+            if (Count <= 0 || Stopping()) { Result = ESP_FAIL; break; }
+            Stalls = 0; Got += Count;
+        }
+        if (Result == ESP_OK) Result = CartStore_FlashProgram(Offset + Done, Block);
+        Done += 1024; Touch();
+    }
+    free(Block);
+    if (Result == ESP_FAIL) return Error(Req, "500 Internal Server Error", "The upload stopped. Write it again.");
+    if (Result != ESP_OK) return CartFailed(Req, Result);
+    httpd_resp_set_type(Req, "application/json");
+    return httpd_resp_sendstr(Req, "{\"ok\":true}");
+}
+static esp_err_t CartCrc(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    uint32_t Offset, Length, Crc = 0;
+    if (!CartQuery(Req, &Offset, &Length)) return Error(Req, "400 Bad Request", "Invalid cartridge range.");
+    const esp_err_t Result = CartStore_FlashCrc(Offset, Length, &Crc);
+    Touch();
+    if (Result != ESP_OK) return CartFailed(Req, Result);
+    char Hex[9]; snprintf(Hex, sizeof(Hex), "%08lx", (unsigned long)Crc);
+    cJSON *Reply = cJSON_CreateObject();
+    if (Reply) cJSON_AddStringToObject(Reply, "crc32", Hex);
+    return Json(Req, Reply);
+}
+static esp_err_t CartClose(httpd_req_t *Req)
+{
+    if (!Authorized(Req)) return Error(Req, "401 Unauthorized", "Pair with the Chromatic first.");
+    const size_t Games = CartStore_FlashIsOpen() ? CartStore_FlashEnd(CardMounted) : 0;
+    cJSON *Reply = cJSON_CreateObject();
+    if (Reply) cJSON_AddNumberToObject(Reply, "games", (double)Games);
+    return Json(Req, Reply);
+}
+
 static esp_err_t StartServer(void)
 {
     httpd_config_t Config = HTTPD_DEFAULT_CONFIG();
@@ -437,7 +563,7 @@ static esp_err_t StartServer(void)
     Config.max_open_sockets = 2;
     Config.lru_purge_enable = true;
     Config.recv_wait_timeout = 5; Config.send_wait_timeout = 5;
-    Config.max_uri_handlers = 12;
+    Config.max_uri_handlers = 18;
     esp_err_t Result = httpd_start(&Server, &Config);
     if (Result != ESP_OK) return Result;
     const httpd_uri_t Routes[] = {
@@ -453,6 +579,12 @@ static esp_err_t StartServer(void)
         {.uri="/api/file", .method=HTTP_PUT, .handler=Upload},
         {.uri="/api/file", .method=HTTP_DELETE, .handler=Remove},
         {.uri="/api/folder", .method=HTTP_POST, .handler=MakeDirectory},
+        {.uri="/api/cart/open", .method=HTTP_POST, .handler=CartOpen},
+        {.uri="/api/cart/read", .method=HTTP_GET, .handler=CartRead},
+        {.uri="/api/cart/erase", .method=HTTP_POST, .handler=CartErase},
+        {.uri="/api/cart/write", .method=HTTP_PUT, .handler=CartWrite},
+        {.uri="/api/cart/crc", .method=HTTP_GET, .handler=CartCrc},
+        {.uri="/api/cart/close", .method=HTTP_POST, .handler=CartClose},
     };
     for (unsigned I = 0; I < sizeof(Routes)/sizeof(Routes[0]); ++I)
         if ((Result = httpd_register_uri_handler(Server, &Routes[I])) != ESP_OK) return Result;
@@ -473,7 +605,10 @@ static void TransferTask(void *Arg)
     printf("WIFI_FILES before_sd heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     Result = SDCard_MountPhysical(&Card);
     LYNX_STEP("wifi sd %s", esp_err_to_name(Result));
-    if (Result != ESP_OK) { Failure = "SD CARD UNAVAILABLE"; goto Cleanup; }
+    /* No card: still start, for the installer's Cartridge tab (file requests
+     * then find no folders). */
+    if (Result != ESP_OK) { printf("WIFI_FILES no_sd=%s (cartridge only)\n", esp_err_to_name(Result)); Card = NULL; }
+    CardMounted = Card != NULL;
     printf("WIFI_FILES before_radio heap8=%u largest_dma=%u\n", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT), (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     Result=WifiNetwork_Start(false);
     LYNX_STEP("wifi radio %s", esp_err_to_name(Result));
@@ -511,7 +646,8 @@ static void TransferTask(void *Arg)
                    (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
         Result = WifiNetwork_Poll();
         if(Result != ESP_OK) { Failure="NETWORK MODE FAILED"; break; }
-        Result = CartBackup_SetPCMode(true);
+        /* A cartridge session (installer) holds the cartridge itself meanwhile. */
+        Result = CartStore_FlashIsOpen() ? ESP_OK : CartBackup_SetPCMode(true);
         if (Result != ESP_OK) { Failure = "TRANSFER MODE LOST"; break; }
         portENTER_CRITICAL(&Lock);
         bool Idle = esp_timer_get_time() - LastActivity > 10LL * 60 * 1000000;
@@ -523,6 +659,7 @@ Cleanup:
     if (Result == ESP_ERR_NO_MEM) Failure = "NOT ENOUGH MEMORY";
     Message("STOPPING WI-FI");
     if (Server) { httpd_stop(Server); Server = NULL; }
+    if (CartStore_FlashIsOpen()) (void)CartStore_FlashEnd(Card != NULL);
     if (Wifi) WifiNetwork_Stop();
     memset(Token,0,sizeof(Token));
     if (Card)

@@ -385,22 +385,14 @@ static esp_err_t BackupCart(bool Save)
  * base64 per 1 KiB), 0x22 erase a 64 KiB block, 0x23 program (offset,
  * 1 KiB), 0x24 CRC (offset, length), 0x25 close (re-reads the directory,
  * restarts the cartridge). */
-static bool CartOpen, CartRestorePCMode, CardMounted;
+static bool CartOpen, CardMounted;
 static char CartLine[1400];
 
-/* USB TRANSFERS holds the cartridge in maintenance (PC mode); the flash
- * session takes its own hold, and PC mode comes back when it ends. */
+/* (The flash session leaves USB TRANSFERS' PC mode and restores it itself.) */
 static size_t CartClose(void)
 {
     CartOpen = false;
-    const size_t Games = CartStore_FlashEnd(CardMounted);
-    if (CartRestorePCMode)
-    {
-        CartRestorePCMode = false;
-        const esp_err_t Result = CartBackup_SetPCMode(true);
-        if (Result != ESP_OK) printf("PCSD cart_pcmode_restore=%s\n", esp_err_to_name(Result));
-    }
-    return Games;
+    return CartStore_FlashEnd(CardMounted);
 }
 
 static esp_err_t CartRequest(size_t Size)
@@ -410,14 +402,8 @@ static esp_err_t CartRequest(size_t Size)
     {
         uint32_t Capacity = 0;
         if (Size != 1) return ESP_ERR_INVALID_ARG;
-        if (!CartOpen && CartBackup_IsPCModeActive())
-        {
-            ESP_RETURN_ON_ERROR(CartBackup_SetPCMode(false), "pc_sd", "leave PC mode");
-            CartRestorePCMode = true;
-        }
         const esp_err_t Result = CartStore_FlashBegin(&Capacity);
         if (Result == ESP_OK) { CartOpen = true; printf("PCSD CART capacity=%lu\n", (unsigned long)Capacity); }
-        else if (CartRestorePCMode) { CartRestorePCMode = false; (void)CartBackup_SetPCMode(true); }
         return Result;
     }
     if (!CartOpen) return ESP_ERR_INVALID_STATE;

@@ -44,6 +44,20 @@ int httpd_req_recv(httpd_req_t *R, char *B, size_t S) {
     if(Cancel)StopRequested=true;
     return N;
 }
+esp_err_t httpd_req_get_url_query_str(httpd_req_t *R, char *B, size_t S) {
+    const char *Q = strchr(R->uri, '?'); if (!Q || strlen(Q + 1) >= S) return ESP_FAIL; strcpy(B, Q + 1); return ESP_OK;
+}
+esp_err_t httpd_query_key_value(const char *Q, const char *K, char *B, size_t S) {
+    for (const char *P = Q; P && *P; P = strchr(P, '&') ? strchr(P, '&') + 1 : NULL) {
+        size_t L = strlen(K);
+        if (!strncmp(P, K, L) && P[L] == '=') {
+            size_t N = strcspn(P + L + 1, "&"); if (N >= S) return ESP_FAIL;
+            memcpy(B, P + L + 1, N); B[N] = 0; return ESP_OK;
+        }
+    }
+    return ESP_FAIL;
+}
+void DiagLog_Append(const char *Format, ...) { (void)Format; }
 int64_t esp_timer_get_time(void) { return Now; }
 uint32_t esp_rom_crc32_le(uint32_t C,const uint8_t *B,size_t N) { C=~C; for(size_t I=0;I<N;++I) { C^=B[I]; for(unsigned J=0;J<8;++J)C=(C>>1)^(C&1?0xedb88320u:0); }return ~C; }
 uint32_t esp_random(void) { static unsigned N; return ++N; }
@@ -114,5 +128,15 @@ int main(void) {
     while((E=readdir(D)))if(strcmp(E->d_name,".")&&strcmp(E->d_name,"..")){assert(!WifiFile_IsInternal(E->d_name));++Entries;}
     closedir(D); assert(Entries==2);
     char P[768]; snprintf(P,sizeof(P),"%s/game.gbc",Root); unlink(P); snprintf(P,sizeof(P),"%s/Covers",Root); rmdir(P); assert(rmdir(Root)==0);
+    /* Cartridge routes: token required, ranges checked, cart errors explained
+     * (the host has no cartridge: the store answers NOT_SUPPORTED). */
+    { httpd_req_t C={.uri="/api/cart/open"}; Auth="wrong"; Reset(); assert(CartOpen(&C)==ESP_FAIL && !strcmp(Code,"401 Unauthorized"));
+      Auth="test-token"; Reset(); assert(CartOpen(&C)==ESP_FAIL && !strcmp(Code,"422 Unprocessable Content"));
+      httpd_req_t Rd={.uri="/api/cart/read?offset=0&length=100"}; Reset(); assert(CartRead(&Rd)==ESP_FAIL && !strcmp(Code,"400 Bad Request"));
+      httpd_req_t Rd2={.uri="/api/cart/read?offset=0&length=1024"}; Reset(); assert(CartRead(&Rd2)==ESP_FAIL && !strcmp(Code,"422 Unprocessable Content"));
+      httpd_req_t W={.uri="/api/cart/write?offset=0",.content_len=1000}; Reset(); assert(CartWrite(&W)==ESP_FAIL && !strcmp(Code,"400 Bad Request"));
+      httpd_req_t E={.uri="/api/cart/erase?offset=x"}; Reset(); assert(CartErase(&E)==ESP_FAIL && !strcmp(Code,"400 Bad Request"));
+      httpd_req_t Cl={.uri="/api/cart/close"}; Reset(); assert(CartClose(&Cl)==ESP_OK && strstr(Response,"\"games\":0")); }
+    puts("PASS: Wi-Fi cartridge routes");
     puts("PASS: HTTP authorization, origin/host checks, traversal, disconnect/cancel, receive stalls, binary upload/download, collision, list, mkdir");
 }
