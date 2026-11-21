@@ -70,7 +70,6 @@ PLANS.update({'cart_read': ['cart_connect', 'cart_read'],
               'cart_write': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify'],
               'cart_restore': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify']})
 TITLES.update({'cart_read': 'READING CART', 'cart_write': 'WRITING CART', 'cart_restore': 'RESTORING CART'})
-CART_BACKUPS = Path.home() / 'Documents' / 'Magic Trick' / 'Cartridge backups'
 CART_ROUTES = [('wifi', 'WI-FI', 'Faster, no cable. Needs a Wi-Fi network (or the Chromatic\'s own hotspot).'),
                ('usb', 'USB', 'Plug in a USB cable. Slower; handy without Wi-Fi.')]
 
@@ -111,6 +110,47 @@ def _picker_text(options):
 
 def ask_directory(**options):
     return filedialog.askdirectory(**_picker_text(options))
+
+
+def work_area_height():
+    """Windows: the desktop's height above the taskbar, in the same pixels Tk uses; None elsewhere."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+        rect = wintypes.RECT()
+        if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):   # SPI_GETWORKAREA
+            return rect.bottom - rect.top
+    except Exception:
+        pass
+    return None
+
+
+def documents_folder():
+    """The Documents folder the file manager shows (on Windows it may be moved, e.g. into OneDrive)."""
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [('Data1', wintypes.DWORD), ('Data2', wintypes.WORD), ('Data3', wintypes.WORD),
+                            ('Data4', ctypes.c_ubyte * 8)]
+            # FOLDERID_Documents {FDD39AD0-238F-46AF-ADB4-6C85480369C7}
+            folder = GUID(0xFDD39AD0, 0x238F, 0x46AF, (ctypes.c_ubyte * 8)(0xAD, 0xB4, 0x6C, 0x85, 0x48, 0x03, 0x69, 0xC7))
+            path = ctypes.c_wchar_p()
+            if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(folder), 0, None, ctypes.byref(path)) == 0:
+                try:
+                    return Path(path.value)
+                finally:
+                    ctypes.windll.ole32.CoTaskMemFree(path)
+        except Exception:
+            pass
+    return Path.home() / 'Documents'
+
+
+CART_BACKUPS = documents_folder() / 'Magic Trick' / 'Cartridge backups'
 
 
 def ask_open_filenames(**options):
@@ -242,28 +282,28 @@ class App:
                  'first install, whatever state the Chromatic is in.', 'secondary')]:
             tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2,
                             highlightbackground=ACCENT if kind == 'primary' else LINE)
-            tile.pack(fill='x', pady=4)
-            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+            tile.pack(fill='x', pady=3)
+            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=7)
             self.label(words, title, self.f_pixel, ACCENT if kind == 'primary' else INK).pack(anchor='w')
-            self.label(words, text, self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(5, 0))
+            self.label(words, text, self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(3, 0))
             button = PixelButton(tile, 'START ▶', (lambda k=key: self.begin(k)), self.f_pixel, kind)
             button.pack(side='right', padx=16)
             self.tiles[key] = button
         tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
-        tile.pack(fill='x', pady=(12, 4))
-        words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+        tile.pack(fill='x', pady=(8, 3))
+        words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=7)
         self.label(words, 'SD CARD LIBRARY', self.f_pixel, LILAC).pack(anchor='w')
         self.label(words, 'Add games, box art and gameplay clips to your SD card. Doesn\'t change the firmware, '
-                   'and no backup is needed.', self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(5, 0))
+                   'and no backup is needed.', self.f_body, MUTED, wrap=600).pack(anchor='w', pady=(3, 0))
         PixelButton(tile, 'OPEN ▶', self.show_library, self.f_pixel, 'secondary').pack(side='right', padx=16)
         if CARTRIDGE:
             tile = tk.Frame(self.screen, bg=PANEL, highlightthickness=2, highlightbackground=LINE)
-            tile.pack(fill='x', pady=4)
-            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=10)
+            tile.pack(fill='x', pady=3)
+            words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=7)
             self.label(words, 'CARTRIDGE', self.f_pixel, AMBER).pack(anchor='w')
             self.label(words, 'Back up a rewritable Game Boy cart (ModRetro carts, most flash carts) and put Game '
                        'Gear, Lynx and Game Boy games on it, with box art. No SD card needed to play them.', self.f_body, MUTED,
-                       wrap=600).pack(anchor='w', pady=(5, 0))
+                       wrap=600).pack(anchor='w', pady=(3, 0))
             PixelButton(tile, 'OPEN ▶', self.show_cartridge, self.f_pixel, 'secondary').pack(side='right', padx=16)
         self.refresh_device()
         self.fit_window()
@@ -557,6 +597,9 @@ class App:
         want_w = max(self.root.winfo_width(), self.root.winfo_reqwidth())
         want_h = max(self.root.winfo_height(), self.root.winfo_reqheight())
         max_h = self.root.winfo_screenheight() - (150 if sys.platform == 'darwin' else 80)   # menu bar + Dock
+        work = work_area_height()
+        if work:   # Windows: above the taskbar, less the title bar (scaled for high-DPI screens)
+            max_h = min(max_h, work - int(40 * self.root.winfo_fpixels('1i') / 96))
         if want_h > self.root.winfo_height() or want_w > self.root.winfo_width():
             self.root.geometry('%dx%d' % (want_w, min(want_h, max_h)))
         # A floor, not the content's size: the window can still be made smaller (screens keep their main
