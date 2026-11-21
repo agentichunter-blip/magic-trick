@@ -14,11 +14,11 @@
 
 # Magic Trick
 
-**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It plays Game Boy, Game Boy Color, Game Gear and Atari Lynx games from the SD card and switches FPGA cores automatically. It turns the file list into a game library with cover art, looping gameplay previews, Game Genie cheats, a Recent folder and last-game startup, and adds native save states, Wi-Fi file transfers and a boot animation.
+**Magic Trick** is a free, open-source game library mod for the ModRetro Chromatic, built on [CursedToast's ChroMagic](https://github.com/cursedtoast2/ChroMagic). It plays Game Boy, Game Boy Color, Game Gear and Atari Lynx games from the SD card, or from a rewritable Game Boy cart with no SD card at all, and switches FPGA cores automatically. It turns the file list into a game library with cover art, looping gameplay previews, Game Genie cheats, a Recent folder and last-game startup, and adds native save states, Wi-Fi file transfers and a boot animation.
 
 > **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.9`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear) and `50.3` (Atari Lynx). Status reports "Magic Trick 1.0 beta".
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.10`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear) and `50.3` (Atari Lynx). Status reports "Magic Trick 1.0 beta".
 
 This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo, Sega or Atari. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
@@ -30,6 +30,7 @@ This is an independent community project with no guaranteed support or release s
 - **Color temperature** for Game Boy Color and Game Gear games, ported from ModRetro's stock firmware 4.6. In color games the **Color Temp** tab takes the Palette tab's place and goes from Neutral to Warm 5. Like ModRetro's, it warms only bright areas such as white text and title screens, so dark scenes barely change. **Menu+Up** warms and **Menu+Down** cools during play; in Game Boy games the same keys cycle the palette, as on stock firmware. Controls → hot keys lists every shortcut.
 - **Support for revised Chromatic boards**, ported from ModRetro's FPGA 18.9–18.14: the firmware detects the board, configures the charger as ModRetro does (charge current, watchdog off, slower charging when a revised board's battery is cold), sequences cartridge power, and uses board-specific battery levels. Switched off on USB power, the Chromatic stays dark.
 - **In-game saves for Game Gear:** battery and EEPROM saves are kept on the SD card as `<game>.SAV` and loaded before the game starts, including games with 32 KiB of cartridge RAM such as Shining Force – The Sword of Hajya.
+- **Game carts:** the installer's **CARTRIDGE** section backs up a rewritable Game Boy cart (a ModRetro cart, most flash carts) and puts Game Gear, Atari Lynx and Game Boy games on it, with box art. The Chromatic lists them under **Games > Cartridge** and plays them **without an SD card**, keeping their saves and save states in its internal memory (on the card when one is in). The cart's own game can be swapped for a Game Boy or Game Boy Color game of your choice, so an original Game Boy plays it too (untested on original hardware so far); on the Chromatic it gets save states, and its save stays on the cart. See [Game carts](installer/README.md#game-carts).
 - **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
 - **Recent games** and **last-game startup** (hold B at power-on to skip, or set System → **START-UP** to GAMES MENU). A physical cartridge boots once, after the boot animation.
@@ -39,15 +40,15 @@ This is an independent community project with no guaranteed support or release s
 - **Boot animation** with the Magic Trick logo.
 - Files beginning with `[BIOS]` are hidden without being deleted. Demo and Kiosk ROMs are filtered out.
 
-ChroMagic's cartridge backup and save features remain available. An installed SD card is required for the browser and on-device backups.
+ChroMagic's cartridge backup and save features remain available. The game library and on-device backups need an SD card, except for games on a cart (see [Game carts](installer/README.md#game-carts)).
 
 ## Install
 
-Download **[Magic Trick Installer 1.0.0-beta.12](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.12)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
+Download **[Magic Trick Installer 1.0.0-beta.13](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.13)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
-- **Updates take 10 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.11 rewrites the Game Boy and Game Gear cores and takes 15 to 20 minutes. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
+- **Updates take 5 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.12 changes only the MCU firmware and takes about 5 minutes; from 1.0.0-beta.11 it also rewrites the Game Boy and Game Gear cores and takes 15 to 20 minutes. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
-- **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching, Atari Lynx games, and the SD card library over a card reader, Wi-Fi and USB). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
+- **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching, Atari Lynx games, the SD card library over a card reader, Wi-Fi and USB, and game carts on a ModRetro MR.TETRIS cart over USB and Wi-Fi). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
 
 ### Build from source
 

@@ -57,7 +57,7 @@ ROUTES = [('folder', 'CARD READER', 'Fastest. Take the SD card out of the Chroma
           ('usb', 'USB (SLOW)', 'Very slow. Fine for a few covers, but not for games or clips.')]
 SPINNER = '▖▘▝▗'
 # The Cartridge tab stays hidden until cartridge support is announced.
-CARTRIDGE = os.environ.get('MAGIC_TRICK_CARTRIDGE') == '1' or '--cartridge' in sys.argv
+CARTRIDGE = os.environ.get('MAGIC_TRICK_CARTRIDGE') != '0'   # the Cartridge tab (0 hides it)
 CART_OPS = ('cart_read', 'cart_write', 'cart_restore')
 STEPS.update({
     'cart_connect': ('CONNECTING', 'Opening the cartridge in your Chromatic.', 0.2),
