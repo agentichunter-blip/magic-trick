@@ -7,7 +7,7 @@ RELEASE = '1.0.0-beta.10'          # firmware this installer installs
 INSTALLER_VERSION = '1.0.0-beta.13'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
-    'mcu': ('magic-trick-1.0.0-beta.10-mcu.bin', 'c6674b207a04e2f528c652a0a6ebb2f5c0897ba0828035b1879d2048fb9ad71b'),
+    'mcu': ('magic-trick-1.0.0-beta.10-mcu.bin', 'f6e8ba3b78005b2e6c42a6bde424b44e5bbf761c0994078871f5fd7f18da49d8'),
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '6d3bf3dabc947fc4865ce8e749426afea3888d18040bc772ff284a4b62ff33bc'),
