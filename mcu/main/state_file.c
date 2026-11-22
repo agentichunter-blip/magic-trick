@@ -36,13 +36,15 @@ uint32_t StateFile_PayloadLength(uint32_t RamSize)
 static uint32_t EngineSignature(const StateFileGame_t *pGame)
 {
     return pGame->Engine == kStateEngine_GameGear ? kStateFileGameGearSignature :
-        pGame->Engine == kStateEngine_Lynx ? kStateFileLynxSignature : kStateFileEngineSignature;
+        pGame->Engine == kStateEngine_Lynx ? kStateFileLynxSignature :
+        pGame->Engine == kStateEngine_NES ? kStateFileNesSignature : kStateFileEngineSignature;
 }
 
 uint32_t StateFile_GamePayloadLength(const StateFileGame_t *pGame)
 {
     return pGame->Engine == kStateEngine_GameGear ? kStateFileGameGearPayload :
-        pGame->Engine == kStateEngine_Lynx ? kStateFileLynxPayload : StateFile_PayloadLength(pGame->RamSize);
+        pGame->Engine == kStateEngine_Lynx ? kStateFileLynxPayload :
+        pGame->Engine == kStateEngine_NES ? kStateFileNesPayload : StateFile_PayloadLength(pGame->RamSize);
 }
 
 /* Layout:
