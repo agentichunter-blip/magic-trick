@@ -18,6 +18,9 @@ void CoreSwitch_ObserveVersion(uint8_t Major, uint8_t Minor);
 bool CoreSwitch_IsSupported(void);
 bool CoreSwitch_IsTarget(bool GameGear);
 bool CoreSwitch_IsCore(CoreSystem_t System);
+/* The Lynx and NES cores carry a stub cartridge engine (no logic to spare):
+ * the physical cartridge slot reads as empty and PC mode is tracked in software. */
+static inline bool CoreSwitch_HasCartStub(void) { return CoreSwitch_IsCore(kCoreSystem_Lynx) || CoreSwitch_IsCore(kCoreSystem_NES); }
 CoreSystem_t CoreSwitch_Current(void);
 /* The core a game file needs (.gg/.sms Game Gear; .lnx/.lyx/.o Lynx; .nes NES; else GB). */
 CoreSystem_t CoreSwitch_SystemForPath(const char *Path);
