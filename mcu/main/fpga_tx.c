@@ -139,7 +139,8 @@ void FPGA_TxTask(void *arg)
             /* Bits 10:8 (the cores' unused timer inputs): color temperature
              * level, 0 neutral to 5 warmest (ModRetro's levels). */
             const uint16_t ColorTemp = (uint16_t)(GBCColorTemp_GetLevel() & 7u);
-            /* Bit 15: Lynx core fills the panel (the other cores ignore it). */
+            /* Bit 15: Lynx and Master System pictures fill the panel (GB/GBC and
+             * Game Gear games ignore it). */
             const uint16_t LynxStretch = (uint16_t)(LynxStretch_GetState() == kLynxStretchState_On);
 
             const uint16_t Payload = ( (frame_blending << 1) | (color_correct << 2) | ismuted | (playernum << 4) | (EnableScreenTransitionFix << 12) | (IgnoreDiagonalInputs << 11) | (LowBattIconControl << 13) | (ColorTemp << 8) | (LynxStretch << 15));

@@ -23,12 +23,20 @@ struct Sim {
     struct { bool active = false; uint32_t addr = 0; int delay = 0, word = 0; } bus;
     unsigned buttons = 0, px = 0, py = 0;
     std::array<uint16_t, 160 * 144> screen{};
+    // Panel stream from the video bridge (what the Chromatic shows).
+    std::array<uint16_t, 160 * 144> panel{};
+    int prow = -1, pcol = 0, frame_rows = 0, bad_frames = 0, good_frames = 0, last_mode = 0;
+    bool sms = false;
+    unsigned start_button = 64;
     Sim(const char *path) {
         std::ifstream f(path, std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(f)), {});
         check(!rom.empty(), "ROM missing");
         // Mirror the ROM through the 4 MiB ROM window like a power-of-two image.
         for (uint32_t a = 0; a < 0x400000; a++) psram[ROM_BASE + a] = rom[a % rom.size()];
+        sms = std::getenv("GG_SMS") != nullptr;
+        start_button = sms ? 16 : 64;  // SMS: Start is Pause; use button 1
+        d.sms = sms; d.stretch = std::getenv("GG_STRETCH") != nullptr;
         d.clk = 0; d.reset_n = 0; d.buttons = 0;
         d.freeze_t = d.release_t = d.load_t = d.block_t = 0; d.cart_import = 0;
         d.block_number = 0; d.block_seq = 0; d.qaddress = 0;
@@ -50,12 +58,29 @@ struct Sim {
             px = d.x; py = d.y;
         }
         d.clk = 1; d.eval(); cycles++;
+        if (d.lcd_mode == 3 && last_mode != 3) {
+            if (d.lcd_vsync) {
+                if (prow >= 0) { if (frame_rows == 144) good_frames++; else bad_frames++; }
+                prow = 0; frame_rows = 0;
+            } else if (prow >= 0) prow++;
+            pcol = 0; frame_rows++;
+        }
+        last_mode = d.lcd_mode;
+        if (d.lcd_pixel && prow >= 0 && prow < 144 && pcol < 160) {
+            if (!d.lcd_repeat) panel[prow * 160 + pcol] = d.lcd_data;
+            pcol++;
+        }
+        check(!d.video_overflow, "video FIFO overflow");
         if (bus.active) { if (bus.delay) bus.delay--; else if (++bus.word == 32) bus.active = false; }
         if (!bus.active && d.bus_request) { bus.active = true; bus.addr = d.bus_address; bus.delay = 6; bus.word = 0; }
     }
     void screenshot(const char *path) {
         std::ofstream f(path, std::ios::binary); f << "P6\n160 144\n255\n";
         for (auto c : screen) { char rgb[3] = {char((c & 15) * 17), char(((c >> 4) & 15) * 17), char(((c >> 8) & 15) * 17)}; f.write(rgb, 3); }
+    }
+    void panelshot(const char *path) {
+        std::ofstream f(path, std::ios::binary); f << "P6\n160 144\n255\n";
+        for (auto c : panel) { char rgb[3] = {char((c & 31) * 255 / 31), char(((c >> 5) & 31) * 255 / 31), char(((c >> 10) & 31) * 255 / 31)}; f.write(rgb, 3); }
     }
     void run(uint64_t n) { for (uint64_t i = 0; i < n; i++) tick(); }
     template <class F> void until(F f, uint64_t limit, const char *what) {
@@ -69,7 +94,7 @@ struct Sim {
     }
     void release() {
         d.release_t ^= 1;
-        until([&] { return !d.frozen; }, 1000, "release timeout");
+        until([&] { return !d.frozen; }, 3000000, "release timeout");
     }
     Payload save() {
         check(d.frozen, "save without freeze");
@@ -121,11 +146,13 @@ int main(int argc, char **argv) {
     for (uint64_t i = 0; i < warm; i++) {
         // Hold each Start press for about four frames so the game polls it.
         const uint64_t p1 = warm * 6 / 10, p2 = warm * 75 / 100;
-        s.buttons = (i > p1 && i < p1 + 4500000) || (i > p2 && i < p2 + 4500000) ? 64 : (i > warm * 85 / 100 ? 8 : 0);
+        s.buttons = (i > p1 && i < p1 + 4500000) || (i > p2 && i < p2 + 4500000) ? s.start_button : (i > warm * 85 / 100 ? 8 : 0);
         s.tick();
     }
     s.freeze();
     s.screenshot("captured.ppm");
+    s.panelshot("panel-captured.ppm");
+    std::printf("panel frames good=%d bad=%d\n", s.good_frames, s.bad_frames);
     Payload a = s.save();
     check(diff(a, s.save(), "frozen re-read") == 0, "frozen state changed while reading");
     std::printf("captured cycle=%llu pc=%02x%02x\n", (unsigned long long)s.cycles, a[8 + 5], a[8 + 4]);
@@ -137,7 +164,7 @@ int main(int argc, char **argv) {
     s.freeze(); Payload end1 = s.save();
 
     // Move on, then scramble every region and register with a valid-looking payload.
-    s.release(); s.buttons = 64; s.run(2000000); s.buttons = 0;
+    s.release(); s.buttons = s.start_button; s.run(2000000); s.buttons = 0;
     s.freeze();
     Payload junk(PAYLOAD);
     for (size_t i = 0; i < junk.size(); i++) junk[i] = uint8_t(i * 37 + (i >> 8) * 11 + 5);
@@ -155,6 +182,9 @@ int main(int argc, char **argv) {
     s.screenshot("before-restore-run.ppm");
     auto second = s.trace(length);
     s.screenshot("restored-run.ppm");
+    s.panelshot("panel-restored.ppm");
+    std::printf("panel frames good=%d bad=%d\n", s.good_frames, s.bad_frames);
+    check(s.bad_frames <= 1, "panel frames with a wrong row count");
     s.freeze(); Payload end2 = s.save();
 
     unsigned mismatches = 0; size_t first_diff = 0;

@@ -3,6 +3,8 @@ module gg_board_core(
  input [128:0] gg_code,
  input gg_clear,
  input clk, reset_n, rom_ready, quiesce,
+ // Master System mode (gg=0): full 256x192 picture, Pause button NMI.
+ input sms,
  input [6:0] buttons,
  input [7:0] rom_do,
  output [23:0] rom_a,
@@ -72,7 +74,10 @@ wire ce_cpu,ce_vdp,ce_sp;
 wire cpu_step=ce_cpu && rom_ready && !quiesce && !frozen;
 reg boundary_q=0, cpu_step_q=0;
 always @(posedge clk) begin
- boundary_q<=!z80_m1_n && !z80_mreq_n && z80_iset==0 && vblank && x<250;
+ // Master System: only in lines 204-234, between the bridge's bottom black
+ // rows (192-203) and its frame start (485), see gg_video_bridge.sv.
+ boundary_q<=!z80_m1_n && !z80_mreq_n && z80_iset==0 && vblank && x<250 &&
+  (!sms || (y>=204 && y<=234));
  cpu_step_q<=cpu_step;
 end
 wire capture_boundary=state_request && boundary_q && !cpu_step && !cpu_step_q && !quiesce;
@@ -137,8 +142,8 @@ system core(
  .ce_pix(ce_pix && !frozen),
  .ce_sp(ce_sp && !frozen),
  .turbo('0),
- .gg(1'b1),
- .ggres(1'b1),
+ .gg(!sms),
+ .ggres(!sms),
  .systeme('0),
  .bios_en('0),
  .ext_bios_sel('0),
@@ -314,7 +319,7 @@ system core(
  .ss_freeze(frozen)
 );
 video timing(
- .clk(clk), .ce_pix(ce_pix && !frozen), .pal(1'b0), .border(1'b0), .ggres(1'b1),
+ .clk(clk), .ce_pix(ce_pix && !frozen), .pal(1'b0), .border(1'b0), .ggres(!sms),
  .mask_column(mask_column),.cut_mask(1'b0),
  .smode_M1(smode_M1),.smode_M2(smode_M2),.smode_M3(smode_M3),.smode_M4(smode_M4),
  .video_state_out(video_out),.video_state_in(video_in),.video_state_set(apply),

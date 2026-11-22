@@ -83,6 +83,7 @@ static bool IsRomName(const char *pName)
     const char *pDot = strrchr(pName, '.');
     return pDot != NULL &&
            (strcasecmp(pDot, ".gb") == 0 || strcasecmp(pDot, ".gbc") == 0 || strcasecmp(pDot, ".gg") == 0 ||
+            strcasecmp(pDot, ".sms") == 0 ||
             strcasecmp(pDot, ".lnx") == 0 || strcasecmp(pDot, ".lyx") == 0 || strcasecmp(pDot, ".o") == 0);
 }
 
@@ -137,7 +138,8 @@ static RecentSystem_t CurrentSystem(void)
     if (AtRoot() || CartView) return kRecentNone;
     const char *Name=CurrentDirectory+strlen(RomDirectory)+1;
     return !strcasecmp(Name,"GB") ? kRecentGB : !strcasecmp(Name,"GBC") ? kRecentGBC :
-        !strcasecmp(Name,"GG") ? kRecentGG : !strcasecmp(Name,"LYNX") ? kRecentLynx : kRecentNone;
+        !strcasecmp(Name,"GG") ? kRecentGG : !strcasecmp(Name,"SMS") ? kRecentSMS :
+        !strcasecmp(Name,"LYNX") ? kRecentLynx : kRecentNone;
 }
 
 /* At most 20 stat calls, on the existing worker-owned SD mount. */
@@ -470,6 +472,7 @@ static RomPlatform_t FolderPlatform(size_t Index)
     if (Length == 2 && strncasecmp(Name, "GB", 2) == 0) return kRomPlatformGB;
     if (Length == 3 && strncasecmp(Name, "GBC", 3) == 0) return kRomPlatformGBC;
     if (Length == 2 && strncasecmp(Name, "GG", 2) == 0) return kRomPlatformGG;
+    if (Length == 3 && strncasecmp(Name, "SMS", 3) == 0) return kRomPlatformSMS;
     if (Length == 4 && strncasecmp(Name, "LYNX", 4) == 0) return kRomPlatformLynx;
     return kRomPlatformUnknown;
 }

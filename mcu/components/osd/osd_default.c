@@ -236,7 +236,7 @@ static void CreateMenuDisplay(lv_obj_t *const pScreen)
 
     static TabItem_t LynxStretch = {
         .Widget = {
-            .Name = "LYNX SCREEN",
+            .Name = "LYNX/SMS SCREEN",
             .fnDraw = LynxStretch_Draw,
             .fnOnButton = LynxStretch_OnButton,
             .fnOnTransition = LynxStretch_OnTransition,

@@ -145,7 +145,8 @@ typedef struct {
     uint8_t ConfigurationHigh;
     uint8_t MapperSelect;
     bool Mbc1m;
-    bool GameGear;
+    bool GameGear;  /* Game Gear core: .gg, and .sms (Master System mode) */
+    bool Sms;
     bool Lynx;
     LynxRomInfo_t LynxRom;
     char Title[17];
@@ -368,6 +369,7 @@ static esp_err_t ResolvePath(const char *pInput, char Output[kPathSize])
     const char *pDot = strrchr(Output, '.');
     if (pDot == NULL || (pSlash != NULL && pDot < pSlash) ||
         (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0 && strcasecmp(pDot, ".gg") != 0 &&
+         strcasecmp(pDot, ".sms") != 0 &&
          strcasecmp(pDot, ".lnx") != 0 && strcasecmp(pDot, ".lyx") != 0 && strcasecmp(pDot, ".o") != 0))
     {
         return ESP_ERR_NOT_SUPPORTED;
@@ -1968,7 +1970,8 @@ static esp_err_t RunLoad(const char *pPath)
      * isn't there yet (the cartridge is being read anyway). */
     if (FromCart && CartStore_CanReadCart()) CartStore_SyncArt();
     const char *extension=strrchr(pPath,'.');
-    Info.GameGear=extension && !strcasecmp(extension,".gg");
+    Info.Sms=extension && !strcasecmp(extension,".sms");
+    Info.GameGear=extension && (!strcasecmp(extension,".gg") || Info.Sms);
     Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;
 
     if (!ViaGB) pRom = fopen(pPath, "rb");
@@ -1988,10 +1991,13 @@ static esp_err_t RunLoad(const char *pPath)
         snprintf(Info.Title,sizeof(Info.Title),"%.16s",Info.LynxRom.Title);
     } else if (Info.GameGear) {
         if (Replay) { Info.RomSize=ReplaySize; Result=ESP_OK; }
-        else Result=GGRom_Inspect(pRom,&Info.RomSize);
-        if(Result==ESP_OK) Result=Cheats_Prepare(pPath,pRom,&Cheats);
+        else Result=GGRom_InspectSystem(pRom,&Info.RomSize,Info.Sms);
+        if(Result==ESP_OK && !Info.Sms) Result=Cheats_Prepare(pPath,pRom,&Cheats);
         Info.MappedRomSize=kMaximumRomSize;
-        snprintf(Info.Title,sizeof(Info.Title),"GAME GEAR");
+        /* Cartridge type 'S' at PREPARE puts the Game Gear core in Master
+         * System mode (emu_system_top.v); 0 is a Game Gear game. */
+        if (Info.Sms) Info.Configuration=(uint16_t)('S' << 3);
+        snprintf(Info.Title,sizeof(Info.Title),Info.Sms ? "MASTER SYSTEM" : "GAME GEAR");
     } else {
         Result = DecodeHeader(pRom, &Info);
         if (Result == ESP_OK) Result = Cheats_Prepare(pPath, pRom, &Cheats);

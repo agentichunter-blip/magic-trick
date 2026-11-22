@@ -1,6 +1,7 @@
 #pragma once
 
-/* Lynx core only: letterbox the 160x102 picture (Original) or fill the
+/* Lynx and Master System: letterbox the picture (Original; Lynx 160x102,
+ * SMS 160x120) or fill the
  * 160x144 panel (Stretch). Sent to the FPGA as system control bit 15. */
 
 #include "osd_shared.h"

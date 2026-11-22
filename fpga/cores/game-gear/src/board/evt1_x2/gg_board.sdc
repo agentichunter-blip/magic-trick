@@ -58,9 +58,11 @@ set_multicycle_path -from [get_regs {u_emu_system_top/core/apply_q*}] -hold -end
 # in 19) or on the save-state set while frozen, so Z80-internal paths have at
 # least two cycles. Paths into the Z80 from elsewhere (ROM data, the enable)
 # keep their single-cycle requirement. Gowin's * does not descend into
-# sub-instances, so each Z80 level is listed. The one T80 exception, the NMI edge
-# detector (OldNMI_n/NMI_s update every cycle), does not exist here: NMI_n is
-# constant in Game Gear mode and synthesis removes it. Re-check if that changes.
+# sub-instances, so each Z80 level is listed. The one T80 exception is the NMI
+# edge detector (OldNMI_n/NMI_s update every cycle), used by the Master System
+# Pause button. Its input (NMI_n, from outside) keeps one cycle; a late
+# OldNMI_n -> NMI_s transition can only set NMI_s once more in the cycle after
+# the edge that already set it, so the two-cycle relaxation is harmless there.
 set_multicycle_path -from [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -to [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -setup -end 2
 set_multicycle_path -from [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -to [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -hold -end 1
 # Memory data into the Z80: work and cartridge RAM outputs change only when the
@@ -74,3 +76,6 @@ set_multicycle_path -through [get_pins {u_emu_system_top/core/ram_ram_*/DO* u_em
 # the Z80 also have two cycles. Input and VDP paths keep one cycle.
 set_multicycle_path -from [get_regs {u_emu_system_top/core/core_0/mapper_banking/* u_emu_system_top/core/core_0/mapper_detect_inst/* u_emu_system_top/core/core_0/n1042_s*}] -to [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -setup -end 2
 set_multicycle_path -from [get_regs {u_emu_system_top/core/core_0/mapper_banking/* u_emu_system_top/core/core_0/mapper_detect_inst/* u_emu_system_top/core/core_0/n1042_s*}] -to [get_regs {u_emu_system_top/core/core_0/z80_inst/* u_emu_system_top/core/core_0/z80_inst/u0/* u_emu_system_top/core/core_0/z80_inst/u0/regs/* u_emu_system_top/core/core_0/z80_inst/u0/alu/* u_emu_system_top/core/core_0/z80_inst/u0/mcode/*}] -hold -end 1
+# Master System mode (emu_system_top.v sms_x): set at PREPARE while the core is
+# held in reset and constant while it runs.
+set_false_path -from [get_regs {u_emu_system_top/sms_x*}]

@@ -27,7 +27,7 @@ LV_FONT_DECLARE(chromatic_progress);
 enum { kCoverDwellMs = 1500, kBadgeMarginX = 132, kBadgeMarginY = 119,
        kBadgeTitleX = 128, kBadgeTitleY = 25, kBadgePaddingStart = 115,
        kOverlayRows = 5, kFolderRows = 4,
-       kVisibleRows = 6, kRowHeight = 13, kListX = 92, kSystems = 5,
+       kVisibleRows = 6, kRowHeight = 13, kListX = 92, kSystems = 6, kShownSystems = 5,
        kListWidth = 52, kCoverWidth = BOX_ART_WIDTH, kCoverHeight = BOX_ART_HEIGHT };
 typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked, kCheats, kCheatBusy } State_t;
 typedef struct {
@@ -66,7 +66,7 @@ static unsigned Held(void) {
 }
 static bool AtRoot(void) { return !C.Source.AtRoot || C.Source.AtRoot(); }
 /* Plain-text names (no third-party logos), indexed from kRomPlatformGB. */
-static const char *const kSystemNames[kSystems]={"GAME BOY","GAME BOY COLOR","GAME GEAR","ATARI LYNX","CARTRIDGE"};
+static const char *const kSystemNames[kSystems]={"GAME BOY","GAME BOY COLOR","GAME GEAR","MASTER SYSTEM","ATARI LYNX","CARTRIDGE"};
 static bool Directory(size_t Index) { return C.Source.IsDirectory && C.Source.IsDirectory(Index); }
 /* The root shows one tile per system folder (plus the Cartridge folder) when
  * every entry is one, in a fixed order; otherwise it falls back to the list. */
@@ -193,7 +193,7 @@ static void DisplayName(size_t Index, char Output[256]) {
     const bool Folder = Directory(Index);
     /* System folders at the root read as their full names (GAME BOY, not GB),
      * also when stray files there turn the tiles into a list. */
-    static const char *const kSystemFolders[kSystems-1]={"GB","GBC","GG","LYNX"};
+    static const char *const kSystemFolders[kSystems-1]={"GB","GBC","GG","SMS","LYNX"};
     if (Folder && AtRoot() && C.Source.FolderPlatform) {
         const RomPlatform_t Platform = C.Source.FolderPlatform(Index);
         if (Platform >= kRomPlatformGB && Platform <= kRomPlatformLynx &&
@@ -677,14 +677,21 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     if (Selecting) {
         if (Picker) {
             /* Up to three tiles: 24 px, 26 apart; four: 18 px, 20 apart;
-             * five: 14 px, 16 apart (all inside the 80 px panel). */
-            const unsigned Height=C.Count>4?14:C.Count>3?18:24;
+             * five: 14 px, 16 apart (all inside the 80 px panel). With more
+             * systems, five show at a time and scroll with the selection. */
+            const unsigned Shown=C.Count>kShownSystems?kShownSystems:(unsigned)C.Count;
+            const unsigned Height=Shown>4?14:Shown>3?18:24;
+            unsigned SelectedTile=0;
+            for(unsigned I=0;I<C.Count && I<kSystems;++I) if (Systems[I]==C.Selected) SelectedTile=I;
+            unsigned FirstTile=SelectedTile>2?SelectedTile-2:0;
+            if (FirstTile+Shown>C.Count) FirstTile=(unsigned)C.Count-Shown;
             for(unsigned I=0;I<kSystems;++I) {
-                lv_obj_set_pos(C.SystemTiles[I],0,I*(Height+2));
+                const bool Visible=I<C.Count && I>=FirstTile && I<FirstTile+Shown;
+                lv_obj_set_pos(C.SystemTiles[I],0,Visible?(I-FirstTile)*(Height+2):0);
                 lv_obj_set_height(C.SystemTiles[I],Height);
                 lv_obj_set_y(C.SystemNames[I],(Height-8)/2-2);
-                Hide(C.SystemTiles[I],I>=C.Count);
-                if (I>=C.Count) continue;
+                Hide(C.SystemTiles[I],!Visible);
+                if (!Visible) continue;
                 const char *Name=kSystemNames[Platforms[I]-kRomPlatformGB];
                 if (lv_label_get_text(C.SystemNames[I])!=Name) lv_label_set_text_static(C.SystemNames[I],Name);
                 const bool Active=I<C.Count &&C.SystemFocus && C.Selected==Systems[I];

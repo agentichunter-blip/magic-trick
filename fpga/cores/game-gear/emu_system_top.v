@@ -21,6 +21,7 @@ module emu_system_top
     input [63:0]        paletteOBJ0In,
     input [63:0]        paletteOBJ1In,
     input               paletteOff,
+    input               smsStretch,     // settings bit 15: SMS picture fills 160x144
     output              gbc_mode,
     output [63:0]       gpd,
     
@@ -126,6 +127,13 @@ module emu_system_top
     always @(posedge xclk or posedge xreset) begin
         if(xreset) quiet_x<=0;else quiet_x<={quiet_x[0],virtual_quiesce_h};
     end
+    // Master System game: the MCU sets cartridge type 'S' at PREPARE (core in
+    // reset). The stretch setting may change at any time (next frame).
+    (* ASYNC_REG="TRUE" *) reg [1:0] sms_x=0,stretch_x=0;
+    always @(posedge xclk) begin
+        sms_x<={sms_x[0],virtual_cart_type==8'h53};
+        stretch_x<={stretch_x[0],smsStretch};
+    end
     wire rom_ready,rom_idle,rom_fault,video_overflow;
     reg fault_latched=0;
     always @(posedge xclk or posedge xreset) begin
@@ -160,7 +168,7 @@ module emu_system_top
     wire [15:0] audio_left,audio_right;
     wire [15:0] gg_left_raw,gg_right_raw;
     gg_board_core core(.gg_code(gg_code_x), .gg_clear(gg_clear_x), .clk(xclk),.reset_n(!core_reset_x),
-        .rom_ready(rom_ready),.quiesce(quiet_x[1]),.buttons(buttons_x),
+        .rom_ready(rom_ready),.quiesce(quiet_x[1]),.sms(sms_x[1]),.buttons(buttons_x),
         .rom_do(rom_byte),.rom_a(rom_address),.rom_rd(rom_read),
         .color(color),.x(pixel_x),.y(pixel_y),.ce_pix(pixel),
         .audioL(audio_left),.audioR(audio_right),.hblank(),.vblank(),
@@ -191,6 +199,7 @@ module emu_system_top
     assign virtual_state_status={state_imported,state_cart_dirty,state_loaded,state_fault,state_is_frozen,state_busy};
     gg_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(!core_reset_x),
+        .sms(sms_x[1]),.stretch(stretch_x[1]),
         .hold(state_freeze_active),.resume_ok(video_resume_ok),
         .pixel(pixel),.x(pixel_x),.y(pixel_y),.color(color),
         .overflow(video_overflow),.lcd_pixel(gb_lcd_clkena),.lcd_data(gb_lcd_data),

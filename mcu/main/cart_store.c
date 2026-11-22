@@ -838,7 +838,7 @@ esp_err_t CartStore_StageCommit(uint32_t RomCrc)
     if (Result == ESP_OK && RomCrc != Record->EntryCrc)
     {
         printf("CARTSTORE crc_mismatch upload=%08lx entry=%08lx\n", (unsigned long)RomCrc, (unsigned long)Record->EntryCrc);
-        if (pExtension && !strcasecmp(pExtension, ".gg")) Result = ESP_ERR_INVALID_CRC;
+        if (pExtension && (!strcasecmp(pExtension, ".gg") || !strcasecmp(pExtension, ".sms"))) Result = ESP_ERR_INVALID_CRC;
     }
     Record->RomCrc = RomCrc;
     Record->Fresh = 1;
@@ -1480,7 +1480,7 @@ static esp_err_t ProgramFile(FILE *pFile, uint32_t Offset, uint32_t Size, uint8_
 static bool GameName(const char *pName)
 {
     const char *pDot = strrchr(pName, '.');
-    static const char *const Extensions[] = {".gg", ".lnx", ".lyx", ".o", ".gb", ".gbc"};
+    static const char *const Extensions[] = {".gg", ".sms", ".lnx", ".lyx", ".o", ".gb", ".gbc"};
     for (size_t i = 0; pDot && i < sizeof(Extensions) / sizeof(Extensions[0]); ++i)
         if (!strcasecmp(pDot, Extensions[i])) return true;
     return false;

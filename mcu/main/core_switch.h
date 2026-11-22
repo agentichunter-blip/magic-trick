@@ -18,7 +18,7 @@ bool CoreSwitch_IsSupported(void);
 bool CoreSwitch_IsTarget(bool GameGear);
 bool CoreSwitch_IsCore(CoreSystem_t System);
 CoreSystem_t CoreSwitch_Current(void);
-/* The core a game file needs (.gg Game Gear; .lnx/.lyx/.o Lynx; else GB). */
+/* The core a game file needs (.gg/.sms Game Gear; .lnx/.lyx/.o Lynx; else GB). */
 CoreSystem_t CoreSwitch_SystemForPath(const char *Path);
 /* A reload boots the running image's static next slot, so the cores form a
  * cycle GB -> GG -> Lynx -> GB; reaching a core can take two reloads. */
