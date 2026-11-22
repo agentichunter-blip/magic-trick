@@ -1062,6 +1062,7 @@ class App:
             self.cart_loaded = {'image': image, 'info': info, 'backup': path, 'port': port, 'save': save,
                                 'games': list(info.games), 'mode': self.cart_mode_of(info), 'own_art': info.own_art}
         self.cart_loaded = None
+        self.cart_result = ''
         self.run('cart_read', work, None)
 
     @staticmethod
