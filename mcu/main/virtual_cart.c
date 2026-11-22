@@ -738,10 +738,15 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
 
 /* NES: the info block (nes_rom.h) at the start of the ROM window, then PRG
  * and CHR ROM from window offset 0x1000 (nes_board_core.sv). */
-static esp_err_t UploadNes(FILE *pRom, const VirtualCartInfo_t *pInfo)
+/* NES: the 16-byte info block (nes_rom.h) at the window start, PRG + CHR
+ * from window offset 0x1000. From a cartridge in another core the GB core
+ * stages it all (Capture) and the NES core replays the kept blocks. */
+static esp_err_t UploadNes(FILE *pRom, const VirtualCartInfo_t *pInfo, UploadMode_t Mode, uint32_t ReplayCrc)
 {
+    if (Mode == kUploadReplay) return ReplayStaged(ReplayCrc, pInfo->NesRom.PrgBytes + pInfo->NesRom.ChrBytes);
     memset(TransferBuffer, 0, sizeof(TransferBuffer));
     NesRom_InfoBlock(&pInfo->NesRom, TransferBuffer);
+    if (Mode == kUploadCapture) CartStore_StageBlock(kRomBase, TransferBuffer);
     ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase, TransferBuffer), TAG, "NES info");
     const uint32_t Size = pInfo->NesRom.PrgBytes + pInfo->NesRom.ChrBytes;
     printf("NES_ROM mapper=%u.%u prg=%lu chr=%lu flags=0x%02x\n", (unsigned)pInfo->NesRom.Mapper,
@@ -756,6 +761,7 @@ static esp_err_t UploadNes(FILE *pRom, const VirtualCartInfo_t *pInfo)
         if (fread(TransferBuffer, 1, Count, pRom) != Count) return ESP_FAIL;
         /* The ROM's CRC identifies the game in its save-state files. */
         GGRomCrc = StateFile_Crc32(GGRomCrc, TransferBuffer, Count);
+        if (Mode == kUploadCapture) CartStore_StageBlock(kRomBase + kNesFileAddress + Offset, TransferBuffer);
         ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + kNesFileAddress + Offset, TransferBuffer),
                             TAG, "NES ROM upload");
         RomBrowserUI_SetProgress(Offset + Count, Size);
@@ -2081,7 +2087,7 @@ static esp_err_t RunLoad(const char *pPath)
         VirtualDisturbed = true;
         SetActive(false);
         ClearActiveSave();
-        if (FromCart && !ViaGB && (Info.Lynx || Info.GameGear))
+        if (FromCart && !ViaGB && (Info.Lynx || Info.GameGear || Info.Nes))
         {
             /* The target core cannot read the cartridge: stage the game in
              * PSRAM from here; it survives the FPGA reload. */
@@ -2092,7 +2098,8 @@ static esp_err_t RunLoad(const char *pPath)
                 Result = CartStore_StageMirror(kGGStateRomAddress, kStateFileGameGearPayload);
             if (Result == ESP_OK)
                 Result = Info.Lynx ? UploadLynx(pRom, &Info, pPath, kUploadCapture, 0)
-                                   : UploadGGOnce(pRom, &Info, kUploadCapture, 0);
+                       : Info.Nes ? UploadNes(pRom, &Info, kUploadCapture, 0)
+                                  : UploadGGOnce(pRom, &Info, kUploadCapture, 0);
             if (Result == ESP_OK) Result = CartStore_StageCommit(GGRomCrc);
             if (Result != ESP_OK) goto Cleanup;
         }
@@ -2115,7 +2122,7 @@ static esp_err_t RunLoad(const char *pPath)
     if (Info.Lynx)
         Result = UploadLynx(pRom, &Info, pPath, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
     else if (Info.Nes)
-        Result = UploadNes(pRom, &Info);
+        Result = UploadNes(pRom, &Info, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
     else if (Info.GameGear && FromCart)
         Result = UploadGGOnce(pRom, &Info, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
     else
