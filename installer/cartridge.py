@@ -744,28 +744,34 @@ class CartUsb(CartAccess):
         usb._ok()
 
     def read(self, progress=None):
+        return self._read_blocks(b'\x21', self.capacity, 64, progress)
+
+    def _read_blocks(self, command, size, batch_size, progress=None):
         import base64
-        out = bytearray(self.capacity)
-        step = 64 * BLOCK
-        for o in range(0, self.capacity, step):
-            n = min(step, self.capacity - o) // BLOCK
+        if size % BLOCK:
+            raise CartError('The Chromatic reported a size that is not a whole number of cart blocks.')
+        out = bytearray()
+        step = batch_size * BLOCK
+        for o in range(0, size, step):
+            n = min(step, size - o) // BLOCK
             self.usb._timeout(60)
-            self.usb._send(b'\x21' + struct.pack('<II', o, n))
-            got = 0
-            while got < n:
+            self.usb._send(command + struct.pack('<II', o, n))
+            for expected in range(o, o + n * BLOCK, BLOCK):
                 rec = self.usb._record()
                 if not rec.startswith('CDATA '):
                     raise CartError('unexpected cart reply %r' % rec[:40])
-                at, data = rec[6:].split(' ', 1)
-                block = base64.b64decode(data)
-                at = int(at, 16)
-                if len(block) != BLOCK or not o <= at < o + n * BLOCK:
-                    raise CartError('bad cart block at 0x%x' % at)
-                out[at:at + BLOCK] = block
-                got += 1
+                try:
+                    at, data = rec[6:].split(' ', 1)
+                    block = base64.b64decode(data, validate=True)
+                    address = int(at, 16)
+                except ValueError as exc:
+                    raise CartError('Invalid cartridge data at 0x%x.' % expected) from exc
+                if len(block) != BLOCK or address != expected:
+                    raise CartError('Incomplete or out-of-order cartridge data at 0x%x.' % expected)
+                out.extend(block)
             self.usb._ok()
             if progress:
-                progress(o + n * BLOCK, self.capacity)
+                progress(len(out), size)
         return bytes(out)
 
     def crc(self, offset, length):
@@ -785,20 +791,7 @@ class CartUsb(CartAccess):
             self.usb._exchange(b'\x23' + struct.pack('<I', offset + at) + data[at:at + BLOCK], seconds=30)
 
     def read_save(self):
-        import base64
-        out = bytearray(self.save_size)
-        for o in range(0, self.save_size, 32 * BLOCK):
-            n = min(32 * BLOCK, self.save_size - o) // BLOCK
-            self.usb._timeout(60)
-            self.usb._send(b'\x26' + struct.pack('<II', o, n))
-            for _ in range(n):
-                rec = self.usb._record()
-                if not rec.startswith('CDATA '):
-                    raise CartError('unexpected cart reply %r' % rec[:40])
-                at, data = rec[6:].split(' ', 1)
-                out[int(at, 16):int(at, 16) + BLOCK] = base64.b64decode(data)
-            self.usb._ok()
-        return bytes(out)
+        return self._read_blocks(b'\x26', self.save_size, 32)
 
     def write_save(self, data):
         for at in range(0, len(data), BLOCK):
