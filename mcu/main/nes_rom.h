@@ -10,7 +10,9 @@
  *         bit 3 CHR RAM (no CHR ROM), bit 4 NES 2.0 header
  *   8-9   PRG ROM size in KiB
  *   10-11 CHR ROM size in KiB (0: CHR RAM)
- *   12-13 NES 2.0 header bytes 10 and 11 (RAM sizes), else 0
+ *   12-13 NES 2.0 header bytes 10 and 11 (RAM sizes); for iNES 1.0 files
+ *         0x07 and 0 (8 KiB PRG RAM, as MiSTer assumes: without it the core
+ *         maps no $6000 RAM on NROM/UxROM/CNROM/AxROM boards)
  * PRG ROM follows at window offset 0x1000, CHR ROM right after it. */
 #include <stdbool.h>
 #include <stdint.h>
@@ -64,10 +66,11 @@ static inline esp_err_t NesRom_Parse(const uint8_t Header[kNesHeaderSize], long 
         ChrUnits |= (uint32_t)(Header[9] >> 4) << 8;
         pInfo->RamShifts = Header[10];
         pInfo->ChrRamShifts = Header[11];
-    } else if (!Header[12] && !Header[13] && !Header[14] && !Header[15]) {
+    } else {
+        pInfo->RamShifts = 0x07;
         /* Old dumps carry text ("DiskDude!") in bytes 7-15: use the upper
          * mapper nibble only when the tail of the header is clean. */
-        Mapper |= (uint16_t)(F7 & 0xf0);
+        if (!Header[12] && !Header[13] && !Header[14] && !Header[15]) Mapper |= (uint16_t)(F7 & 0xf0);
     }
     pInfo->Mapper = Mapper;
     pInfo->PrgBytes = PrgUnits * 16384u;

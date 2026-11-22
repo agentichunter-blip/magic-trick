@@ -256,3 +256,7 @@ add_test(NAME lynx_hle_boot COMMAND lynx_hle_test)
 add_executable(pc_connect_proto_test pc_connect_proto_test.c "${FW_ROOT}/main/pc_connect_proto.c")
 target_include_directories(pc_connect_proto_test PRIVATE "${FW_ROOT}/main")
 add_test(NAME pc_connect_protocol COMMAND pc_connect_proto_test)
+
+add_executable(nes_rom_test nes_rom_test.c)
+add_test(NAME nes_rom_header COMMAND nes_rom_test)
+target_link_libraries(nes_rom_test PRIVATE lvgl_host m)
