@@ -2003,11 +2003,11 @@ static esp_err_t RunLoad(const char *pPath)
     Replay = FromCart && !CartStore_CanReadCart() &&
         CoreSwitch_IsCore(CoreSwitch_SystemForPath(pPath)) && CartStore_ReplayReady(pPath, &ReplayCrc, &ReplaySize);
     ViaGB = FromCart && !CartStore_CanReadCart() && !Replay;
-    /* A Game Gear or Lynx game read here is staged for another core: hold the
-     * cartridge from now on (its directory lookup and every read run inside
-     * that one session; see CartStore_HoldCart). */
-    if (FromCart && CartStore_CanReadCart() &&
-        (CoreSwitch_SystemForPath(pPath) == kCoreSystem_GG || CoreSwitch_SystemForPath(pPath) == kCoreSystem_Lynx))
+    /* A Game Gear, Lynx or NES game read here is staged for another core: hold
+     * the cartridge from now on (its directory lookup and every read run inside
+     * that one session; see CartStore_HoldCart). Boot keeps the start-up hold
+     * for exactly these (BootResume_Run: any cart game that isn't a GB game). */
+    if (FromCart && CartStore_CanReadCart() && CoreSwitch_SystemForPath(pPath) != kCoreSystem_GB)
     {
         Result = CartStore_HoldCart();
         if (Result != ESP_OK) goto Cleanup;
@@ -2232,6 +2232,9 @@ Cleanup:
         printf("VIRTUAL_CART=PASS title=\"%s\"\n", Info.Title);
 #ifdef ESP_PLATFORM
         if (Info.Lynx) { DiagLog_Append("lynx load PASS %s", Info.Title); LynxDiagMaybeStart(); }
+        /* Cartridge games often land on a core whose console can't be watched (a
+         * core switch, or no USB on Lynx): note the outcome for diaglog. */
+        if (CartStore_IsCartPath(pPath)) DiagLog_Append("cart load PASS %s %s", Info.Title, Replay ? "replay" : "direct");
 #endif
         /* Cartridge games are not resumed at power-on (that needs the cart). */
         if (!CartStore_IsCartPath(pPath))
