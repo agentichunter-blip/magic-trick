@@ -5,7 +5,8 @@ try:
     from tkinter import messagebox, filedialog, simpledialog, font as tkfont
 except ImportError:   # command-line mode does not need a window
     tk = None
-import core, fpga, library, cartridge
+import core, fpga, library, cartridge, cart_backups
+import cart_game_saves, cart_replacement
 
 DOCS = 'https://github.com/agentichunter-blip/magic-trick/blob/main/docs/recovery.md'
 SOURCE = 'https://github.com/agentichunter-blip/magic-trick'
@@ -58,18 +59,28 @@ ROUTES = [('folder', 'CARD READER', 'Fastest. Take the SD card out of the Chroma
 SPINNER = '▖▘▝▗'
 # The Cartridge tab stays hidden until cartridge support is announced.
 CARTRIDGE = os.environ.get('MAGIC_TRICK_CARTRIDGE') != '0'   # the Cartridge tab (0 hides it)
-CART_OPS = ('cart_read', 'cart_write', 'cart_restore')
+CART_OPS = ('cart_read', 'cart_write', 'cart_restore', 'cart_save_snapshot')
 STEPS.update({
     'cart_connect': ('CONNECTING', 'Opening the cartridge in your Chromatic.', 0.2),
-    'cart_read': ('READING CART', 'Copying the whole cartridge to this computer as a backup. About a minute per MB.', 1.8),
-    'cart_check': ('CHECKING CART', 'Comparing the cartridge with what will be written.', 0.3),
-    'cart_write': ('WRITING CART', 'Writing only the parts of the cartridge that change.', 2),
-    'cart_verify': ('VERIFYING', 'Reading back what was written and checking every byte.', 0.2),
+    'cart_read_rom': ('READING ROM', 'Reading the full cartridge ROM from the Chromatic.', 1.8),
+    'cart_read_save': ('READING SAVE', 'Reading the cartridge’s save memory.', 0.2),
+    'cart_backup': ('SAVING BACKUP', 'Saving the cartridge backup on this computer.', 0.2),
+    'cart_editor': ('OPENING EDITOR', 'Preparing the cartridge editor.', 0.1),
+    'cart_check': ('CHECKING CART', 'Checking which ROM blocks match before writing.', 0.3),
+    'cart_write': ('WRITING ROM', 'Erasing or programming the ROM blocks that need to change.', 2),
+    'cart_verify': ('VERIFYING ROM', 'Checking the changed ROM blocks against the expected checksums.', 0.2),
+    'cart_write_save': ('WRITING SAVE', 'Writing the save data to the cartridge’s save memory.', 0.2),
+    'cart_release': ('CLOSING CONNECTION', 'Ending the current transfer session with the Chromatic.', 0.2),
+    'cart_read_sd': ('READING SD SAVE', 'Reading the game’s save files from the microSD card.', 0.2),
+    'cart_check_sd': ('CHECKING SD SAVE', 'Comparing the current SD card files with the save backup.', 0.2),
+    'cart_clear_sd': ('CLEARING SD SAVE', 'Removing the backed-up save files so the new ROM starts fresh.', 0.2),
 })
-PLANS.update({'cart_read': ['cart_connect', 'cart_read'],
-              'cart_write': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify'],
-              'cart_restore': ['cart_connect', 'cart_check', 'cart_write', 'cart_verify']})
-TITLES.update({'cart_read': 'READING CART', 'cart_write': 'WRITING CART', 'cart_restore': 'RESTORING CART'})
+CART_WRITE_STEPS = ['cart_connect', 'cart_check', 'cart_write', 'cart_verify', 'cart_write_save', 'cart_release']
+PLANS.update({'cart_read': ['cart_connect', 'cart_read_rom', 'cart_read_save', 'cart_release', 'cart_backup', 'cart_editor'],
+              'cart_save_snapshot': ['cart_connect', 'cart_read_sd', 'cart_release', 'cart_backup', 'cart_editor'],
+              'cart_write': CART_WRITE_STEPS, 'cart_restore': CART_WRITE_STEPS})
+TITLES.update({'cart_read': 'READING CART', 'cart_write': 'WRITING CART', 'cart_restore': 'RESTORING CART',
+               'cart_save_snapshot': 'BACKING UP SAVE'})
 CART_ROUTES = [('wifi', 'WI-FI', 'Faster, no cable. Needs a Wi-Fi network (or the Chromatic\'s own hotspot).'),
                ('usb', 'USB', 'Plug in a USB cable. Slower; handy without Wi-Fi.')]
 
@@ -718,6 +729,7 @@ class App:
         self.busy, self.operation, self.folder = True, operation, folder
         self.plan = list(PLANS[operation]); self.current = None; self.done_steps = set()
         self.step_started = self.started = time.monotonic(); self.step_fraction = None; self.note = ''
+        self.transfer_progress = None
         self.history = ['Magic Trick Installer ' + core.INSTALLER_VERSION + ' on ' + sys.platform,
                         'Started ' + datetime.datetime.now().isoformat(timespec='seconds')]
         self.show_running()
@@ -780,6 +792,10 @@ class App:
                     'wifi': 'Keep the Chromatic on Wi-Fi Files until it says DONE.'}.get(
             getattr(self, 'route', None) if self.operation in LIBRARY else None,
             'Keep the Chromatic switched on and the USB cable plugged in until it says DONE.')
+        if self.operation in CART_OPS:
+            reminder = ('Keep Wi-Fi Files open on the Chromatic until this finishes.'
+                        if getattr(self, 'cart_route', 'usb') == 'wifi' else
+                        'Keep the Chromatic switched on and the USB cable plugged in until this finishes.')
         self.label(right, reminder, self.f_body, MUTED, wrap=460).pack(anchor='w', pady=(12, 0))
         self.details_toggle = self.label(self.screen, '▸ SHOW DETAILS', self.f_pixel, MUTED, cursor='hand2')
         self.details_toggle.pack(anchor='w', pady=(18, 4))
@@ -838,28 +854,41 @@ class App:
     def draw_progress(self):
         if self.mode != 'running':
             return
-        fraction, left = self.progress()
+        is_cart = self.operation in CART_OPS
+        fraction, left = (self.step_fraction, None) if is_cart else self.progress()
         self.bar.delete('all')
         # The canvas can reach past the window's right edge when the window is narrower than the screen asks
         # for: draw only within what's visible.
         visible = self.root.winfo_width() - (self.bar.winfo_rootx() - self.root.winfo_rootx()) - 28
         width = max(min(self.bar.winfo_width(), visible), 240); blocks = 24; gap = 4
         size = (width - gap * (blocks - 1)) / blocks
-        lit = fraction * blocks
+        lit = int(fraction * blocks) if fraction is not None else 0
+        pulse = self.tick * 2 % (blocks + 2) - 2 if fraction is None else None
         for i in range(blocks):
             x = i * (size + gap)
-            if i < int(lit):
+            if pulse is not None:
+                colour = ACCENT if pulse <= i < pulse + 3 else PANEL
+            elif i < lit:
                 colour = ACCENT
-            elif i == int(lit):
+            elif i == lit:
                 colour = BLUE if self.tick % 2 == 0 else PANEL_2
             else:
                 colour = PANEL
             self.bar.create_rectangle(x, 4, x + size, 30, fill=colour, outline=LINE)
         elapsed = int(time.monotonic() - self.started)
-        left_text = 'ABOUT %d MIN LEFT' % max(1, math.ceil(left)) if fraction < 0.95 else 'ALMOST THERE'
-        if self.current == 'confirm' and time.monotonic() - self.step_started > 75:
-            left_text = 'CHECKING…'
-        self.stats.configure(text='%d%% · %d:%02d · %s' % (int(fraction * 100), elapsed // 60, elapsed % 60, left_text))
+        clock = '%d:%02d' % divmod(elapsed, 60)
+        if is_cart:
+            phase = self.plan.index(self.current) + 1 if self.current in self.plan else 1
+            stats = f'PHASE {phase}/{len(self.plan)} · {clock} ELAPSED'
+            if self.transfer_progress is not None:
+                done, total, units = self.transfer_progress
+                stats += f'\n{done}/{total} {units}'
+            self.stats.configure(text=stats)
+        else:
+            left_text = 'ABOUT %d MIN LEFT' % max(1, math.ceil(left)) if fraction < 0.95 else 'ALMOST THERE'
+            if self.current == 'confirm' and time.monotonic() - self.step_started > 75:
+                left_text = 'CHECKING…'
+            self.stats.configure(text='%d%% · %s · %s' % (int(fraction * 100), clock, left_text))
         key = self.current
         if key in STEPS:
             name, text, _ = STEPS[key]
@@ -875,9 +904,13 @@ class App:
         """Turn tool output into progress and reassuring notes."""
         if line.startswith('Reading CHROMAGIC/'):
             self.note = 'Reading your SD card. Over Wi-Fi or USB this can take a minute.'; return
-        m = re.search(r'^Progress: (\d+) of (\d+)', line)
+        m = re.search(r'^Progress: (\d+) of (\d+)(?: (.*))?', line)
         if m:
-            self.step_fraction = int(m.group(1)) / max(int(m.group(2)), 1); return
+            done, total = int(m.group(1)), int(m.group(2))
+            self.step_fraction = done / max(total, 1)
+            if self.operation in CART_OPS:
+                self.transfer_progress = (done, total, m.group(3) or '')
+            return
         m = re.search(r'Read (\d+)% of the MCU flash', line)
         if m:
             self.step_fraction = int(m.group(1)) / 100; return
@@ -913,6 +946,8 @@ class App:
         # From the editor, BACK goes to the Cartridge start screen (connection, restore); from there, home.
         PixelButton(top, '◀ BACK', self.cart_forget if state else self.show_home, self.f_pixel,
                     'secondary').pack(side='right')
+        PixelButton(top, 'BACKUP HISTORY', self.show_cart_backup_history, self.f_pixel,
+                    'secondary').pack(side='right', padx=(0, 8))
         if state:
             return self.cart_editor(state)
         self.label(self.screen, 'Put Game Gear, Lynx and Game Boy games on a rewritable Game Boy cart: a ModRetro cart or '
@@ -937,7 +972,7 @@ class App:
         self.cart_route_poll = object()
         self.cart_route_auto(self.cart_route_poll)
         for title, text, button, command, kind in [
-                ('READ CART', 'Back up the cart, then choose its games. About 2 minutes for a 2 MB cart.',
+                ('READ CART', 'Back up the ROM and any save memory, then open the cartridge editor.',
                  'START ▶', self.begin_cart_read, 'primary'),
                 ('RESTORE A CART BACKUP', 'Write a backup made here back onto the cart, exactly as it was.',
                  'CHOOSE ▶', self.begin_cart_restore, 'secondary')]:
@@ -1034,6 +1069,64 @@ class App:
                 raise ValueError('No cart answered. Check it\'s pushed all the way in, then try again.')
             raise
 
+    def show_cart_backup_history(self):
+        try:
+            snapshots = cart_backups.list_save_snapshots(CART_BACKUPS)
+        except OSError as exc:
+            messagebox.showerror('Backup History', str(exc), parent=self.root)
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title('Backup History')
+        win.configure(bg=BG)
+        win.transient(self.root)
+        if snapshots:
+            frame = tk.Frame(win, bg=BG)
+            frame.pack(fill='both', expand=True, padx=16, pady=(14, 4))
+            box = tk.Listbox(frame, selectmode='browse', activestyle='none', font=self.f_body, width=68,
+                             height=12, bg=PANEL, fg=INK, selectbackground=BLUE, selectforeground=INK,
+                             relief='flat', highlightthickness=0, exportselection=False)
+            vertical = tk.Scrollbar(frame, command=box.yview)
+            horizontal = tk.Scrollbar(frame, orient='horizontal', command=box.xview)
+            box.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+            horizontal.pack(side='bottom', fill='x')
+            vertical.pack(side='right', fill='y')
+            box.pack(side='left', fill='both', expand=True)
+            for entry in snapshots:
+                stamp = datetime.datetime.fromtimestamp(entry.modified_ns / 1_000_000_000)
+                box.insert('end', '%s  ·  %s  ·  %s' % (stamp.strftime('%Y-%m-%d %H:%M:%S'),
+                                                       entry.source, entry.path.name))
+            box.selection_set(0)
+            box.focus_set()
+        else:
+            self.label(win, 'No save snapshots yet.', self.f_body, MUTED).pack(anchor='w', padx=16, pady=(14, 6))
+
+        def export():
+            selection = box.curselection()
+            if not selection:
+                return
+            snapshot = snapshots[selection[0]]
+            chosen = filedialog.asksaveasfilename(**_picker_text({
+                'title': 'Export this save snapshot', 'parent': win, 'initialfile': snapshot.path.name,
+                'defaultextension': '.sav', 'filetypes': [('Game save', '*.sav')],
+            }))
+            if not chosen:
+                return
+            try:
+                cart_backups.export_save(snapshot, chosen)
+            except FileExistsError:
+                messagebox.showerror('Export save', 'That file already exists. Choose another name.', parent=win)
+            except OSError as exc:
+                messagebox.showerror('Export save', str(exc), parent=win)
+            else:
+                messagebox.showinfo('Save exported', str(chosen), parent=win)
+
+        actions = tk.Frame(win, bg=BG)
+        actions.pack(fill='x', padx=16, pady=(6, 14))
+        PixelButton(actions, 'CLOSE', win.destroy, self.f_pixel, 'secondary').pack(side='right')
+        if snapshots:
+            PixelButton(actions, 'EXPORT SAVE…', export, self.f_pixel).pack(side='right', padx=(0, 8))
+
     def begin_cart_read(self):
         if self.busy:
             return
@@ -1045,20 +1138,26 @@ class App:
             library.emit('step', key='cart_connect')
             finish, cart = self.cart_open(port)
             try:
-                library.emit('step', key='cart_read')
-                image = cart.read(lambda done, total: library.progress(done // 1024, total // 1024, 'KB read'))
-                save = cart.read_save() if cart.save_size else b''
+                if not cart.save_size:
+                    library.emit('plan', steps=[key for key in PLANS['cart_read'] if key != 'cart_read_save'])
+                library.emit('step', key='cart_read_rom')
+                image = cart.read(lambda done, total: library.progress(done // 1024, total // 1024, 'KiB read'))
+                save = b''
+                if cart.save_size:
+                    library.emit('step', key='cart_read_save')
+                    save = cart.read_save()
+                library.emit('step', key='cart_release')
             finally:
-                cart.close(); finish()
+                try:
+                    cart.close()
+                finally:
+                    finish()
+            library.emit('step', key='cart_backup')
             info = cartridge.parse(image)
-            CART_BACKUPS.mkdir(parents=True, exist_ok=True)
-            stem = re.sub(r'[^0-9A-Za-z.-]+', '-', info.own_title or ('Magic-Trick-cart' if info.dedicated else 'cart'))
-            path = CART_BACKUPS / ('%s %s %08X.bin' % (stem, datetime.date.today().isoformat(), cartridge.crc32(image)))
-            if not path.exists():
-                path.write_bytes(image)
-            if save:
-                path.with_suffix('.sav').write_bytes(save)   # the cart's save memory, next to its flash
+            title = info.own_title or ('Magic-Trick-cart' if info.dedicated else 'cart')
+            path = cart_backups.create_snapshot(CART_BACKUPS, image, save, title=title)
             print('Backup saved: %s%s' % (path, ' (+ %d KB save memory)' % (len(save) // 1024) if save else ''))
+            library.emit('step', key='cart_editor')
             self.cart_loaded = {'image': image, 'info': info, 'backup': path, 'port': port, 'save': save,
                                 'games': list(info.games), 'mode': self.cart_mode_of(info), 'own_art': info.own_art}
         self.cart_loaded = None
@@ -1070,25 +1169,32 @@ class App:
         return 'keep' if info.own_title and not info.dedicated else 'magic'
 
     def cart_finished(self, error):
+        if self.operation == 'cart_save_snapshot' and error is None:
+            self.history.append('DONE: game save backup')
+            return self.cart_finish_save_replacement()
         # A closing line, so a copied log says how it ended and how long it took.
         took = int(time.monotonic() - getattr(self, 'started', time.monotonic()))
         self.history.append('%s after %d:%02d: %s' % ('DONE' if error is None else 'STOPPED', took // 60, took % 60,
                                                      (self.cart_result or 'cart read') if error is None else error))
+        if error is None and self.operation == 'cart_read' and self.cart_loaded:
+            self.busy = True
+            self.draw_steps()
+            self.draw_progress()
+            self.root.after_idle(self.open_loaded_cart)
+            return
         self.clear(); self.mode = 'finished'; self.finish_colour = None
         box = tk.Frame(self.screen, bg=BG); box.pack(fill='both', expand=True)
-        if error is None and self.operation == 'cart_read' and self.cart_loaded:
-            self.cart = self.cart_loaded
-            return self.show_cartridge()
         if error is None:
             word, colour = 'DONE!', GREEN
             lines = self.cart_result
-            extra = ('Next: on the Chromatic, press Menu, set USB TRANSFERS off in the System tab, and open Games > '
-                     'Cartridge.')
+            extra = ('On the Chromatic, press B to leave Wi-Fi Files, then open Games > Cartridge.'
+                     if getattr(self, 'cart_route', 'usb') == 'wifi' else
+                     'On the Chromatic, press Menu, turn off USB TRANSFERS in the System tab, then open Games > Cartridge.')
         else:
             word, colour = 'STOPPED', RED
-            lines = 'It stopped before finishing: ' + error
-            extra = ('The cart is safe to read again. If a write stopped halfway, read the cart and write it again, '
-                     'or restore your backup: it puts back exactly what was there. Backups are in ' +
+            phase = STEPS[self.current][0].lower() if self.current in STEPS else 'starting'
+            lines = f'Stopped while {phase}. {error}'
+            extra = ('Read the cartridge again to see what is on it, or restore a backup. Backups are in ' +
                      str(CART_BACKUPS))
         self.status_dot.configure(fg=colour); self.status_text.configure(text='ALL DONE' if error is None else 'STOPPED')
         self.label(box, word, self.f_pixel_huge, colour).pack(anchor='w')
@@ -1100,6 +1206,13 @@ class App:
                         'secondary').pack(side='left', padx=(0, 10))
         PixelButton(row, 'COPY LOG', self.copy_log, self.f_pixel, 'secondary').pack(side='left', padx=(0, 10))
         PixelButton(row, 'BACK TO CARTRIDGE', self.show_cartridge, self.f_pixel, 'primary').pack(side='left')
+
+    def open_loaded_cart(self):
+        self.cart = self.cart_loaded
+        self.busy = False
+        self.show_cartridge()
+        self.status_dot.configure(fg=GREEN)
+        self.status_text.configure(text='BACKUP SAVED')
 
     # The editor: the cart's games, how full it gets, and WRITE.
     def cart_editor(self, state):
@@ -1153,7 +1266,8 @@ class App:
         bar = tk.Scrollbar(frame, command=self.cart_list.yview); self.cart_list.configure(yscrollcommand=bar.set)
         self.cart_list.pack(side='left', fill='x', expand=True); bar.pack(side='right', fill='y')
         buttons = tk.Frame(self.screen, bg=BG); buttons.pack(fill='x', pady=(6, 0))
-        for text, command in [('ADD GAMES…', self.cart_add_games), ('REMOVE', self.cart_remove),
+        for text, command in [('ADD GAMES…', self.cart_add_games), ('REPLACE ROM…', self.cart_replace_rom),
+                              ('REMOVE', self.cart_remove),
                               ('FIND ART', self.cart_find_art), ('PICK ART…', self.cart_pick_art),
                               ('NO ART', self.cart_clear_art)]:
             PixelButton(buttons, text, command, self.f_pixel, 'secondary').pack(side='left', padx=(0, 8))
@@ -1239,9 +1353,10 @@ class App:
     def cart_save_size(self):
         return len(self.cart.get('save') or b'') or 32768
 
-    def cart_target(self):
+    def cart_target(self, state=None):
         """(image or None, error text): the cart as it would be written."""
-        state = self.cart
+        if state is None:
+            state = self.cart
         info = state['info']
         try:
             if state['mode'] == 'magic':
@@ -1345,7 +1460,7 @@ class App:
             steps = cartridge.plan(state['image'], target)
             moved = cartridge.plan_bytes(steps)
             note = ('Nothing to write yet.' if not changed else
-                    'Writing changes %d KB of the cart. %s' % (moved // 1024, 'With one game, the Chromatic starts '
+                    'This write programs %d KiB. %s' % (moved // 1024, 'With one game, the Chromatic starts '
                                                                'straight into it.' if dedicated and
                                                                len(state['games']) == 1 else ''))
         else:
@@ -1389,6 +1504,144 @@ class App:
     def cart_own_selected(self):
         return getattr(self, 'cart_list_offset', 0) == 1 and 0 in self.cart_list.curselection()
 
+    def cart_replace_rom(self):
+        if self.busy:
+            return
+        chosen = self.cart_selected()
+        own = self.cart_own_selected()
+        if len(chosen) + own != 1:
+            messagebox.showinfo('Replace ROM', 'Select one game on the cart first.')
+            return
+        path = ask_open_filename(title='Choose the replacement ROM', filetypes=[
+            ('Games', '*.gb *.gbc *.gg *.lnx *.lyx'), ('All files', '*')])
+        if not path:
+            return
+        path = Path(path)
+        state = self.cart
+        draft = dict(state)
+        try:
+            data = path.read_bytes()
+            if own:
+                draft['own_rom'] = cart_replacement.replace_own_game(state['info'], state['image'], path.name,
+                                                                   data, self.cart_save_size())
+                draft['mode'] = 'replace'
+            else:
+                game = chosen[0]
+                replacement = cart_replacement.replace_game(game, path.name, data)
+                draft['games'] = [replacement if g is game else g for g in state['games']]
+                if self.cart_is_first(data):
+                    raise cartridge.CartError('This ROM is already the first game on the cart.')
+        except (OSError, cartridge.CartError) as exc:
+            messagebox.showerror('Could not replace ROM', str(exc))
+            return
+        target, problem = self.cart_target(draft)
+        if target is None:
+            messagebox.showerror('Could not replace ROM', problem)
+            return
+        if own:
+            save_file = state['backup'].with_suffix('.sav')
+            if save_file.is_file():
+                keep = messagebox.askyesnocancel('Carry over cartridge save?',
+                    'The first game’s cartridge save is backed up at\n%s\n\nKeep the cartridge save for this build? '
+                    'Choose No to clear the cartridge’s save memory or Cancel to leave the draft alone. '
+                    'Leave the game and let the Chromatic finish saving before writing.' % save_file)
+            else:
+                keep = True
+            if keep is not None:
+                state.update(own_rom=draft['own_rom'], mode='replace', clear_save=not keep)
+                self.draw_cart()
+            return
+        self.cart_back_up_replacement(game, replacement)
+
+    def cart_back_up_replacement(self, game, replacement):
+        original = next((g for g in self.cart['info'].games if g.name == game.name), None)
+        if original is None or original.data == replacement.data:
+            self.cart_stage_replacement(game, replacement)
+            return
+        on_sd = messagebox.askyesnocancel('Where is the save for ' + game.name + '?',
+            'Choose Yes to back up the game’s files from the SD card in your Chromatic. '
+            'Choose No if the game uses the Chromatic’s internal storage. Leave the game and enter the menu first.')
+        if on_sd is None:
+            return
+        if not on_sd:
+            if messagebox.askokcancel('Keep the internal save?',
+                    'This firmware gives the installer access to SD cards and cartridge save memory. '
+                    'The console’s internal game save can stay under the existing game name. '
+                    'Keep that save in place and queue the new ROM?', icon='warning'):
+                self.cart_stage_replacement(game, replacement)
+            return
+        port = self.cart_connection()
+        if not port:
+            return
+        names = self.cart_save_names()
+        self.cart_save_replacement = None
+
+        def work():
+            library.emit('step', key='cart_connect')
+            target = self.cart_save_target(port)
+            try:
+                library.emit('step', key='cart_read_sd')
+                files = cart_game_saves.snapshot_game_saves(target, game.name, game_names=names)
+                library.emit('step', key='cart_release')
+            finally:
+                target.close()
+            library.emit('step', key='cart_backup')
+            backup = cart_backups.create_game_snapshot(CART_BACKUPS, game.name,
+                                                      {Path(p).name: data for p, data in files.items()})
+            print('Save backup: %s' % backup if backup else 'No save files found for ' + game.name)
+            self.cart_save_replacement = game, replacement, files, backup
+            library.emit('step', key='cart_editor')
+
+        self.cart_result = ''
+        self.run('cart_save_snapshot', work, None)
+
+    def cart_save_target(self, port):
+        route, detail = port
+        if route == 'usb':
+            return library.UsbTarget(detail)
+        if detail:
+            self.cart_wifi = library.WifiTarget(*detail)
+        return self.cart_wifi
+
+    def cart_save_names(self):
+        state = self.cart
+        names = {g.name for g in state['info'].games + state['games']}
+        if state['info'].own_title:
+            first = cart_replacement.own_save_entry(state['image'])
+            if not first.startswith('.'):
+                names.add(first)
+        return names
+
+    def cart_finish_save_replacement(self):
+        game, replacement, files, backup = self.cart_save_replacement
+        self.cart_save_replacement = None
+        self.show_cartridge()
+        if files:
+            keep = messagebox.askyesnocancel('Carry over the save?',
+                'Backed up this game’s save files at\n%s\n\nChoose Yes to keep the save in place, No to clear '
+                'the backed-up saves and states after the ROM is written, or Cancel to discard the replacement. '
+                'Check that the new build '
+                'supports the old save format before loading it. Old save states may be incompatible.' % backup)
+            if keep is None:
+                return
+        else:
+            keep = True
+            messagebox.showinfo('No existing save', 'No save files for %s were found on the SD card.' % game.name)
+        self.cart_stage_replacement(game, replacement, clear_files=None if keep else files, backup=backup)
+
+    def cart_stage_replacement(self, game, replacement, clear_files=None, backup=None):
+        state = self.cart
+        i = next(i for i, current in enumerate(state['games']) if current is game)
+        state['games'][i] = replacement
+        resets = state.setdefault('game_save_resets', {})
+        if clear_files:
+            resets[game.name] = (clear_files, backup)
+        else:
+            resets.pop(game.name, None)
+        self.draw_cart()
+        self.cart_list.selection_set(i + self.cart_list_offset)
+        self.cart_list.see(i + self.cart_list_offset)
+
     def cart_own_for_art(self):
         """(name, ROM) of the game that goes first, for a box art lookup, or None."""
         state, info = self.cart, self.cart['info']
@@ -1409,6 +1662,9 @@ class App:
             messagebox.showinfo('Remove games', 'Click a game in the list first (Shift or Ctrl/Cmd for several).')
             return
         self.cart['games'] = [g for g in self.cart['games'] if g not in chosen]
+        resets = self.cart.get('game_save_resets', {})
+        for game in chosen:
+            resets.pop(game.name, None)
         self.draw_cart()
 
     def cart_pick_art(self):
@@ -1485,29 +1741,37 @@ class App:
         state = self.cart
         steps = cartridge.plan(state['image'], target)
         moved = cartridge.plan_bytes(steps)
+        erases = sum(step[0] == 'erase' for step in steps)
         before = {g.name for g in state['info'].games}
         after = {g.name for g in state['games']}
         lines = ['Add: ' + n for n in sorted(after - before)] + ['Remove: ' + n for n in sorted(before - after)]
+        replaced = cart_replacement.changed_games(state['info'].games, state['games'])
+        reset_choices = state.get('game_save_resets', {})
+        game_resets = [(name, *reset_choices[name]) for name in replaced if name in reset_choices]
+        lines += ['Replace ROM: ' + name + (' (start fresh using its save backup)' if name in reset_choices else '')
+                  for name in replaced]
         own = state.get('own_rom')
         if state['mode'] == 'magic' and state['info'].own_title:
             lines.insert(0, 'Replace %s with the Magic Trick title card' % state['info'].own_title)
         clear = state['mode'] == 'replace' and state.get('clear_save', True)
-        if state['mode'] == 'replace' and own:
+        replace_own = state['mode'] == 'replace' and own is not None
+        if replace_own:
             lines.insert(0, 'Put %s first%s' % (own['title'], ' (instead of %s)' % state['info'].own_title
                                                  if state['info'].own_title else ''))
             if clear:
                 lines.insert(1, 'Wipe the cart\'s save chip (%s\'s save is in your backup)' % (state['info'].own_title or 'the old'))
         listing = '\n'.join('• ' + l for l in lines[:10]) + ('\n…and %d more' % (len(lines) - 10) if len(lines) > 10 else '')
         if not messagebox.askyesno('Write to the cart?', (listing + '\n\n' if listing else '') +
-                                   'This changes %d KB of the cart. Your backup is saved in:\n%s\n\nKeep the cable in '
-                                   'and the Chromatic on until it says DONE. Continue?' %
-                                   (moved // 1024, state['backup'].parent), icon='warning'):
+                                   'This erases %d flash blocks and programs %d KiB. Your backup is saved in:\n%s\n\n'
+                                   'Keep the Chromatic on and connected until it says DONE. Continue?' %
+                                   (erases, moved // 1024, state['backup'].parent), icon='warning'):
             return
         port = self.cart_connection()
         if not port:
             return
         save = b'\xff' * self.cart_save_size() if clear else None
-        self.cart_write_run('cart_write', state['image'], target, port, check=True, save=save)
+        self.cart_write_run('cart_write', state['image'], target, port, check=True, save=save,
+                            backup_own=replace_own, game_resets=game_resets)
 
     def begin_cart_restore(self):
         if self.busy:
@@ -1544,28 +1808,58 @@ class App:
         else:
             what = 'has %s for the Chromatic' % games
         if operation == 'cart_restore':
-            text = ('It already matched the backup, so nothing needed rewriting. ' if not rewritten else
-                    'Restored from the backup. ') + 'The cart %s.' % what
-            return text + (' Its save was put back too.' if save_written else '')
+            text = ('The ROM already matched the backup. ' if not rewritten else
+                    'Restored the ROM from the backup. ') + 'The cart %s.' % what
+            return text + (' Its save was restored.' if save_written else '')
         now = 'is now ' + what[3:] if what.startswith('is ') else 'now ' + what
-        return 'Written. The cart %s.' % now + (' Its save was wiped.' if save_written else '')
+        text = 'ROM written. ' if rewritten else 'The ROM was already up to date. '
+        return text + 'The cart %s.' % now + (' Its save was cleared.' if save_written else '')
 
-    def cart_write_run(self, operation, current, target, port, check, save=None):
+    def cart_check_game_resets(self, port, game_resets, clear=False):
+        files = self.cart_save_target(port)
+        try:
+            for name, expected, backup in game_resets:
+                if clear:
+                    try:
+                        cart_game_saves.clear_game_saves(files, expected, game_name=name)
+                    except (OSError, ValueError, library.UsbError, library.WifiError) as exc:
+                        raise ValueError('The ROM was written, but starting fresh for %s stopped. '
+                                         '%s Save backup: %s' % (name, exc, backup)) from exc
+                elif cart_game_saves.snapshot_game_saves(files, name, game_names=self.cart_save_names()) != expected:
+                    raise ValueError('The SD card save for %s changed after backup. Use REPLACE ROM again '
+                                     'to back up the latest files before starting fresh.' % name)
+        finally:
+            files.close()
+
+    def cart_write_run(self, operation, current, target, port, check, save=None, backup_own=False, game_resets=()):
+        phases = list(CART_WRITE_STEPS)
+        if backup_own:
+            phases[2:2] = ['cart_read_save', 'cart_backup']
+        if game_resets:
+            phases = ['cart_check_sd', *phases, 'cart_clear_sd']
+
         def work():
+            if phases != CART_WRITE_STEPS:
+                library.emit('plan', steps=phases)
+            if game_resets:
+                library.emit('step', key='cart_check_sd')
+                self.cart_check_game_resets(port, game_resets)
             library.emit('step', key='cart_connect')
             finish, cart = self.cart_open(port)
+            write_save = save is not None and bool(cart.save_size)
             try:
                 if cart.capacity != len(target):
                     raise ValueError('This cart holds %g MB, but the image is %g MB.' %
                                      (cart.capacity / 1048576, len(target) / 1048576))
                 blocks = range(0, len(target), cartridge.ERASE_BLOCK)
+                library.emit('step', key='cart_check')
                 if check:
-                    # Only the blocks that change, and block 0 (which cart this is), are checked: every
-                    # 1 KiB written is read back by the Chromatic as it goes.
-                    library.emit('step', key='cart_check')
+                    # A new full-cart backup pairs the cached image with fresh save memory, so verify all
+                    # ROM blocks for that backup. Routine writes check their touched blocks and block 0.
                     steps = cartridge.plan(current, target)
                     touched = [s[1] for s in steps if s[0] != 'keep']
-                    if not cart.matches(current, sorted(set([0] + touched))):
+                    checked_blocks = blocks if backup_own else sorted(set([0] + touched))
+                    if not cart.matches(current, checked_blocks):
                         raise ValueError('The cart isn\'t the one that was read (or it changed since). Nothing '
                                          'was written: press BACK TO CARTRIDGE, then READ AGAIN.')
                 else:
@@ -1576,33 +1870,69 @@ class App:
                                            if target[o + b:o + b + cartridge.BLOCK] != b'\xff' * cartridge.BLOCK])
                              for o in differ]
                     touched = differ
-                library.emit('step', key='cart_write')
-                total, done = max(1, cartridge.plan_bytes(steps)), 0
-                shown = lambda d, t: library.progress(d // 1024, t // 1024, 'KB written')
-                for step in steps:
-                    if step[0] == 'keep':
-                        continue
-                    if step[0] == 'erase':
-                        print('Erasing 64 KB at 0x%x' % step[1])
-                        cart.erase(step[1])
-                    done = cart.program_blocks(target, step[2], shown, done, total)
-                library.emit('step', key='cart_verify')
-                if not cart.matches(target, touched):
-                    raise ValueError('The cart doesn\'t match what was written. Write it again, or restore your '
-                                     'backup.')
-                if save is not None and cart.save_size:
-                    print('Writing %d KB of save memory' % (cart.save_size // 1024))
-                    cart.write_save(bytes(save[:cart.save_size]).ljust(cart.save_size, b'\xff'))
+                skipped = set()
+                if not touched:
+                    skipped.update(('cart_write', 'cart_verify'))
+                if not write_save:
+                    skipped.add('cart_write_save')
+                if backup_own and not cart.save_size:
+                    skipped.update(('cart_read_save', 'cart_backup'))
+                if skipped:
+                    library.emit('plan', steps=[key for key in phases if key not in skipped])
+                if backup_own and cart.save_size:
+                    library.emit('step', key='cart_read_save')
+                    fresh_save = cart.read_save()
+                    if len(fresh_save) != cart.save_size:
+                        raise ValueError('The cartridge returned an incomplete save backup. The ROM was not written.')
+                    library.emit('step', key='cart_backup')
+                    backup = cart_backups.create_snapshot(CART_BACKUPS, current, fresh_save,
+                                                           title=cartridge.parse(current).own_title)
+                    print('Backup saved: %s' % backup)
+                    self.cart.update(backup=backup, save=fresh_save)
+                if touched:
+                    library.emit('step', key='cart_write')
+                    total, done = max(1, cartridge.plan_bytes(steps)), 0
+                    shown = lambda d, t: library.progress(d // 1024, t // 1024, 'KiB written')
+                    for step in steps:
+                        if step[0] == 'keep':
+                            continue
+                        if step[0] == 'erase':
+                            print('Erasing 64 KiB at 0x%x' % step[1])
+                            cart.erase(step[1])
+                        done = cart.program_blocks(target, step[2], shown, done, total)
+                    library.emit('step', key='cart_verify')
+                    if not cart.matches(target, touched):
+                        raise ValueError('The cart doesn\'t match what was written. Write it again, or restore your '
+                                         'backup.')
+                if write_save:
+                    library.emit('step', key='cart_write_save')
+                    print('Writing %d KiB of save memory' % (cart.save_size // 1024))
+                    saved_bytes = bytes(save[:cart.save_size]).ljust(cart.save_size, b'\xff')
+                    cart.write_save(saved_bytes)
+                library.emit('step', key='cart_release')
             finally:
-                games = cart.close(); finish()
+                try:
+                    games = cart.close()
+                finally:
+                    finish()
             info = cartridge.parse(target)
-            self.cart_result = self.cart_summary(info, operation, len(touched), save is not None and cart.save_size)
+            self.cart_result = self.cart_summary(info, operation, bool(touched), write_save)
+            if save is not None and not write_save:
+                self.cart_result += ' The Chromatic did not report any cartridge save memory.'
             if self.cart:
                 self.cart.update({'image': target, 'info': info, 'games': list(info.games),
                                   'mode': self.cart_mode_of(info), 'own_rom': None, 'own_art': info.own_art})
-                if save is not None:
-                    self.cart['save'] = bytes(save)
+                self.cart.pop('game_save_resets', None)
+                if write_save:
+                    self.cart['save'] = saved_bytes
             print('The Chromatic reads %s games on the cart.' % games)
+            if game_resets:
+                library.emit('step', key='cart_clear_sd')
+                try:
+                    self.cart_check_game_resets(port, game_resets, clear=True)
+                except (OSError, ValueError, library.UsbError, library.WifiError) as exc:
+                    raise ValueError('ROM verified on the cartridge. SD save cleanup stopped. %s' % exc) from exc
+                self.cart_result += ' The selected SD saves were backed up and cleared.'
         self.cart_result = ''
         self.run(operation, work, None)
 
@@ -1774,6 +2104,7 @@ class App:
                         self.plan.append(data['key'])
                     self.current = data['key']; self.step_started = time.monotonic()
                     self.step_fraction = None; self.note = ''
+                    self.transfer_progress = None
                 changed = True
             elif kind == 'pick':
                 self.pick_games(*payload)

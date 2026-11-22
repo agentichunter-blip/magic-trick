@@ -70,7 +70,7 @@ def minutes(nbytes, speed):
 # ---------------------------------------------------------------- targets
 
 class Target:
-    """One way of reaching the SD card. Subclasses implement _list, put, mkdir and optionally crc."""
+    """One way of reaching the SD card. Subclasses implement _list, read, put and mkdir."""
     name = 'card'
     speed = None          # bytes/s for writes, None when it's fast enough not to mention
     can_replace = True
@@ -138,8 +138,21 @@ class Target:
         self.remove(rel)
         self.forget(rel.rsplit('/', 1)[0])
 
+    def require_physical_sd(self):
+        """Raise if the physical card cannot be inspected."""
+        self.forget('')
+        self.list('')
+
+    def delete_save(self, rel):
+        """Delete the exact file after its contents have been backed up."""
+        self.delete(rel)
+
     def close(self):
         pass
+
+
+class SaveStorageUnavailable(ValueError):
+    """The file transport cannot inspect the physical microSD card."""
 
 
 class FolderTarget(Target):
@@ -186,6 +199,29 @@ class FolderTarget(Target):
     def crc(self, rel):
         data = self._path(rel).read_bytes()
         return rom_crcs(rel, data)
+
+    def require_physical_sd(self):
+        if not self.root.is_dir():
+            raise SaveStorageUnavailable('The physical microSD folder is no longer available.')
+        super().require_physical_sd()
+
+    def _save_path(self, rel):
+        path = self.root
+        for part in rel.split('/'):
+            if part in ('', '.', '..') or '\\' in part or ':' in part:
+                raise ValueError('Invalid save path: ' + rel)
+            path = path / part
+            if path.is_symlink():
+                raise ValueError('The save path is a symbolic link: ' + rel)
+        return path
+
+    def read(self, rel):
+        return self._save_path(rel).read_bytes()
+
+    def delete_save(self, rel):
+        # Leave AppleDouble metadata and every other unbacked file alone.
+        self._save_path(rel).unlink()
+        self.forget(rel.rsplit('/', 1)[0])
 
     def close(self):
         """On a Mac, files written to a FAT card get hidden ._ twins holding their metadata (such as
@@ -250,6 +286,24 @@ class WifiTarget(Target):
             raise
         rows = [json.loads(line) for line in text.splitlines() if line.strip()]
         return [(r['name'], bool(r['directory']), int(r.get('size') or 0)) for r in rows]
+
+    def require_physical_sd(self):
+        self.forget('')
+        try:
+            self._request('GET', 'list', '', timeout=LIST_TIMEOUT)
+        except WifiError as exc:
+            if exc.status == 404:
+                raise SaveStorageUnavailable(
+                    'No physical microSD is available over Wi-Fi. This firmware cannot access '
+                    'cartridge-game saves in the Chromatic’s internal storage.'
+                ) from exc
+            raise
+
+    def read(self, rel):
+        data = self._request('GET', 'file', rel)
+        if self.crc(rel) != [(zlib.crc32(data), len(data))]:
+            raise IOError('The Wi-Fi download did not match the card: ' + rel)
+        return data
 
     def mkdir(self, rel):
         self._request('POST', 'folder', rel)
@@ -376,6 +430,47 @@ class UsbTarget(Target):
 
     def _exchange(self, payload, seconds=60):
         self._timeout(seconds); self._send(payload); self._ok()
+
+    def require_physical_sd(self):
+        self._timeout(15)
+        self._send(b'\x01')
+        rec = self._record()
+        self._ok()
+        self.forget('')
+        status = re.fullmatch(r'STATUS present=([01]) error=(\S+)', rec)
+        if not status:
+            raise UsbError('unexpected card status %r' % rec)
+        if status[1] == '0':
+            raise SaveStorageUnavailable(
+                'No physical microSD is available over USB (%s). This firmware cannot access '
+                'cartridge-game saves in the Chromatic’s internal storage.' % status[2]
+            )
+
+    def read(self, rel):
+        self._timeout(120)
+        self._send(b'\x06/' + rel.encode())
+        rec = self._record()
+        header = re.fullmatch(r'BULK size=(\d+)', rec)
+        if not header:
+            raise UsbError('unexpected download reply %r' % rec)
+        size = int(header[1])
+        # PCSD streams raw 1 KiB FPGA blocks and pads the last one to 1 KiB.
+        total = (size + 1023) // 1024 * 1024
+        data = bytearray()
+        while len(data) < total:
+            if not self._buf:
+                if time.time() >= self.deadline:
+                    raise TimeoutError('The Chromatic stopped sending the save over USB.')
+                self._buf = self.port.read(4096)
+            take = min(len(self._buf), total - len(data))
+            data.extend(self._buf[:take])
+            self._buf = self._buf[take:]
+        result = self._record()
+        self._ok()
+        contents = bytes(data[:size])
+        if result != 'CRC crc=%08x' % zlib.crc32(contents):
+            raise UsbError('the download failed verification: ' + rel)
+        return contents
 
     def _list(self, rel):
         # Any failed command ends the device's whole session, so never ask for a folder that isn't there.

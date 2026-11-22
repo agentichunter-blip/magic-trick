@@ -114,6 +114,10 @@ From the command line: `app.py --library games|covers|previews TARGET [FILES…]
 
 **5. WRITE TO CART.** Only the parts that change are written and every block is checked. Writing is slow, about 4 to 5 KB/s: about 5 minutes for 1 MB.
 
+To update a build, select its row and choose **REPLACE ROM**. The cart entry keeps its name and box art. For added games, choose the microSD option to back up existing saves and states over USB or Wi-Fi. Then choose whether to keep them or start fresh. A fresh start clears only the backed-up files after the replacement ROM passes verification. This firmware keeps added games’ internal saves on the Chromatic when there is no microSD. Choose the internal storage option to keep those saves in place. For the first game on the cart, the save choice applies to the physical cartridge’s save chip. Leave the game and let the Chromatic finish writing its save before using **Read Cart** or **Write to Cart**.
+
+**BACKUP HISTORY** lists timestamped save snapshots and lets you export individual `.sav` files. Every cart read creates a new backup, even when the ROM image matches an earlier read. The progress screen reports the active phase and shows measured ROM transfer counts during reads and writes.
+
 **On the Chromatic.** At power-on the cart's own game starts by itself, straight from the cart, like on any Game Boy. Choosing it in **Games > Cartridge** instead copies it into the Chromatic's memory first (about 7 s for 256 KB, 30 s for 1 MB), so it has save states. Its in-game save always stays on the cart: it's copied in when the game loads and written back when you leave it or at the next power-on. Game Gear and Lynx games are always copied in. With an SD card in, the cart's games keep their saves and states on the card (`CHROMAGIC/CART`); without one, in the Chromatic's internal memory. A cart with no Magic Trick games, such as a stock MR.TETRIS, also shows its game in **Games > Cartridge**, so a Chromatic without an SD card has something to play and save states for it.
 
 **Good to know.**
