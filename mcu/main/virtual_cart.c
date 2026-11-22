@@ -86,6 +86,8 @@ enum {
     kLynxBiosAddress = 0x000200,
     kLynxFileAddress = 0x001000,
     kLynxStateRomAddress = 0x200000,
+    /* NES (nes_state_engine.sv): 21 KiB state image staged at 0x3F0000. */
+    kNesStateRomAddress = 0x3F0000,
     /* State blocks are 0-64; the panel framebuffer (diagnostics) is 80-124. */
     kLynxScreenBlock = 80,
     kLynxFlagBios = 0x01,
@@ -177,6 +179,14 @@ static bool ActiveSavePending;
 /* Game Gear: battery save kept in ActiveSavePath, written at the size of the
  * file found at start (128 B EEPROM, 8, 16 or 32 KiB; 32 KiB when new). */
 static bool GGCartSave;
+/* Battery RAM read and imported through the core's state engine: Game Gear
+ * (32 KiB cartridge RAM, blocks 9-40, staged at 0x3F0000 + 9 KiB) and NES
+ * games with a battery (8 KiB PRG RAM, blocks 64-71, staged at 0x3F8000;
+ * nes_state_engine.sv). Set per game before the save is prepared. */
+static uint8_t CartFirstBlock = 9;
+static uint32_t CartBytes = 32 * 1024;
+static uint32_t CartImportAddress = 0x3F0000 + 9 * 1024;
+#define ENGINE_SAVE(Info) ((Info).GameGear || ((Info).Nes && (Info).NesRom.Battery))
 static uint32_t GGCartFileSize;
 /* Blocks written and not yet saved, and the blocks written in each of the
  * last 40 checks (10 seconds at the 250 ms poll). A block written in 3 or
@@ -1387,7 +1397,7 @@ static esp_err_t QueryVirtualSaveDirty(bool *pDirty)
     {
         return ESP_ERR_INVALID_ARG;
     }
-    if (ActiveInfo.GameGear)
+    if (ENGINE_SAVE(ActiveInfo))
     {
         uint32_t Status = 0;
         ESP_RETURN_ON_ERROR(ReadNativeStatus(&Status), TAG, "GG save status");
@@ -1446,7 +1456,7 @@ static esp_err_t GGCartSaveDue(bool Force, bool *pDue)
         CartLinkResponse_t Response = {0};
         uint32_t Snapshot = 0;
         ESP_RETURN_ON_ERROR(VirtualCommandRaw(kVirtualCommandStateBlock, SaveSequence,
-                                              kGGCartFirstBlock, &Response), TAG, "GG save latch");
+                                              CartFirstBlock, &Response), TAG, "GG save latch");
         ESP_RETURN_ON_ERROR(ReadGGCartBlocks(kVirtualCommandGGCartSnapshot, &Snapshot), TAG, "GG snapshot");
         GGPendingBlocks |= Snapshot;
         GGRecordCheck(Snapshot);
@@ -1475,10 +1485,10 @@ static esp_err_t GGCartCopy(void)
     ESP_RETURN_ON_ERROR(ReadNativeStatus(&Status), TAG, "GG save status");
     const bool Frozen = (Status & kGGStatusFrozen) != 0;
     const uint32_t FileBlocks = GGCartFileSize < kCartBulkBlockSize ? 1 : GGCartFileSize / kCartBulkBlockSize;
-    if (FileBlocks < 32 && (GGPendingBlocks >> FileBlocks) != 0 && GGPendingBlocks != 0xffffffffu)
+    if (FileBlocks < CartBytes / kCartBulkBlockSize && (GGPendingBlocks >> FileBlocks) != 0 && GGPendingBlocks != 0xffffffffu)
     {
-        printf("VIRTUAL_CART_SAVE grow=%lu->%u\n", (unsigned long)GGCartFileSize, (unsigned)kGGCartBytes);
-        GGCartFileSize = kGGCartBytes;
+        printf("VIRTUAL_CART_SAVE grow=%lu->%u\n", (unsigned long)GGCartFileSize, (unsigned)CartBytes);
+        GGCartFileSize = CartBytes;
     }
     char Temp[kPathSize];
     ESP_RETURN_ON_ERROR(MakeSidecarPath(ActiveSavePath, ".tmp", Temp), TAG, "save temporary path");
@@ -1494,7 +1504,7 @@ static esp_err_t GGCartCopy(void)
         if (++SaveSequence == 0) ++SaveSequence;
         CartLinkResponse_t Response = {0};
         Result = VirtualCommandRaw(kVirtualCommandStateBlock, SaveSequence,
-                                   (uint8_t)(kGGCartFirstBlock + Offset / kCartBulkBlockSize), &Response);
+                                   (uint8_t)(CartFirstBlock + Offset / kCartBulkBlockSize), &Response);
         if (Result == ESP_OK)
             Result = CartBulk_ReadVirtualBlock(SaveSequence, TransferBuffer);
         if (Result == ESP_OK && Offset == 0 && !Frozen)
@@ -1569,15 +1579,17 @@ static esp_err_t PrepareGGCartSave(const char *pRomPath, char SelectedPath[kPath
     if (pSave == NULL)
     {
         if (errno != ENOENT) return ESP_FAIL;
-        printf("VIRTUAL_CART_SAVE source=new bytes=%u\n", (unsigned)kGGCartBytes);
+        printf("VIRTUAL_CART_SAVE source=new bytes=%u\n", (unsigned)CartBytes);
         (void)snprintf(SelectedPath, kPathSize, "%s", SavePath);
-        *pFileSize = kGGCartBytes;
+        *pFileSize = CartBytes;
         *pEnabled = true;
         return ESP_OK;
     }
     long Size = -1;
     if (fseek(pSave, 0, SEEK_END) == 0) Size = ftell(pSave);
-    if (Size != 128 && Size != 8192 && Size != 16384 && Size != 32768)
+    /* NES: 2, 4 or 8 KiB PRG RAM images. */
+    if (CartBytes == 8192 ? (Size != 2048 && Size != 4096 && Size != 8192) :
+        (Size != 128 && Size != 8192 && Size != 16384 && Size != 32768))
     {
         fclose(pSave);
         printf("VIRTUAL_CART_SAVE=REJECT path=%s bytes=%ld\n", SavePath, Size);
@@ -1587,7 +1599,7 @@ static esp_err_t PrepareGGCartSave(const char *pRomPath, char SelectedPath[kPath
      * like a smaller chip mirrored across the address space. Streamed 1 KiB
      * at a time (no heap buffer). */
     esp_err_t Result = ESP_OK;
-    for (uint32_t Offset = 0; Result == ESP_OK && Offset < kGGCartBytes; Offset += kCartBulkBlockSize)
+    for (uint32_t Offset = 0; Result == ESP_OK && Offset < CartBytes; Offset += kCartBulkBlockSize)
     {
         memset(TransferBuffer, 0xff, kCartBulkBlockSize);
         const size_t Count = Size < kCartBulkBlockSize ? (size_t)Size : kCartBulkBlockSize;
@@ -1596,8 +1608,7 @@ static esp_err_t PrepareGGCartSave(const char *pRomPath, char SelectedPath[kPath
              fread(TransferBuffer, 1, Count, pSave) != Count))
             Result = ESP_FAIL;
         if (Result == ESP_OK)
-            Result = CartBulk_WritePSRAMBlock(kRomBase + kGGStateRomAddress + kGGCartFirstBlock * kCartBulkBlockSize + Offset,
-                                              TransferBuffer);
+            Result = CartBulk_WritePSRAMBlock(kRomBase + CartImportAddress + Offset, TransferBuffer);
     }
     fclose(pSave);
     if (Result != ESP_OK) return Result;
@@ -1615,7 +1626,7 @@ static esp_err_t PersistActiveSave(void)
 {
     /* Callers hold the SD card: a game switch or a state load, so anything
      * pending is written. */
-    if (Active && ActiveInfo.GameGear) return PersistGGCartSave(true);
+    if (Active && ENGINE_SAVE(ActiveInfo)) return PersistGGCartSave(true);
     if (!Active || ActiveInfo.RamSize == 0 ||
         !ActiveInfo.Mapper.HasBattery || ActiveSavePath[0] == '\0')
     {
@@ -2129,8 +2140,11 @@ static esp_err_t RunLoad(const char *pPath)
     if (Result != ESP_OK) goto Cleanup;
     bool GGArmed = false, GGEnabled = false;
     uint32_t GGFileSize = 0;
-    if (Info.GameGear)
+    if (ENGINE_SAVE(Info))
     {
+        CartFirstBlock = Info.Nes ? 64 : 9;
+        CartBytes = Info.Nes ? 8u * 1024u : 32u * 1024u;
+        CartImportAddress = Info.Nes ? 0x3F8000u : kGGStateRomAddress + 9u * kCartBulkBlockSize;
         Result = PrepareGGCartSave(pPath, SelectedSavePath, &GGArmed, &GGEnabled, &GGFileSize);
         if (Result != ESP_OK) goto Cleanup;
     }
@@ -2179,7 +2193,8 @@ static esp_err_t RunLoad(const char *pPath)
     ActiveSavePending = false;
     GGCartSave = GGEnabled;
     GGCartFileSize = GGFileSize;
-    if (GGArmed && RestoreGGRomMirror() != ESP_OK) printf("VIRTUAL_CART_SAVE_MIRROR=FAIL\n");
+    /* The Game Gear import overwrote ROM mirror bytes; the NES stages above its ROM. */
+    if (GGArmed && Info.GameGear && RestoreGGRomMirror() != ESP_OK) printf("VIRTUAL_CART_SAVE_MIRROR=FAIL\n");
     ActiveRtcPersistedState = RtcState;
     ActiveRtcPersistedValid = RtcPresent;
     ActiveRtcSupported = RtcSupported;
@@ -2356,7 +2371,7 @@ static void SaveTask(void *pArg)
         bool Mounted = false;
         bool BulkOpen = false;
         const bool HasBatteryRam = ((ActiveInfo.RamSize != 0 &&
-            ActiveInfo.Mapper.HasBattery) || (ActiveInfo.GameGear && GGCartSave)) &&
+            ActiveInfo.Mapper.HasBattery) || (ENGINE_SAVE(ActiveInfo) && GGCartSave)) &&
             ActiveSavePath[0] != '\0';
         const bool HasRtc = ActiveInfo.Mapper.HasRtc && ActiveRtcSupported &&
             ActiveRtcPath[0] != '\0';
@@ -2369,7 +2384,7 @@ static void SaveTask(void *pArg)
             ActiveRtcLastCheck = Now;
         }
         bool GGDue = false;
-        if (HasBatteryRam && ActiveInfo.GameGear)
+        if (HasBatteryRam && ENGINE_SAVE(ActiveInfo))
         {
             Result = GGCartSaveDue(false, &GGDue);
         }
@@ -2382,7 +2397,7 @@ static void SaveTask(void *pArg)
                 ActiveSavePending |= Dirty;
             }
         }
-        const bool SaveWanted = ActiveInfo.GameGear ? GGDue : ActiveSavePending;
+        const bool SaveWanted = ENGINE_SAVE(ActiveInfo) ? GGDue : ActiveSavePending;
         if (Result == ESP_OK && (SaveWanted || RtcDue))
         {
             Result = SDCard_Mount(&pCard);
@@ -2395,7 +2410,7 @@ static void SaveTask(void *pArg)
         }
         if (Result == ESP_OK && SaveWanted)
         {
-            Result = ActiveInfo.GameGear ? GGCartCopy() : PersistActiveSave();
+            Result = ENGINE_SAVE(ActiveInfo) ? GGCartCopy() : PersistActiveSave();
         }
         if (Result == ESP_OK && Mounted && HasRtc)
         {
@@ -2452,7 +2467,7 @@ static void PrintNativeDebug(const char *phase)
 static bool NativeMapperSupported(const VirtualCartInfo_t *pInfo)
 {
     /* Game Gear, Lynx: the core's status reports whether its engine is present. */
-    if (pInfo->GameGear || pInfo->Lynx) return pInfo->RomSize != 0;
+    if (pInfo->GameGear || pInfo->Lynx || pInfo->Nes) return pInfo->RomSize != 0;
     switch (pInfo->Mapper.Kind)
     {
     case kCartMapper_Mbc1:
@@ -2474,11 +2489,11 @@ static void ActiveStateGame(StateFileGame_t *pGame)
     pGame->RamSize = ActiveInfo.RamSize;
     pGame->GlobalChecksum = ActiveInfo.GlobalChecksum;
     pGame->CartType = ActiveInfo.Mapper.Type;
-    if (ActiveInfo.GameGear || ActiveInfo.Lynx)
+    if (ActiveInfo.GameGear || ActiveInfo.Lynx || ActiveInfo.Nes)
     {
         pGame->RamSize = 0;
         pGame->CartType = 0;
-        pGame->Engine = ActiveInfo.Lynx ? kStateEngine_Lynx : kStateEngine_GameGear;
+        pGame->Engine = ActiveInfo.Lynx ? kStateEngine_Lynx : ActiveInfo.Nes ? kStateEngine_NES : kStateEngine_GameGear;
     }
 }
 
@@ -2610,7 +2625,8 @@ static esp_err_t ImportStateFromSd(unsigned Slot)
         }
         Crc = StateFile_Crc32(Crc, TransferBuffer, Count);
         const uint32_t Base = Game.Engine == kStateEngine_GameGear ? kRomBase + kGGStateRomAddress :
-            Game.Engine == kStateEngine_Lynx ? kRomBase + kLynxStateRomAddress : kStateSlotBase;
+            Game.Engine == kStateEngine_Lynx ? kRomBase + kLynxStateRomAddress :
+            Game.Engine == kStateEngine_NES ? kRomBase + kNesStateRomAddress : kStateSlotBase;
         Result = CartBulk_WritePSRAMBlock(Base + Offset, TransferBuffer);
     }
     if (Result == ESP_OK && fgetc(pFile) != EOF) Result = ESP_ERR_INVALID_SIZE;
@@ -2622,7 +2638,7 @@ static esp_err_t ImportStateFromSd(unsigned Slot)
     }
     if (Result != ESP_OK) return Result;
     /* Game Gear: staged and verified; the caller asks the FPGA to load it. */
-    if (Game.Engine == kStateEngine_GameGear || Game.Engine == kStateEngine_Lynx) return ESP_OK;
+    if (Game.Engine == kStateEngine_GameGear || Game.Engine == kStateEngine_Lynx || Game.Engine == kStateEngine_NES) return ESP_OK;
 
     CartLinkResponse_t Response = {0};
     ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStateImport, NULL, &Response),
@@ -2820,10 +2836,10 @@ static esp_err_t GGStateCapture(bool load, unsigned slot)
     if (result != ESP_OK) { printf("STATE_REJECT=gg_load status=%08lx\n", (unsigned long)status); goto cleanup; }
     StateUncertain = false;
     if (battery) ActiveSavePending = true;
-    /* Lynx states are staged above the largest cartridge: no mirror to restore. */
-    if (!ActiveInfo.Lynx && RestoreGGRomMirror() != ESP_OK) printf("STATE_GG_MIRROR=FAIL\n");
+    /* Lynx and NES states are staged above the largest cartridge: no mirror to restore. */
+    if (ActiveInfo.GameGear && RestoreGGRomMirror() != ESP_OK) printf("STATE_GG_MIRROR=FAIL\n");
     printf("STATE_FILE_LOAD=PASS path=%s bytes=%u\n", ActiveStatePath[slot - 1],
-           (unsigned)(ActiveInfo.Lynx ? kStateFileLynxPayload : kStateFileGameGearPayload));
+           (unsigned)(ActiveInfo.Lynx ? kStateFileLynxPayload : ActiveInfo.Nes ? kStateFileNesPayload : kStateFileGameGearPayload));
 cleanup:
     if (frozen && (!submitted || !StateUncertain))
     {
@@ -2860,7 +2876,7 @@ esp_err_t VirtualCart_StateCaptureSlot(bool load,unsigned slot,uint32_t Session)
         (void)SetRunning(false);
         return ESP_ERR_INVALID_STATE;
     }
-    if(Active && (ActiveInfo.GameGear || ActiveInfo.Lynx)) {
+    if(Active && (ActiveInfo.GameGear || ActiveInfo.Lynx || ActiveInfo.Nes)) {
         LastStateSdFailed=false; // no FPGA copy: a save is on the SD card or fails
         return GGStateCapture(load,slot);
     }

@@ -27,12 +27,16 @@ enum {
     /* Lynx payload: bytes 4..7 = MiSTer STATESIZE (16640 32-bit words). */
     kStateFileLynxSignature = 0x00004100,
     kStateFileLynxPayload = 65 * 1024,
+    /* NES payload: bytes 4..7 = the trimmed MiSTer image size (nes_savestates.sv). */
+    kStateFileNesSignature = 0x00001500,
+    kStateFileNesPayload = 21 * 1024,
 };
 
 typedef enum {
     kStateEngine_GameBoy = 0,
     kStateEngine_GameGear = 1,
     kStateEngine_Lynx = 2,
+    kStateEngine_NES = 3,
 } StateEngine_t;
 
 typedef struct {
