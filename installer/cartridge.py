@@ -1,4 +1,4 @@
-"""Magic Trick carts: Game Gear, Lynx and Game Boy games on a reflashable Game
+"""Magic Trick carts: Game Gear, Master System, NES, Lynx and Game Boy games on a reflashable Game
 Boy cart (ModRetro carts), for the installer's Cartridge tab and mcu/tools/mtcart.py.
 
 A cart either keeps its own Game Boy game (games go in the flash after it) or
@@ -43,14 +43,15 @@ STORE_BYTES = 1_300_000
 STATE_SLOTS = 3
 STATE_HEADER = 64
 GB_STATE_CORE = 8 + 128 * 8 + 32768 + 16384 + 160 + 128
-GG_STATE, LYNX_STATE = 57 * 1024, 65 * 1024
+GG_STATE, LYNX_STATE, NES_STATE = 57 * 1024, 65 * 1024, 21 * 1024
+NES_SAVE_MAX = 8 * 1024   # battery PRG RAM ($6000-$7FFF)
 GG_SAVE_MAX, GG_MIRROR = 32 * 1024, 57 * 1024
 CLUSTER = 4096
 
 
 # Only the Chromatic's Game Boy side (the GB core) can reach a cartridge.
-GB_SIDE_ONLY = ('The Chromatic reaches the cart only from its Game Boy side, and it\'s on a Game Gear or Lynx game '
-                'now. Switch it off and on with the cart in. If the cart then starts a Game Gear or Lynx game, switch '
+GB_SIDE_ONLY = ('The Chromatic reaches the cart only from its Game Boy side, and it\'s on another system\'s game '
+                'now. Switch it off and on with the cart in. If the cart then starts a game for another system, switch '
                 'off and on again holding B, to stay in the menu. Then try again.')
 
 
@@ -97,8 +98,33 @@ def check_name(name):
     if not 0 < len(raw) < NAME_SIZE or '/' in name or '\\' in name or name.startswith('.'):
         raise CartError('Game names must be 1 to %d characters: %r' % (NAME_SIZE - 1, name))
     if Path(name).suffix.lower() not in SYSTEMS:
-        raise CartError('Not a Game Boy, Game Gear, Master System or Lynx game: %s' % name)
+        raise CartError('Not a Game Boy, Game Gear, Master System, NES or Lynx game: %s' % name)
     return raw
+
+
+# Mappers the Chromatic's NES core runs (mcu/main/nes_rom.h).
+NES_MAPPERS = {0, 1, 2, 3, 4, 7, 9, 10, 11, 21, 22, 23, 25, 66, 69, 71}
+
+
+def nes_problem(data):
+    """Why the Chromatic can't run this .nes file, or None (same checks as the firmware)."""
+    if len(data) < 16 or data[:4] != b'NES\x1a':
+        return 'not an NES game (no iNES header)'
+    f6, f7 = data[6], data[7]
+    nes2 = (f7 & 0x0c) == 0x08
+    prg, chr_, mapper = data[4], data[5], f6 >> 4
+    if nes2:
+        mapper |= (f7 & 0xf0) | ((data[8] & 0x0f) << 8)
+        prg |= (data[9] & 0x0f) << 8
+        chr_ |= (data[9] >> 4) << 8
+    elif not any(data[12:16]):
+        mapper |= f7 & 0xf0
+    size = 16 + (512 if f6 & 0x04 else 0) + prg * 16384 + chr_ * 8192
+    if not prg or len(data) < size:
+        return 'the file is shorter than its header says'
+    if mapper not in NES_MAPPERS:
+        return 'mapper %d is not supported' % mapper
+    return None
 
 
 def short_name(name):
@@ -395,6 +421,8 @@ def save_bytes(game):
         return _cluster(GG_SAVE_MAX) + STATE_SLOTS * _cluster(STATE_HEADER + GG_STATE)
     if game.system == 2:
         return _cluster(512) + STATE_SLOTS * _cluster(STATE_HEADER + LYNX_STATE)
+    if game.system == 3:
+        return _cluster(NES_SAVE_MAX) + STATE_SLOTS * _cluster(STATE_HEADER + NES_STATE)
     ram = 0
     if len(game.data) > 0x149:
         ram = {0: 0, 1: 2048, 2: 8192, 3: 32768, 4: 131072, 5: 65536}.get(game.data[0x149], 0)

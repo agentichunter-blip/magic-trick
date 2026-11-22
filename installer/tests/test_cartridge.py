@@ -48,6 +48,17 @@ def v1_image(rom, games, cap=CAP):
 
 
 class CartridgeTest(unittest.TestCase):
+    def test_nes_and_sms_games(self):
+        nrom = b'NES\x1a\x02\x01\x01\x00' + bytes(8) + bytes(32768 + 8192)
+        self.assertIsNone(c.nes_problem(nrom))
+        self.assertEqual(c.Game('Nes15.nes', nrom).system, 3)
+        self.assertEqual(c.Game('Chase.sms', bytes(0x20000)).system, 1)
+        self.assertIn('mapper 5', c.nes_problem(b'NES\x1a\x10\x10\x50\x00' + bytes(8) + bytes(0x60000)))
+        self.assertIn('shorter', c.nes_problem(nrom[:-1]))
+        self.assertIn('no iNES', c.nes_problem(bytes(64)))
+        # 8 KiB battery save + three 21 KiB states, in 4 KiB clusters
+        self.assertEqual(c.save_bytes(c.Game('Nes15.nes', nrom)), 8192 + 3 * 24576)
+
     def test_reads_version_1_and_own_game(self):
         rom = gb_rom()
         games = [game('Shinobi.gg', 0x40000, 1), game('Golf.lnx', 0x20000, 2)]
