@@ -1,422 +1,423 @@
 GowinSynthesis start
 Running parser ...
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/fifo1k/fifo1k.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/gowin_adc/gowin_adc.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v'
-WARN  (EX3801) : Parameter 'CLK_DIV_2N' becomes localparam in 'ST7785_init' with formal parameter declaration list("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v":14)
-WARN  (EX2478) : Non-net output port 'clk_out' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v":176)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/adc_wrap.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/aud_system_top_8_16.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/button_debounce.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_bus_owner_mux.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_maintenance_cdc.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_maintenance_engine.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_usb_streamer.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/virtual_cart_session_cdc.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/virtual_cart_rtc_cdc.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/gb_burst_write.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mem_system_top.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/maintenance_video_mux.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/maintenance_video_source.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mm_burst_write.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mpmc.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/polling_master_8_16.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/qspi_slave.v'
-WARN  (EX2478) : Non-net output port 'qCartReadAddress' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/qspi_slave.v":15)
-WARN  (EX2478) : Non-net output port 'qAddress' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/qspi_slave.v":30)
-WARN  (EX2478) : Non-net output port 'qLength' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/qspi_slave.v":31)
-WARN  (EX2478) : Non-net output port 'qCommand' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/qspi_slave.v":32)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv'
-WARN  (EX2478) : Non-net output port 'LCD_BACKLIGHT_INIT' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":29)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/system_monitor_arbiter.sv'
-WARN  (EX2478) : Non-net output port 'tx_address' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/system_monitor_arbiter.sv":15)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/tlv320_init.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/fixed_point_divider/fixed_point_divider.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/usb_uart_config.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/uart_packet_wrapper_rx.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/usb_cdc_tx_mux.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_tpg.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/EMU/virtual_cart_cache.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_audio_bridge.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv'
-WARN  (EX2478) : Non-net output port 'state_frozen' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":21)
-WARN  (EX2478) : Non-net output port 'cart_dirty' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":32)
-WARN  (EX2478) : Non-net output port 'cart_q' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":32)
-WARN  (EX2478) : Non-net output port 'cart_written' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":33)
-WARN  (EX2478) : Non-net output port 'cart_snapshot' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":33)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_state_clock.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv'
-WARN  (EX2478) : Non-net output port 'block_ready' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":24)
-WARN  (EX2478) : Non-net output port 'block_ready_sequence' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":24)
-WARN  (EX2478) : Non-net output port 'fault' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":25)
-WARN  (EX2478) : Non-net output port 'loaded' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":25)
-WARN  (EX2478) : Non-net output port 'state_request' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":26)
-WARN  (EX2478) : Non-net output port 'state_release' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":26)
-WARN  (EX2478) : Non-net output port 'state_apply' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":26)
-WARN  (EX2478) : Non-net output port 'state_in' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":27)
-WARN  (EX2478) : Non-net output port 'mem_select' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":28)
-WARN  (EX2478) : Non-net output port 'mem_address' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":28)
-WARN  (EX2478) : Non-net output port 'mem_write' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":28)
-WARN  (EX2478) : Non-net output port 'mem_data' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":29)
-WARN  (EX2478) : Non-net output port 'cache_invalidate' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":32)
-WARN  (EX2478) : Non-net output port 'rom_address' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":32)
-WARN  (EX2478) : Non-net output port 'rom_read' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":32)
-WARN  (EX2478) : Non-net output port 'boot_hold' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":37)
-WARN  (EX2478) : Non-net output port 'cart_dirty_clear' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":37)
-WARN  (EX2478) : Non-net output port 'imported' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":38)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_launch_status.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_rom_bridge.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_video_bridge.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/emu_system_top.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/generated/video.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheatcodes.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v'
-Undeclared symbol 'cen_16', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":63)
-WARN  (EX3638) : 'cen_16' is already implicitly declared on line 63("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":81)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_mixer.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_noise.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_vol.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheat_loader.sv'
-WARN  (EX2478) : Non-net output port 'code_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheat_loader.sv":8)
-WARN  (EX2478) : Non-net output port 'clear_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheat_loader.sv":9)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_audio_lpf.sv'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/MC8123.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/parts.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/EMU/cartridge_interface.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":3)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":3)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uvc_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":4)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":4)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uac_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":5)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":5)
-Undeclared symbol 'g_rdy', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1506)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/Gowin_PLL_UVC/Gowin_PLL_UVC.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_defs.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":25)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":25)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uvc_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":26)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":26)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uac_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":27)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":27)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uart_defs.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":28)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":28)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uvc_defs.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb_device_controller/usb_device_controller.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v'
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_name.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":4)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":4)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":5)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":5)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_name.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v'
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_name.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Analyzing included file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Back to file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Undeclared symbol 'reset_stop', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Undeclared symbol 'reset_calib', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Undeclared symbol 'ready', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Undeclared symbol 'sclk', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Undeclared symbol 'tx_en', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v'
-Undeclared symbol 'c_fifo_empty', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1312)
-Undeclared symbol 'pkt_fifo_rd_pktfin', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1343)
-Undeclared symbol 'pkt_fifo_rd_act', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1344)
-Undeclared symbol 'pkt_fifo_empty', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1448)
-Undeclared symbol 'c_fifo_empty', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1493)
-Undeclared symbol 'arempty_val', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1647)
-Undeclared symbol 'awfull_val', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1681)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/gowin_pll_preevt/gowin_pll.v'
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v'
-Undeclared symbol 'virtual_enable_g', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":262)
-Undeclared symbol 'virtual_start_pending_g', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":262)
-Undeclared symbol 'core_reload_hold_g', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":262)
-WARN  (EX3638) : 'core_reload_hold_g' is already implicitly declared on line 262("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":265)
-WARN  (EX3638) : 'virtual_enable_g' is already implicitly declared on line 262("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":475)
-WARN  (EX3638) : 'virtual_start_pending_g' is already implicitly declared on line 262("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":476)
-Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/core_reload.sv'
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd'
-Analyzing entity 'psramcontroller'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd":78)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd'
-Analyzing package 'pmultiportpsram'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":9)
-Analyzing entity 'multiportramctrl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":35)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":67)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd'
-Analyzing entity 'psrambist_burst'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd":32)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd'
-Analyzing entity 'overlaybatteryback'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":14)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd'
-Analyzing entity 'overlaybatteryfront'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":14)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd'
-Analyzing entity 'overlaydebug'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":15)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd'
-Analyzing entity 'overlaytimerback'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":14)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd'
-Analyzing entity 'overlaytimerfront'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":14)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd'
-Analyzing entity 'overlaytimernumber'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":5)
-Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":15)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd'
-Analyzing entity 'uart_rx'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":14)
-Analyzing architecture 'full'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":37)
-Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd'
-Analyzing entity 'uart_tx'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":14)
-Analyzing architecture 'full'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":37)
-Compiling module 'top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":3)
-Compiling module 'Gowin_PLL'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/gowin_pll_preevt/gowin_pll.v":10)
-WARN  (EX3791) : Expression size 15 truncated to fit in target size 14("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":189)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 14("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":194)
-Compiling module 'gg_cheat_loader'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheat_loader.sv":4)
-Compiling module 'maintenance_video_mux'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/maintenance_video_mux.sv":4)
-Compiling module 'maintenance_video_source'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/maintenance_video_source.sv":4)
-Compiling module 'vid_system_top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":3)
-Compiling module 'ST7785_init'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v":3)
-Extracting RAM for identifier 'sets'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v":57)
-Compiling module 'clock_div(DIV_2N=6)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v":168)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/ST7785_init.v":201)
-WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":111)
-Switching to VHDL mode to elaborate design unit 'overlayBatteryFront'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":200)
-Processing 'overlayBatteryFront(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":200)
-Switching to VHDL mode to elaborate design unit 'overlayBatteryBack'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":207)
-Processing 'overlayBatteryBack(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":207)
-Switching to VHDL mode to elaborate design unit 'overlayTimerFront'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":214)
-Processing 'overlayTimerFront(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":214)
-Switching to VHDL mode to elaborate design unit 'overlayTimerBack'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":221)
-Processing 'overlayTimerBack(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":221)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":326)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":338)
-Switching to VHDL mode to elaborate design unit 'overlayTimerNumber'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":359)
-Processing 'overlayTimerNumber(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":359)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":363)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":373)
-Switching to VHDL mode to elaborate design unit 'overlayDebug'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":392)
-Processing 'overlayDebug(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":392)
-Compiling module 'color_correction'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":477)
-WARN  (EX3791) : Expression size 12 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":499)
-WARN  (EX3791) : Expression size 9 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":500)
-WARN  (EX3791) : Expression size 11 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":501)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 16("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":505)
-Compiling module 'ST7785_panel_master'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":1)
-Compiling module 'panel_line_bank'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":287)
-Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":289)
-Compiling module 'aud_system_top_8_16'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/aud_system_top_8_16.sv":3)
-Compiling module 'tlv320_init'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/tlv320_init.v":4)
-Extracting RAM for identifier 'tlv320regs'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/tlv320_init.v":26)
-Compiling module 'polling_master_8_16'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/polling_master_8_16.v":21)
-Compiling module 'i2c_master_8_16(DATA_WIDTH=8)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":22)
-WARN  (EX3791) : Expression size 17 truncated to fit in target size 16("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":129)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":205)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":282)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":316)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":363)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":397)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":453)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":494)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":526)
-Compiling module 'mem_system_top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":3)
-Switching to VHDL mode to elaborate design unit 'MultiPortRamCtrl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":155)
-Processing 'MultiPortRamCtrl(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":35)
-Processing 'PSRAMController(0,10)(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":155)
-Switching to VHDL mode to elaborate design unit 'PSRAMBIST_Burst'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":179)
-Processing 'PSRAMBIST_Burst(arch)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":179)
-Compiling module 'QSPI_Slave'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/qspi_slave.v":3)
-Compiling module 'mm_burst_write'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/mm_burst_write.v":4)
-Compiling module 'fifo1k'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/fifo1k/fifo1k.v":593)
-Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/fifo1k/fifo1k.v":592)
-Compiling module 'mm_burst_read_to_stream(base_pointer=23'h10000)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":6)
-Extracting RAM for identifier 'lineRam'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":29)
-WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":120)
-Compiling module 'mm_burst_read_to_stream'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":6)
-Extracting RAM for identifier 'lineRam'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":29)
-WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":120)
-Compiling module 'gb_burst_write'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/gb_burst_write.v":4)
-Compiling module 'button_debouncer'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/button_debounce.v":1)
-WARN  (EX3791) : Expression size 16 truncated to fit in target size 15("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/button_debounce.v":22)
-WARN  (EX3791) : Expression size 16 truncated to fit in target size 15("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/button_debounce.v":32)
-Compiling module 'virtual_cart_session_cdc'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/virtual_cart_session_cdc.sv":4)
-Compiling module 'gg_launch_status'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_launch_status.sv":2)
-Compiling module 'cartridge_interface'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/EMU/cartridge_interface.v":3)
-Compiling module 'cart_bus_owner_mux'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_bus_owner_mux.sv":3)
-Compiling module 'cart_maintenance_engine'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_maintenance_engine.sv":4)
-Compiling module 'cart_usb_streamer'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_usb_streamer.sv":4)
-Compiling module 'cart_maintenance_cdc'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/cart_maintenance_cdc.sv":4)
-Compiling module 'gowin_dpb_cache_byte'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/EMU/virtual_cart_cache.sv":686)
-Compiling module 'emu_system_top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/emu_system_top.v":3)
-Compiling module 'gg_rom_bridge'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_rom_bridge.sv":10)
-Extracting RAM for identifier 'tags'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_rom_bridge.sv":28)
-Extracting RAM for identifier 'cmem'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_rom_bridge.sv":29)
-Compiling module 'gg_board_core'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":2)
-Extracting RAM for identifier 'ram'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":104)
-Extracting RAM for identifier 'nvram'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_board_core.sv":108)
-Compiling module 'gg_state_clock'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_state_clock.sv":5)
-WARN  (EX3791) : Expression size 6 truncated to fit in target size 5("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_state_clock.sv":21)
-Compiling module 'system'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":78762)
-Compiling module 'mapper_detect_Bbehavioral'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":75901)
-Extracting RAM for identifier 'n2227'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":78557)
-Compiling module 'evolution_mapper_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":74618)
-Compiling module 'CODES'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheatcodes.sv":10)
-Extracting RAM for identifier 'codes'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheatcodes.sv":31)
-Compiling module 't80s_Brtl_0_0_1'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":74358)
-Compiling module 't80_Brtl_0_1_0_1_2_3_4_5_6_7'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":59766)
-Compiling module 't80_mcode_Brtl_0_0_1_2_3_4_5_6_7'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":9402)
-Compiling module 't80_alu_Brtl_0_0_1_2_3_4_5_6_7'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":7874)
-Compiling module 't80_reg_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":7415)
-Compiling module 'vdp_Bbehavioral_7'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":71556)
-Compiling module 'vdp_main_Bbehavioral_7'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":58943)
-Compiling module 'vdp_background_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":4436)
-Compiling module 'vdp_sprites_Bbehavioral_7'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":283)
-Compiling module 'vpd_sprite_shifter_Bbehavioral'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":1)
-Compiling module 'dpram_Bprototype_15_8_f8d0212558df9752eb44381ca87663907f59d33e'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":26128)
-Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":26158)
-Compiling module 'vdp_cram_Bbehavioral'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":25169)
-Compiling module 'jt89'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":33)
-Compiling module 'jt89_mixer'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_mixer.v":22)
-Compiling module 'jt89_tone'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":25)
-Compiling module 'jt89_vol'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_vol.v":25)
-Compiling module 'jt89_noise'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_noise.v":25)
-Compiling module 'audiomix_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":71390)
-Compiling module 'io_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":68119)
-Compiling module 'evolution_rom_address_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":67351)
-Compiling module 'MC8123_rom_decrypt'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/MC8123.v":4)
-Compiling module 'SEGASYS1_DECT2'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":104)
-Compiling module 'DLROM(AW=7,DW=8)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/parts.v":3)
-Extracting RAM for identifier 'core'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/parts.v":15)
-WARN  (EX3670) : Actual bit length 25 differs from formal bit length 7 for port 'AD1'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":164)
-WARN  (EX3670) : Actual bit length 25 differs from formal bit length 7 for port 'AD1'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":165)
-Compiling module 'cart_eeprom_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":67019)
-Compiling module 'eeprom_93c46_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":23764)
-Compiling module 'memory_bus_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":66668)
-Compiling module 'memory_decode_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":66208)
-Compiling module 'mapper_ctrl_Brtl'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":63977)
-Compiling module 'video'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/generated/video.v":1)
-Compiling module 'gg_state_engine'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_state_engine.sv":20)
-Compiling module 'gowin_dpb_snapshot'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/EMU/virtual_cart_cache.sv":632)
-Compiling module 'gg_video_bridge'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_video_bridge.sv":9)
-Compiling module 'gg_async_fifo'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv":6)
-Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv":10)
-Compiling module 'gg_audio_bridge'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/board-rtl/gg_audio_bridge.sv":2)
-Compiling module 'gg_audio_lpf'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_audio_lpf.sv":5)
-Compiling module 'gg_audio_lpf_ch'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_audio_lpf.sv":22)
-Compiling module 'usbuvcuart_top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":11)
-Compiling module 'Gowin_PLL_UVC'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/Gowin_PLL_UVC/Gowin_PLL_UVC.v":10)
-Compiling module 'usbuac_ep'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1364)
-Compiling module 'sample_get_p'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1519)
-Compiling module 'audioclk_gen'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1466)
-Compiling module 'sync_audio'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1497)
-Compiling module 'delay(DELAY=2)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1017)
-Compiling module 'interface_alt_select'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1034)
-Compiling module 'USB_Device_Controller_Top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb_device_controller/usb_device_controller.v":6849)
-Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb_device_controller/usb_device_controller.v":6848)
-Compiling module 'usb_desc(VENDORID=16'h374E,PRODUCTID=16'h013f,VERSIONBCD=16'h0200,HSSUPPORT=1)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":30)
-Compiling module 'USB2_0_SoftPHY_Top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":10)
-Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Extracting RAM for identifier '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-WARN  (EX3791) : Expression size ** truncated to fit in target size **("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
-Compiling module 'ctrl_uart'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1091)
-Compiling module 'ctrl_uvc'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1169)
-Compiling module 'ctrl_uac'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1285)
-Compiling module 'rgb_to_ycbcr_pipeline'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1054)
-Compiling module 'delay'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1017)
-Compiling module 'Color_Space_Convertor_Top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1967)
-Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-Compiling module 'fifo_video'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1007)
-Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1006)
-Compiling module 'UART'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":12)
-Switching to VHDL mode to elaborate design unit 'UART_TX'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":114)
-Processing 'UART_TX(FULL)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":14)
-'others' clause is never selected("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":512)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":114)
-Switching to VHDL mode to elaborate design unit 'UART_RX'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":139)
-Processing 'UART_RX(p_parity_bit="odd")(1,3)(FULL)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":14)
-'others' clause is never selected("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":492)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":139)
-Compiling module 'Fixed_Point_Divider_Top'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/fixed_point_divider/fixed_point_divider.v":1000)
-Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/fixed_point_divider/fixed_point_divider.v":999)
-Compiling module 'usb_cdc_tx_mux'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/usb_cdc_tx_mux.sv":4)
-Compiling module 'usb_fifo'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":61)
-Compiling module 'usb_tx_buf(P_ENDPOINT=3,P_ASIZE=4'd12)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1253)
-Compiling module 'clk_cross_fifo(ASIZE=4,AFULL=8)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1543)
-Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1589)
-Compiling module 'sync_tx_pkt_fifo(ASIZE=4'b1100)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v":22)
-Extracting RAM for identifier 'RAM'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v":46)
-Compiling module 'usb_rx_buf(P_ENDPOINT=3,P_AFULL=13'd2048,P_ASIZE=4'd12)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1380)
-Compiling module 'sync_rx_pkt_fifo(ASIZE=4'b1100)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v":22)
-Extracting RAM for identifier 'RAM'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v":46)
-Compiling module 'clk_cross_fifo'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1543)
-Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1589)
-WARN  (EX1998) : Net 'serial[63]' does not have a driver("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":414)
-Compiling module 'adc_wrap'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/adc_wrap.v":3)
-Compiling module 'Gowin_ADC'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/gowin_adc/gowin_adc.v":10)
-Compiling module 'system_monitor'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":3)
-WARN  (EX3791) : Expression size 14 truncated to fit in target size 4("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":295)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":297)
-WARN  (EX3791) : Expression size 9 truncated to fit in target size 4("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":312)
-WARN  (EX3791) : Expression size 5 truncated to fit in target size 4("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":322)
-WARN  (EX3791) : Expression size 10 truncated to fit in target size 9("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":481)
-Compiling module 'system_monitor_arbiter(NUM_CH=14)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/system_monitor_arbiter.sv":2)
-Compiling module 'uart_packet_wrapper_tx'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":2)
-Compiling module 'uart_packet_wrapper_rx'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/BSP/uart_packet_wrapper_rx.sv":2)
-Compiling module 'core_reload'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/core_reload.sv":3)
-Compiling module 'UART2(CLK_FREQ=30'd8388608)'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart.v":12)
-Switching to VHDL mode to elaborate design unit 'UART_TX'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart.v":114)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart.v":114)
-Switching to VHDL mode to elaborate design unit 'UART_RX'("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart.v":139)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart/uart.v":139)
-WARN  (EX1998) : Net 'voltageSim[0]' does not have a driver("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":155)
-WARN  (EX2565) : Input 'UART_CTS' on this instance is undriven. Assigning to 0, simulation mismatch possible. Please assign the input or remove the declaration("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":1528)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/fifo1k/fifo1k.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/gowin_adc/gowin_adc.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v'
+WARN  (EX3801) : Parameter 'CLK_DIV_2N' becomes localparam in 'ST7785_init' with formal parameter declaration list("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":14)
+WARN  (EX2478) : Non-net output port 'clk_out' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":176)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/adc_wrap.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/aud_system_top_8_16.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/button_debounce.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_bus_owner_mux.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_maintenance_cdc.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_maintenance_engine.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_usb_streamer.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/virtual_cart_session_cdc.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/virtual_cart_rtc_cdc.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/gb_burst_write.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mem_system_top.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/maintenance_video_mux.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/maintenance_video_source.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mm_burst_write.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mpmc.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/polling_master_8_16.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/qspi_slave.v'
+WARN  (EX2478) : Non-net output port 'qCartReadAddress' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/qspi_slave.v":15)
+WARN  (EX2478) : Non-net output port 'qAddress' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/qspi_slave.v":30)
+WARN  (EX2478) : Non-net output port 'qLength' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/qspi_slave.v":31)
+WARN  (EX2478) : Non-net output port 'qCommand' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/qspi_slave.v":32)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv'
+WARN  (EX2478) : Non-net output port 'LCD_BACKLIGHT_INIT' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":29)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/system_monitor_arbiter.sv'
+WARN  (EX2478) : Non-net output port 'tx_address' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/system_monitor_arbiter.sv":15)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/tlv320_init.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/fixed_point_divider/fixed_point_divider.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/usb_uart_config.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/uart_packet_wrapper_rx.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/usb_cdc_tx_mux.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_tpg.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/EMU/virtual_cart_cache.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_audio_bridge.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv'
+WARN  (EX2478) : Non-net output port 'state_frozen' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":23)
+WARN  (EX2478) : Non-net output port 'cart_dirty' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":34)
+WARN  (EX2478) : Non-net output port 'cart_q' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":34)
+WARN  (EX2478) : Non-net output port 'cart_written' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":35)
+WARN  (EX2478) : Non-net output port 'cart_snapshot' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":35)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_state_clock.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv'
+WARN  (EX2478) : Non-net output port 'block_ready' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":24)
+WARN  (EX2478) : Non-net output port 'block_ready_sequence' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":24)
+WARN  (EX2478) : Non-net output port 'fault' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":25)
+WARN  (EX2478) : Non-net output port 'loaded' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":25)
+WARN  (EX2478) : Non-net output port 'state_request' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":26)
+WARN  (EX2478) : Non-net output port 'state_release' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":26)
+WARN  (EX2478) : Non-net output port 'state_apply' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":26)
+WARN  (EX2478) : Non-net output port 'state_in' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":27)
+WARN  (EX2478) : Non-net output port 'mem_select' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":28)
+WARN  (EX2478) : Non-net output port 'mem_address' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":28)
+WARN  (EX2478) : Non-net output port 'mem_write' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":28)
+WARN  (EX2478) : Non-net output port 'mem_data' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":29)
+WARN  (EX2478) : Non-net output port 'cache_invalidate' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":32)
+WARN  (EX2478) : Non-net output port 'rom_address' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":32)
+WARN  (EX2478) : Non-net output port 'rom_read' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":32)
+WARN  (EX2478) : Non-net output port 'boot_hold' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":37)
+WARN  (EX2478) : Non-net output port 'cart_dirty_clear' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":37)
+WARN  (EX2478) : Non-net output port 'imported' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":38)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_launch_status.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_rom_bridge.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_video_bridge.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/emu_system_top.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/generated/video.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheatcodes.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v'
+Undeclared symbol 'cen_16', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":63)
+WARN  (EX3638) : 'cen_16' is already implicitly declared on line 63("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":81)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_mixer.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_noise.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_vol.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv'
+WARN  (EX2478) : Non-net output port 'code_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":8)
+WARN  (EX2478) : Non-net output port 'clear_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":9)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/MC8123.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/parts.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/EMU/cartridge_interface.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":3)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":3)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uvc_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":4)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":4)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uac_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":5)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":5)
+Undeclared symbol 'g_rdy', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1506)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/Gowin_PLL_UVC/Gowin_PLL_UVC.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_defs.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":25)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":25)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uvc_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":26)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":26)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uac_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":27)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":27)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uart_defs.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":28)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":28)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/uvc_defs.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb_device_controller/usb_device_controller.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v'
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_name.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":4)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":4)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":5)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":5)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_name.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v'
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_name.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Analyzing included file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Back to file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Undeclared symbol 'reset_stop', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Undeclared symbol 'reset_calib', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Undeclared symbol 'ready', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Undeclared symbol 'sclk', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Undeclared symbol 'tx_en', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/static_macro_define.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v'
+Undeclared symbol 'c_fifo_empty', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1312)
+Undeclared symbol 'pkt_fifo_rd_pktfin', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1343)
+Undeclared symbol 'pkt_fifo_rd_act', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1344)
+Undeclared symbol 'pkt_fifo_empty', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1448)
+Undeclared symbol 'c_fifo_empty', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1493)
+Undeclared symbol 'arempty_val', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1647)
+Undeclared symbol 'awfull_val', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1681)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/gowin_pll_preevt/gowin_pll.v'
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v'
+Undeclared symbol 'virtual_enable_g', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":262)
+Undeclared symbol 'virtual_start_pending_g', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":262)
+Undeclared symbol 'core_reload_hold_g', assumed default net type 'wire'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":262)
+WARN  (EX3638) : 'core_reload_hold_g' is already implicitly declared on line 262("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":265)
+WARN  (EX3638) : 'virtual_enable_g' is already implicitly declared on line 262("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":475)
+WARN  (EX3638) : 'virtual_start_pending_g' is already implicitly declared on line 262("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":476)
+Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/core_reload.sv'
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd'
+Analyzing entity 'psramcontroller'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd":78)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd'
+Analyzing package 'pmultiportpsram'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":9)
+Analyzing entity 'multiportramctrl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":35)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":67)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd'
+Analyzing entity 'psrambist_burst'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd":32)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd'
+Analyzing entity 'overlaybatteryback'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":14)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd'
+Analyzing entity 'overlaybatteryfront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":14)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd'
+Analyzing entity 'overlaydebug'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":15)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd'
+Analyzing entity 'overlaytimerback'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":14)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd'
+Analyzing entity 'overlaytimerfront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":14)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd'
+Analyzing entity 'overlaytimernumber'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":5)
+Analyzing architecture 'arch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":15)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd'
+Analyzing entity 'uart_rx'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":14)
+Analyzing architecture 'full'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":37)
+Analyzing VHDL file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd'
+Analyzing entity 'uart_tx'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":14)
+Analyzing architecture 'full'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":37)
+Compiling module 'top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":3)
+Compiling module 'Gowin_PLL'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/gowin_pll_preevt/gowin_pll.v":10)
+WARN  (EX3791) : Expression size 15 truncated to fit in target size 14("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":189)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 14("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":194)
+Compiling module 'gg_cheat_loader'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":4)
+Compiling module 'maintenance_video_mux'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/maintenance_video_mux.sv":4)
+Compiling module 'maintenance_video_source'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/maintenance_video_source.sv":4)
+Compiling module 'vid_system_top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":3)
+Compiling module 'ST7785_init'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":3)
+Extracting RAM for identifier 'sets'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":57)
+Compiling module 'clock_div(DIV_2N=6)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":168)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":201)
+WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":111)
+Switching to VHDL mode to elaborate design unit 'overlayBatteryFront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":200)
+Processing 'overlayBatteryFront(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":200)
+Switching to VHDL mode to elaborate design unit 'overlayBatteryBack'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":207)
+Processing 'overlayBatteryBack(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":207)
+Switching to VHDL mode to elaborate design unit 'overlayTimerFront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":214)
+Processing 'overlayTimerFront(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":214)
+Switching to VHDL mode to elaborate design unit 'overlayTimerBack'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":221)
+Processing 'overlayTimerBack(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":221)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":326)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":338)
+Switching to VHDL mode to elaborate design unit 'overlayTimerNumber'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":359)
+Processing 'overlayTimerNumber(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":359)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":363)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":373)
+Switching to VHDL mode to elaborate design unit 'overlayDebug'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":392)
+Processing 'overlayDebug(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":392)
+Compiling module 'color_correction'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":477)
+WARN  (EX3791) : Expression size 12 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":499)
+WARN  (EX3791) : Expression size 9 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":500)
+WARN  (EX3791) : Expression size 11 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":501)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 16("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":505)
+Compiling module 'ST7785_panel_master'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":1)
+Compiling module 'panel_line_bank'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":287)
+Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":289)
+Compiling module 'aud_system_top_8_16'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/aud_system_top_8_16.sv":3)
+Compiling module 'tlv320_init'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/tlv320_init.v":4)
+Extracting RAM for identifier 'tlv320regs'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/tlv320_init.v":26)
+Compiling module 'polling_master_8_16'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/polling_master_8_16.v":21)
+Compiling module 'i2c_master_8_16(DATA_WIDTH=8)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":22)
+WARN  (EX3791) : Expression size 17 truncated to fit in target size 16("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":129)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":205)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":282)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":316)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":363)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":397)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":453)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":494)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/i2c_master_8_16.sv":526)
+Compiling module 'mem_system_top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":3)
+Switching to VHDL mode to elaborate design unit 'MultiPortRamCtrl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":155)
+Processing 'MultiPortRamCtrl(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/MultiPortRamCtrl.vhd":35)
+Processing 'PSRAMController(0,10)(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMController.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":155)
+Switching to VHDL mode to elaborate design unit 'PSRAMBIST_Burst'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":179)
+Processing 'PSRAMBIST_Burst(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/PSRAMBIST_Burst.vhd":5)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mem_system_top.sv":179)
+Compiling module 'QSPI_Slave'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/qspi_slave.v":3)
+Compiling module 'mm_burst_write'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/mm_burst_write.v":4)
+Compiling module 'fifo1k'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/fifo1k/fifo1k.v":593)
+Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/fifo1k/fifo1k.v":592)
+Compiling module 'mm_burst_read_to_stream(base_pointer=23'h10000)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":6)
+Extracting RAM for identifier 'lineRam'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":29)
+WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":120)
+Compiling module 'mm_burst_read_to_stream'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":6)
+Extracting RAM for identifier 'lineRam'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":29)
+WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/mm_burst_read_to_stream.v":120)
+Compiling module 'gb_burst_write'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/gb_burst_write.v":4)
+Compiling module 'button_debouncer'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/button_debounce.v":1)
+WARN  (EX3791) : Expression size 16 truncated to fit in target size 15("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/button_debounce.v":22)
+WARN  (EX3791) : Expression size 16 truncated to fit in target size 15("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/button_debounce.v":32)
+Compiling module 'virtual_cart_session_cdc'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/virtual_cart_session_cdc.sv":4)
+Compiling module 'gg_launch_status'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_launch_status.sv":2)
+Compiling module 'cartridge_interface'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/EMU/cartridge_interface.v":3)
+Compiling module 'cart_bus_owner_mux'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_bus_owner_mux.sv":3)
+Compiling module 'cart_maintenance_engine'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_maintenance_engine.sv":4)
+Compiling module 'cart_usb_streamer'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_usb_streamer.sv":4)
+Compiling module 'cart_maintenance_cdc'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/cart_maintenance_cdc.sv":4)
+Compiling module 'gowin_dpb_cache_byte'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/EMU/virtual_cart_cache.sv":686)
+Compiling module 'emu_system_top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/emu_system_top.v":3)
+Compiling module 'gg_rom_bridge'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_rom_bridge.sv":10)
+Extracting RAM for identifier 'tags'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_rom_bridge.sv":28)
+Extracting RAM for identifier 'cmem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_rom_bridge.sv":29)
+Compiling module 'gg_board_core'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":2)
+Extracting RAM for identifier 'ram'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":109)
+Extracting RAM for identifier 'nvram'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_board_core.sv":113)
+Compiling module 'gg_state_clock'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_state_clock.sv":5)
+WARN  (EX3791) : Expression size 6 truncated to fit in target size 5("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_state_clock.sv":21)
+Compiling module 'system'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":78762)
+Compiling module 'mapper_detect_Bbehavioral'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":75901)
+Extracting RAM for identifier 'n2227'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":78557)
+Compiling module 'evolution_mapper_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":74618)
+Compiling module 'CODES'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheatcodes.sv":10)
+Extracting RAM for identifier 'codes'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheatcodes.sv":31)
+Compiling module 't80s_Brtl_0_0_1'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":74358)
+Compiling module 't80_Brtl_0_1_0_1_2_3_4_5_6_7'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":59766)
+Compiling module 't80_mcode_Brtl_0_0_1_2_3_4_5_6_7'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":9402)
+Compiling module 't80_alu_Brtl_0_0_1_2_3_4_5_6_7'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":7874)
+Compiling module 't80_reg_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":7415)
+Compiling module 'vdp_Bbehavioral_7'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":71556)
+Compiling module 'vdp_main_Bbehavioral_7'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":58943)
+Compiling module 'vdp_background_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":4436)
+Compiling module 'vdp_sprites_Bbehavioral_7'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":283)
+Compiling module 'vpd_sprite_shifter_Bbehavioral'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":1)
+Compiling module 'dpram_Bprototype_15_8_f8d0212558df9752eb44381ca87663907f59d33e'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":26128)
+Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":26158)
+Compiling module 'vdp_cram_Bbehavioral'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":25169)
+Compiling module 'jt89'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":33)
+Compiling module 'jt89_mixer'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_mixer.v":22)
+Compiling module 'jt89_tone'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":25)
+Compiling module 'jt89_vol'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_vol.v":25)
+Compiling module 'jt89_noise'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_noise.v":25)
+Compiling module 'audiomix_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":71390)
+Compiling module 'io_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":68119)
+Compiling module 'evolution_rom_address_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":67351)
+Compiling module 'MC8123_rom_decrypt'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/MC8123.v":4)
+Compiling module 'SEGASYS1_DECT2'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":104)
+Compiling module 'DLROM(AW=7,DW=8)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/parts.v":3)
+Extracting RAM for identifier 'core'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/parts.v":15)
+WARN  (EX3670) : Actual bit length 25 differs from formal bit length 7 for port 'AD1'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":164)
+WARN  (EX3670) : Actual bit length 25 differs from formal bit length 7 for port 'AD1'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":165)
+Compiling module 'cart_eeprom_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":67019)
+Compiling module 'eeprom_93c46_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":23764)
+Compiling module 'memory_bus_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":66668)
+Compiling module 'memory_decode_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":66208)
+Compiling module 'mapper_ctrl_Brtl'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":63977)
+Compiling module 'video'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/generated/video.v":1)
+Compiling module 'gg_state_engine'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_state_engine.sv":20)
+Compiling module 'gowin_dpb_snapshot'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/EMU/virtual_cart_cache.sv":632)
+Compiling module 'gg_video_bridge'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_video_bridge.sv":21)
+Extracting RAM for identifier 'acc'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_video_bridge.sv":105)
+Compiling module 'gg_async_fifo'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv":6)
+Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv":10)
+Compiling module 'gg_audio_bridge'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_audio_bridge.sv":2)
+Compiling module 'gg_audio_lpf'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv":5)
+Compiling module 'gg_audio_lpf_ch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv":22)
+Compiling module 'usbuvcuart_top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":11)
+Compiling module 'Gowin_PLL_UVC'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/Gowin_PLL_UVC/Gowin_PLL_UVC.v":10)
+Compiling module 'usbuac_ep'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1364)
+Compiling module 'sample_get_p'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1519)
+Compiling module 'audioclk_gen'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1466)
+Compiling module 'sync_audio'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1497)
+Compiling module 'delay(DELAY=2)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1017)
+Compiling module 'interface_alt_select'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1034)
+Compiling module 'USB_Device_Controller_Top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb_device_controller/usb_device_controller.v":6849)
+Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb_device_controller/usb_device_controller.v":6848)
+Compiling module 'usb_desc(VENDORID=16'h374E,PRODUCTID=16'h013f,VERSIONBCD=16'h0200,HSSUPPORT=1)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usb_video/usb_descriptor_video.v":30)
+Compiling module 'USB2_0_SoftPHY_Top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_top.v":10)
+Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Extracting RAM for identifier '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+WARN  (EX3791) : Expression size ** truncated to fit in target size **("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/usb2_0_softphy/usb2_0_softphy_encryption.v":4192)
+Compiling module 'ctrl_uart'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1091)
+Compiling module 'ctrl_uvc'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1169)
+Compiling module 'ctrl_uac'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1285)
+Compiling module 'rgb_to_ycbcr_pipeline'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1054)
+Compiling module 'delay'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1017)
+Compiling module 'Color_Space_Convertor_Top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1967)
+Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+Compiling module 'fifo_video'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1007)
+Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1006)
+Compiling module 'UART'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":12)
+Switching to VHDL mode to elaborate design unit 'UART_TX'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":114)
+Processing 'UART_TX(FULL)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":14)
+'others' clause is never selected("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_tx.vhd":512)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":114)
+Switching to VHDL mode to elaborate design unit 'UART_RX'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":139)
+Processing 'UART_RX(p_parity_bit="odd")(1,3)(FULL)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":14)
+'others' clause is never selected("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart_rx.vhd":492)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/uart/uart.v":139)
+Compiling module 'Fixed_Point_Divider_Top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/fixed_point_divider/fixed_point_divider.v":1000)
+Compiling module '**'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/fixed_point_divider/fixed_point_divider.v":999)
+Compiling module 'usb_cdc_tx_mux'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/usb_cdc_tx_mux.sv":4)
+Compiling module 'usb_fifo'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":61)
+Compiling module 'usb_tx_buf(P_ENDPOINT=3,P_ASIZE=4'd12)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1253)
+Compiling module 'clk_cross_fifo(ASIZE=4,AFULL=8)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1543)
+Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1589)
+Compiling module 'sync_tx_pkt_fifo(ASIZE=4'b1100)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v":22)
+Extracting RAM for identifier 'RAM'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_tx_pkt_fifo.v":46)
+Compiling module 'usb_rx_buf(P_ENDPOINT=3,P_AFULL=13'd2048,P_ASIZE=4'd12)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1380)
+Compiling module 'sync_rx_pkt_fifo(ASIZE=4'b1100)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v":22)
+Extracting RAM for identifier 'RAM'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/sync_rx_pkt_fifo.v":46)
+Compiling module 'clk_cross_fifo'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1543)
+Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/sync_fifo/usb_fifo.v":1589)
+WARN  (EX1998) : Net 'serial[63]' does not have a driver("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":414)
+Compiling module 'adc_wrap'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/adc_wrap.v":3)
+Compiling module 'Gowin_ADC'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/gowin_adc/gowin_adc.v":10)
+Compiling module 'system_monitor'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":3)
+WARN  (EX3791) : Expression size 14 truncated to fit in target size 4("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":295)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":297)
+WARN  (EX3791) : Expression size 9 truncated to fit in target size 4("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":312)
+WARN  (EX3791) : Expression size 5 truncated to fit in target size 4("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":322)
+WARN  (EX3791) : Expression size 10 truncated to fit in target size 9("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/system_monitor.sv":481)
+Compiling module 'system_monitor_arbiter(NUM_CH=14)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/system_monitor_arbiter.sv":2)
+Compiling module 'uart_packet_wrapper_tx'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":2)
+Compiling module 'uart_packet_wrapper_rx'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/uart_packet_wrapper_rx.sv":2)
+Compiling module 'core_reload'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/core_reload.sv":3)
+Compiling module 'UART2(CLK_FREQ=30'd8388608)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":12)
+Switching to VHDL mode to elaborate design unit 'UART_TX'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":114)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":114)
+Switching to VHDL mode to elaborate design unit 'UART_RX'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":139)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":139)
+WARN  (EX1998) : Net 'voltageSim[0]' does not have a driver("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":155)
+WARN  (EX2565) : Input 'UART_CTS' on this instance is undriven. Assigning to 0, simulation mismatch possible. Please assign the input or remove the declaration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":1529)
 NOTE  (EX0101) : Current top module is "top"
-WARN  (EX0211) : The output port "slideOutActive" of module "vid_system_top" has no driver, assigning undriven bits to Z, simulation mismatch possible("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":12)
-WARN  (EX0211) : The output port "hValid" of module "vid_system_top" has no driver, assigning undriven bits to Z, simulation mismatch possible("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":52)
+WARN  (EX0211) : The output port "slideOutActive" of module "vid_system_top" has no driver, assigning undriven bits to Z, simulation mismatch possible("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":12)
+WARN  (EX0211) : The output port "hValid" of module "vid_system_top" has no driver, assigning undriven bits to Z, simulation mismatch possible("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":52)
 [5%] Running netlist conversion ...
-WARN  (CV0016) : Input CART_AUDIN is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":35)
-WARN  (CV0016) : Input CLK_27MHz is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":38)
-WARN  (CV0016) : Input I2S_WS is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":50)
-WARN  (CV0016) : Input I2S_DIN is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":51)
-WARN  (CV0016) : Input I2S_DOUT is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":52)
-WARN  (CV0016) : Input IR_RX is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":70)
-WARN  (CV0016) : Input LCD_TE is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":83)
-WARN  (CV0016) : Input LINK_IN is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":87)
-WARN  (CV0016) : Input LINK_SD is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":89)
-WARN  (CV0016) : Input VERSION_DET2 is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":113)
-WARN  (CV0016) : Input DISPLAY_ID is unused("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":114)
+WARN  (CV0016) : Input CART_AUDIN is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":35)
+WARN  (CV0016) : Input CLK_27MHz is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":38)
+WARN  (CV0016) : Input I2S_WS is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":50)
+WARN  (CV0016) : Input I2S_DIN is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":51)
+WARN  (CV0016) : Input I2S_DOUT is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":52)
+WARN  (CV0016) : Input IR_RX is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":70)
+WARN  (CV0016) : Input LCD_TE is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":83)
+WARN  (CV0016) : Input LINK_IN is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":87)
+WARN  (CV0016) : Input LINK_SD is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":89)
+WARN  (CV0016) : Input VERSION_DET2 is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":113)
+WARN  (CV0016) : Input DISPLAY_ID is unused("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":114)
 Running device independent optimization ...
-WARN  (DI0002) : Initial value found on instance "cart_uart_idle_count[4]" will be ignored("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":30)
-WARN  (DI0002) : Initial value found on instance "cart_uart_idle_count[6]" will be ignored("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":30)
-WARN  (DI0002) : Initial value found on instance "clear_x" will be ignored("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_cheat_loader.sv":51)
-WARN  (DI0002) : Initial value found on instance "memrst" will be ignored("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":497)
+WARN  (DI0002) : Initial value found on instance "cart_uart_idle_count[4]" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":30)
+WARN  (DI0002) : Initial value found on instance "cart_uart_idle_count[6]" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":30)
+WARN  (DI0002) : Initial value found on instance "clear_x" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":51)
+WARN  (DI0002) : Initial value found on instance "memrst" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":497)
 [10%] Optimizing Phase 0 completed
 [15%] Optimizing Phase 1 completed
 [25%] Optimizing Phase 2 completed
@@ -431,76 +432,76 @@ Running technical mapping ...
 [75%] Tech-Mapping Phase 2 completed
 [80%] Tech-Mapping Phase 3 completed
 [90%] Tech-Mapping Phase 4 completed
-WARN  (NL0002) : The module "cart_bus_owner_mux" instantiated to "u_cart_bus_owner_mux" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/top.v":1184)
-WARN  (NL0002) : The module "evolution_mapper_Brtl" instantiated to "evolution_mapper_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":80041)
-WARN  (NL0002) : The module "evolution_rom_address_Brtl" instantiated to "evolution_rom_address_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":80796)
-WARN  (NL0002) : The module "MC8123_rom_decrypt" instantiated to "mc8123_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":80805)
-WARN  (NL0002) : The module "memory_bus_Brtl" instantiated to "memory_bus_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":80869)
-WARN  (NL0002) : The module "memory_decode_Brtl" instantiated to "memory_decode_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":81344)
-WARN  (NL0002) : The module "jt89" instantiated to "psg2_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":80238)
-WARN  (NL0002) : The module "jt89_mixer" instantiated to "mix" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":72)
-WARN  (NL0002) : The module "jt89_noise" instantiated to "u_noise" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":201)
-WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_noise.v":53)
-WARN  (NL0002) : The module "jt89_tone" instantiated to "u_tone0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":159)
-WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":52)
-WARN  (NL0002) : The module "jt89_tone" instantiated to "u_tone1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":172)
-WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":52)
-WARN  (NL0002) : The module "jt89_tone" instantiated to "u_tone2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":187)
-WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":52)
-WARN  (NL0002) : The module "SEGASYS1_DECT2" instantiated to "segadect2_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":80819)
-WARN  (NL0002) : The module "DLROM" instantiated to "swpt" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":165)
-WARN  (NL0002) : The module "DLROM" instantiated to "xort" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":164)
-WARN  (NL0002) : The module "vdp_cram_Bbehavioral" instantiated to "vdp_cram_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":72599)
-WARN  (NL0002) : The module "vdp_main_Bbehavioral_7" instantiated to "vdp_main_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":72560)
-WARN  (NL0002) : The module "vdp_background_Brtl" instantiated to "vdp_bg_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":59326)
-WARN  (NL0002) : The module "vdp_sprites_Bbehavioral_7" instantiated to "vdp_spr_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":59351)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[0]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":1581)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[1]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":1667)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[2]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":1753)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[3]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":1839)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[4]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":1925)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[5]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":2011)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[6]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":2097)
-WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[7]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":2183)
-WARN  (NL0002) : The module "dpram_Bprototype_15_8_f8d0212558df9752eb44381ca87663907f59d33e" instantiated to "vdp_vram_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/gg_system.v":72584)
-WARN  (NL0002) : The module "usbuac_ep" instantiated to "audio_ep" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":222)
-WARN  (NL0002) : The module "sample_get_p" instantiated to "usb_sam" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1423)
-WARN  (NL0002) : The module "audioclk_gen" instantiated to "g_ab" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1531)
-WARN  (NL0002) : The module "sync_audio" instantiated to "sa" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1538)
-WARN  (NL0002) : The module "delay" instantiated to "sync_g" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1506)
-WARN  (NL0002) : The module "rgb_to_ycbcr_pipeline" instantiated to "convert" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":806)
-WARN  (NL0002) : The module "delay" instantiated to "hs" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1072)
-WARN  (NL0002) : The module "Color_Space_Convertor_Top" instantiated to "rgb2yuv" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1087)
-WARN  (NL0002) : The module "~csc_wrapper.Color_Space_Convertor_Top" instantiated to "csc_wrapper_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":2003)
-WARN  (NL0002) : The module "~csc_core.Color_Space_Convertor_Top" instantiated to "csc_core_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top" instantiated to "loop1[0].gw_mult_inst0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_0" instantiated to "loop1[0].gw_mult_inst1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_1" instantiated to "loop1[0].gw_mult_inst2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_2" instantiated to "loop1[1].gw_mult_inst0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_3" instantiated to "loop1[1].gw_mult_inst1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_4" instantiated to "loop1[1].gw_mult_inst2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_5" instantiated to "loop1[2].gw_mult_inst0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_6" instantiated to "loop1[2].gw_mult_inst1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_7" instantiated to "loop1[2].gw_mult_inst2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
-WARN  (NL0002) : The module "delay" instantiated to "vs" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1073)
-WARN  (NL0002) : The module "ctrl_uac" instantiated to "uac_if_ctrl" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":628)
-WARN  (NL0002) : The module "interface_alt_select" instantiated to "uac_interface" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":342)
-WARN  (NL0002) : The module "fifo_video" instantiated to "uvc_fifo" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":839)
-WARN  (NL0002) : The module "~fifo.fifo_video" instantiated to "fifo_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1052)
-WARN  (NL0002) : The module "ctrl_uvc" instantiated to "uvc_if_ctrl" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":610)
-WARN  (NL0002) : The module "interface_alt_select" instantiated to "uvc_interface" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":334)
-WARN  (NL0002) : The module "overlayBatteryBack" instantiated to "u_overlayBatteryBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":202)
-WARN  (NL0002) : The module "overlayBatteryFront" instantiated to "u_overlayBatteryFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":195)
-WARN  (NL0002) : The module "overlayDebug" instantiated to "u_overlayDebug" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":386)
-WARN  (NL0002) : The module "overlayTimerBack" instantiated to "u_overlayTimerBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":216)
-WARN  (NL0002) : The module "overlayTimerFront" instantiated to "u_overlayTimerFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":209)
-WARN  (NL0002) : The module "overlayTimerNumber" instantiated to "u_overlayTimerNumber" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/esp32t/src/rtl/BSP/vid_system_top.v":353)
-[95%] Generate netlist file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg" completed
+WARN  (NL0002) : The module "cart_bus_owner_mux" instantiated to "u_cart_bus_owner_mux" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":1184)
+WARN  (NL0002) : The module "evolution_mapper_Brtl" instantiated to "evolution_mapper_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":80041)
+WARN  (NL0002) : The module "evolution_rom_address_Brtl" instantiated to "evolution_rom_address_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":80796)
+WARN  (NL0002) : The module "MC8123_rom_decrypt" instantiated to "mc8123_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":80805)
+WARN  (NL0002) : The module "memory_bus_Brtl" instantiated to "memory_bus_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":80869)
+WARN  (NL0002) : The module "memory_decode_Brtl" instantiated to "memory_decode_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":81344)
+WARN  (NL0002) : The module "jt89" instantiated to "psg2_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":80238)
+WARN  (NL0002) : The module "jt89_mixer" instantiated to "mix" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":72)
+WARN  (NL0002) : The module "jt89_noise" instantiated to "u_noise" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":201)
+WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_noise.v":53)
+WARN  (NL0002) : The module "jt89_tone" instantiated to "u_tone0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":159)
+WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":52)
+WARN  (NL0002) : The module "jt89_tone" instantiated to "u_tone1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":172)
+WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":52)
+WARN  (NL0002) : The module "jt89_tone" instantiated to "u_tone2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89.v":187)
+WARN  (NL0002) : The module "jt89_vol" instantiated to "u_vol" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v":52)
+WARN  (NL0002) : The module "SEGASYS1_DECT2" instantiated to "segadect2_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":80819)
+WARN  (NL0002) : The module "DLROM" instantiated to "swpt" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":165)
+WARN  (NL0002) : The module "DLROM" instantiated to "xort" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v":164)
+WARN  (NL0002) : The module "vdp_cram_Bbehavioral" instantiated to "vdp_cram_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":72599)
+WARN  (NL0002) : The module "vdp_main_Bbehavioral_7" instantiated to "vdp_main_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":72560)
+WARN  (NL0002) : The module "vdp_background_Brtl" instantiated to "vdp_bg_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":59326)
+WARN  (NL0002) : The module "vdp_sprites_Bbehavioral_7" instantiated to "vdp_spr_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":59351)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[0]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":1581)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[1]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":1667)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[2]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":1753)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[3]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":1839)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[4]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":1925)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[5]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":2011)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[6]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":2097)
+WARN  (NL0002) : The module "vpd_sprite_shifter_Bbehavioral" instantiated to "shifters[7]_shifter" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":2183)
+WARN  (NL0002) : The module "dpram_Bprototype_15_8_f8d0212558df9752eb44381ca87663907f59d33e" instantiated to "vdp_vram_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_system.v":72584)
+WARN  (NL0002) : The module "usbuac_ep" instantiated to "audio_ep" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":222)
+WARN  (NL0002) : The module "sample_get_p" instantiated to "usb_sam" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1423)
+WARN  (NL0002) : The module "audioclk_gen" instantiated to "g_ab" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1531)
+WARN  (NL0002) : The module "sync_audio" instantiated to "sa" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1538)
+WARN  (NL0002) : The module "delay" instantiated to "sync_g" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1506)
+WARN  (NL0002) : The module "rgb_to_ycbcr_pipeline" instantiated to "convert" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":806)
+WARN  (NL0002) : The module "delay" instantiated to "hs" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1072)
+WARN  (NL0002) : The module "Color_Space_Convertor_Top" instantiated to "rgb2yuv" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1087)
+WARN  (NL0002) : The module "~csc_wrapper.Color_Space_Convertor_Top" instantiated to "csc_wrapper_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":2003)
+WARN  (NL0002) : The module "~csc_core.Color_Space_Convertor_Top" instantiated to "csc_core_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top" instantiated to "loop1[0].gw_mult_inst0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_0" instantiated to "loop1[0].gw_mult_inst1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_1" instantiated to "loop1[0].gw_mult_inst2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_2" instantiated to "loop1[1].gw_mult_inst0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_3" instantiated to "loop1[1].gw_mult_inst1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_4" instantiated to "loop1[1].gw_mult_inst2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_5" instantiated to "loop1[2].gw_mult_inst0" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_6" instantiated to "loop1[2].gw_mult_inst1" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "~gw_mult.Color_Space_Convertor_Top_7" instantiated to "loop1[2].gw_mult_inst2" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/color_space_convertor/color_space_convertor.v":1966)
+WARN  (NL0002) : The module "delay" instantiated to "vs" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1073)
+WARN  (NL0002) : The module "ctrl_uac" instantiated to "uac_if_ctrl" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":628)
+WARN  (NL0002) : The module "interface_alt_select" instantiated to "uac_interface" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":342)
+WARN  (NL0002) : The module "fifo_video" instantiated to "uvc_fifo" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":839)
+WARN  (NL0002) : The module "~fifo.fifo_video" instantiated to "fifo_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1052)
+WARN  (NL0002) : The module "ctrl_uvc" instantiated to "uvc_if_ctrl" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":610)
+WARN  (NL0002) : The module "interface_alt_select" instantiated to "uvc_interface" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":334)
+WARN  (NL0002) : The module "overlayBatteryBack" instantiated to "u_overlayBatteryBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":202)
+WARN  (NL0002) : The module "overlayBatteryFront" instantiated to "u_overlayBatteryFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":195)
+WARN  (NL0002) : The module "overlayDebug" instantiated to "u_overlayDebug" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":386)
+WARN  (NL0002) : The module "overlayTimerBack" instantiated to "u_overlayTimerBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":216)
+WARN  (NL0002) : The module "overlayTimerFront" instantiated to "u_overlayTimerFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":209)
+WARN  (NL0002) : The module "overlayTimerNumber" instantiated to "u_overlayTimerNumber" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":353)
+[95%] Generate netlist file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg" completed
 WARN  (CK3000) : Can't calculate clocks' relationship between: "u_Gowin_PLL/PLLA_inst/CLKOUT4.default_gen_clk" and "QSPI_CLK"
 WARN  (CK3000) : Can't calculate clocks' relationship between: "QSPI_CLK" and "u_Gowin_PLL/PLLA_inst/CLKOUT4.default_gen_clk"
 WARN  (CK3000) : Can't calculate clocks' relationship between: "u_usb_top/u_Gowin_PLL_USB/PLLA_inst/CLKOUT1.default_gen_clk" and "u_Gowin_PLL/PLLA_inst/CLKOUT3.default_gen_clk"
 WARN  (CK3000) : Can't calculate clocks' relationship between: "u_Gowin_PLL/PLLA_inst/CLKOUT3.default_gen_clk" and "QSPI_CLK"
 WARN  (CK3000) : Can't calculate clocks' relationship between: "u_Gowin_PLL/PLLA_inst/CLKOUT3.default_gen_clk" and "u_usb_top/u_Gowin_PLL_USB/PLLA_inst/CLKOUT1.default_gen_clk"
 WARN  (CK3000) : Can't calculate clocks' relationship between: "QSPI_CLK" and "u_Gowin_PLL/PLLA_inst/CLKOUT3.default_gen_clk"
-[100%] Generate report file "/Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear_syn.rpt.html" completed
+[100%] Generate report file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear_syn.rpt.html" completed
 GowinSynthesis finish
