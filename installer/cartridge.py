@@ -31,8 +31,8 @@ DIR1_MAGIC, ENTRY1_MAGIC = b'MAGICTRICKCART01', b'MTE1'
 DIR2_MAGIC, ENTRY2_MAGIC = b'MAGICTRICKCART02', b'MTE2'
 SLOTS1, SLOT1_BASE, SLOT1_SIZE = 10, 64, 96
 DIR2_HEADER, ENTRY2_SIZE = 64, 128
-SYSTEMS = {'.gg': 1, '.sms': 1, '.lnx': 2, '.lyx': 2, '.o': 2, '.gb': 0, '.gbc': 0}
-SYSTEM_NAMES = {0: 'Game Boy', 1: 'Game Gear', 2: 'Atari Lynx'}
+SYSTEMS = {'.gg': 1, '.sms': 1, '.nes': 3, '.lnx': 2, '.lyx': 2, '.o': 2, '.gb': 0, '.gbc': 0}
+SYSTEM_NAMES = {0: 'Game Boy', 1: 'Game Gear', 2: 'Atari Lynx', 3: 'NES'}
 ART_SIZE = 16 + 128 * 92 * 2         # the menu's .cma box art (library.COVER_BYTES)
 ASSETS = Path(__file__).resolve().parent / 'assets'
 

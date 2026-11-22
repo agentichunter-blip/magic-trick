@@ -99,11 +99,16 @@ int main(void) {
  assert(!strcmp(Stored,LYNX) && StoredHops==2);
  CoreSwitch_ObserveVersion(50,3);assert(CoreSwitch_IsCore(kCoreSystem_Lynx));
  assert(CoreSwitch_TakePendingHops(Path,&Hops)==ESP_OK && Hops==2 && StoredHops==-1);
- /* hop budget: a third reload is refused (no loops) */
- assert(CoreSwitch_Continue(Path,2)==ESP_ERR_INVALID_STATE);
+ /* hop budget: a fourth reload is refused (no loops) */
+ assert(CoreSwitch_Continue(Path,3)==ESP_ERR_INVALID_STATE);
  CoreSwitch_ObserveVersion(50,3);Sends=0;Expected=GG;ExpectedTarget=0;
  if(!setjmp(ResetPoint)) { (void)CoreSwitch_Request(GG);assert(false); }
- assert(CoreSwitch_NextCore(kCoreSystem_Lynx)==kCoreSystem_GB && CoreSwitch_NextCore(kCoreSystem_GG)==kCoreSystem_Lynx);
+ /* Four cores: GB -> GG -> NES -> Lynx -> GB. */
+ assert(CoreSwitch_NextCore(kCoreSystem_Lynx)==kCoreSystem_GB && CoreSwitch_NextCore(kCoreSystem_GG)==kCoreSystem_NES &&
+        CoreSwitch_NextCore(kCoreSystem_NES)==kCoreSystem_Lynx && CoreSwitch_NextCore(kCoreSystem_GB)==kCoreSystem_GG);
+ assert(CoreSwitch_SystemForPath("/x/Game.NES")==kCoreSystem_NES && CoreSwitch_SystemForPath("/x/Game.sms")==kCoreSystem_GG);
+ CoreSwitch_ObserveVersion(50,4);assert(CoreSwitch_IsCore(kCoreSystem_NES));
+ CoreSwitch_ObserveVersion(50,5);assert(!CoreSwitch_IsSupported());
  Stored[0]=0;StoredHops=-1;
  puts("PASS: durable handoff, reset consumption, no retry loops, NVS and UART failures");
 }

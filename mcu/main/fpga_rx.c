@@ -531,7 +531,7 @@ static void ProcessMessage(const RxMsg_t *const pMsg)
 
             PwrMgr_SetLPM(InLPM);
             /* Game Gear games are color games too: Color Temp tab, no palette. */
-            Style_SetGBCMode(GBCMode || CoreSwitch_IsTarget(true) || CoreSwitch_IsCore(kCoreSystem_Lynx));
+            Style_SetGBCMode(GBCMode || CoreSwitch_IsTarget(true) || CoreSwitch_IsCore(kCoreSystem_Lynx) || CoreSwitch_IsCore(kCoreSystem_NES));
             break;
         }
         case kRxCmd_Reserved:

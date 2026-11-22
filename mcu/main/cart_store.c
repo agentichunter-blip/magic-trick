@@ -1480,7 +1480,7 @@ static esp_err_t ProgramFile(FILE *pFile, uint32_t Offset, uint32_t Size, uint8_
 static bool GameName(const char *pName)
 {
     const char *pDot = strrchr(pName, '.');
-    static const char *const Extensions[] = {".gg", ".sms", ".lnx", ".lyx", ".o", ".gb", ".gbc"};
+    static const char *const Extensions[] = {".gg", ".sms", ".nes", ".lnx", ".lyx", ".o", ".gb", ".gbc"};
     for (size_t i = 0; pDot && i < sizeof(Extensions) / sizeof(Extensions[0]); ++i)
         if (!strcasecmp(pDot, Extensions[i])) return true;
     return false;
@@ -1489,7 +1489,7 @@ static bool GameName(const char *pName)
 static uint8_t SystemFor(const char *pName)
 {
     const CoreSystem_t System = CoreSwitch_SystemForPath(pName);
-    return System == kCoreSystem_GG ? 1 : System == kCoreSystem_Lynx ? 2 : 0;
+    return System == kCoreSystem_GG ? 1 : System == kCoreSystem_Lynx ? 2 : System == kCoreSystem_NES ? 3 : 0;
 }
 
 static esp_err_t AddFn(void *pContext)

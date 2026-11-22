@@ -10,6 +10,7 @@ typedef enum {
     kCoreSystem_GB = 1,   /* Game Boy / Game Boy Color, flash 0x000000 */
     kCoreSystem_GG = 2,   /* Game Gear, flash 0x100000 */
     kCoreSystem_Lynx = 3, /* Atari Lynx, flash 0x200000 */
+    kCoreSystem_NES = 4,  /* NES, flash 0x300000 */
 } CoreSystem_t;
 
 /* Only the explicitly qualified multiboot protocol advertises major 50. */
@@ -18,10 +19,10 @@ bool CoreSwitch_IsSupported(void);
 bool CoreSwitch_IsTarget(bool GameGear);
 bool CoreSwitch_IsCore(CoreSystem_t System);
 CoreSystem_t CoreSwitch_Current(void);
-/* The core a game file needs (.gg/.sms Game Gear; .lnx/.lyx/.o Lynx; else GB). */
+/* The core a game file needs (.gg/.sms Game Gear; .lnx/.lyx/.o Lynx; .nes NES; else GB). */
 CoreSystem_t CoreSwitch_SystemForPath(const char *Path);
 /* A reload boots the running image's static next slot, so the cores form a
- * cycle GB -> GG -> Lynx -> GB; reaching a core can take two reloads. */
+ * cycle GB -> GG -> NES -> Lynx -> GB; reaching a core can take three reloads. */
 CoreSystem_t CoreSwitch_NextCore(CoreSystem_t System);
 /* Caller must have saved active battery data, stopped the core, closed files,
  * released bulk transport and unmounted SD. Success resets the device. */
@@ -31,7 +32,7 @@ esp_err_t CoreSwitch_Request(const char *Path);
 esp_err_t CoreSwitch_RequestVia(const char *Path, CoreSystem_t Target);
 /* After a reload landed on an intermediate core: reload again, at most
  * kCoreSwitchMaxHops reloads per request. */
-enum { kCoreSwitchMaxHops = 2 };
+enum { kCoreSwitchMaxHops = 3 };
 esp_err_t CoreSwitch_Continue(const char *Path, uint8_t Hops);
 esp_err_t CoreSwitch_ContinueTo(const char *Path, uint8_t Hops, CoreSystem_t Target);
 /* Consume before launching, including failure paths, to prevent reboot loops. */
