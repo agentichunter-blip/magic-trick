@@ -4,6 +4,8 @@
 # restored game to replay the saved game's CPU bus, video and audio exactly.
 #   run.sh ROM.gg [warm-up cycles] [compared cycles]
 # Sonic The Hedgehog (World) (Rev 1): 1100000000 reaches Green Hill Zone.
+# Master System mode: GG_SMS=1 (GG_STRETCH=1 for the stretched picture); the
+# panel stream from the video bridge is saved as panel-*.ppm.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 core="$(cd "$here/../.." && pwd)"
@@ -12,6 +14,7 @@ mkdir -p "$out"
 verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -MAKEFLAGS "OPT_FAST=-O2" -j 8 \
  --top-module gg_ss_sim_top -Wno-fatal -Wno-lint -Wno-style --Mdir "$out/obj" \
  "$here/gg_ss_sim_top.sv" "$core/gg_board_core.sv" "$core/board-rtl/gg_state_clock.sv" \
+ "$core/board-rtl/gg_video_bridge.sv" "$core/board-rtl/gg_async_fifo.sv" \
  "$core/gg_state_engine.sv" "$core/gg_rom_bridge.sv" "$core/gg_system.v" "$core/generated/video.v" \
  "$core/gg_cheatcodes.sv" "$core"/vendor/SMS_MiSTer/rtl/jt89/*.v "$core/vendor/SMS_MiSTer/rtl/MC8123.v" \
  "$core/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v" "$core/vendor/SMS_MiSTer/rtl/parts.v" \
@@ -27,6 +30,7 @@ verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -j 8 --top-module gg_video
 verilator --cc --exe --build -CFLAGS "-std=c++17 -O2" -MAKEFLAGS "OPT_FAST=-O2" -j 8 \
  --top-module gg_ss_sim_top -Wno-fatal -Wno-lint -Wno-style --Mdir "$out/obj_cart" \
  "$here/gg_ss_sim_top.sv" "$core/gg_board_core.sv" "$core/board-rtl/gg_state_clock.sv" \
+ "$core/board-rtl/gg_video_bridge.sv" "$core/board-rtl/gg_async_fifo.sv" \
  "$core/gg_state_engine.sv" "$core/gg_rom_bridge.sv" "$core/gg_system.v" "$core/generated/video.v" \
  "$core/gg_cheatcodes.sv" "$core"/vendor/SMS_MiSTer/rtl/jt89/*.v "$core/vendor/SMS_MiSTer/rtl/MC8123.v" \
  "$core/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v" "$core/vendor/SMS_MiSTer/rtl/parts.v" \

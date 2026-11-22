@@ -19,7 +19,7 @@ static const char ViaKey[] = "via";
 
 void CoreSwitch_ObserveVersion(uint8_t Major, uint8_t Minor)
 {
-    atomic_store(&CoreIdentity, Major == 50 && Minor >= 1 && Minor <= 3 ? Minor : 0);
+    atomic_store(&CoreIdentity, Major == 50 && Minor >= 1 && Minor <= 4 ? Minor : 0);
 }
 bool CoreSwitch_IsSupported(void) { return atomic_load(&CoreIdentity) != 0; }
 CoreSystem_t CoreSwitch_Current(void) { return (CoreSystem_t)atomic_load(&CoreIdentity); }
@@ -32,12 +32,13 @@ CoreSystem_t CoreSwitch_SystemForPath(const char *Path)
     if (Extension && (!strcasecmp(Extension, ".gg") || !strcasecmp(Extension, ".sms"))) return kCoreSystem_GG;
     if (Extension && (!strcasecmp(Extension, ".lnx") || !strcasecmp(Extension, ".lyx") ||
                       !strcasecmp(Extension, ".o"))) return kCoreSystem_Lynx;
+    if (Extension && !strcasecmp(Extension, ".nes")) return kCoreSystem_NES;
     return kCoreSystem_GB;
 }
 CoreSystem_t CoreSwitch_NextCore(CoreSystem_t System)
 {
-    return System == kCoreSystem_GB ? kCoreSystem_GG : System == kCoreSystem_GG ? kCoreSystem_Lynx :
-        System == kCoreSystem_Lynx ? kCoreSystem_GB : kCoreSystem_None;
+    return System == kCoreSystem_GB ? kCoreSystem_GG : System == kCoreSystem_GG ? kCoreSystem_NES :
+        System == kCoreSystem_NES ? kCoreSystem_Lynx : System == kCoreSystem_Lynx ? kCoreSystem_GB : kCoreSystem_None;
 }
 static esp_err_t ClearPending(void)
 {
@@ -102,7 +103,7 @@ esp_err_t CoreSwitch_TakePendingTarget(char Path[LAST_GAME_PATH_SIZE], uint8_t *
     if (Result == ESP_OK && !LastGame_ValidPath(Path) && !CartStore_IsCartPath(Path)) Result = ESP_ERR_INVALID_ARG;
     if (Result != ESP_OK) Path[0] = 0;
     if (Result == ESP_OK && pTarget)
-        *pTarget = Via >= kCoreSystem_GB && Via <= kCoreSystem_Lynx ? (CoreSystem_t)Via : CoreSwitch_SystemForPath(Path);
+        *pTarget = Via >= kCoreSystem_GB && Via <= kCoreSystem_NES ? (CoreSystem_t)Via : CoreSwitch_SystemForPath(Path);
     return Result;
 }
 esp_err_t CoreSwitch_TakePending(char Path[LAST_GAME_PATH_SIZE])
@@ -111,7 +112,7 @@ esp_err_t CoreSwitch_TakePending(char Path[LAST_GAME_PATH_SIZE])
 }
 static const char *Name(CoreSystem_t System)
 {
-    return System == kCoreSystem_GG ? "GG" : System == kCoreSystem_Lynx ? "LYNX" : "GB_GBC";
+    return System == kCoreSystem_GG ? "GG" : System == kCoreSystem_Lynx ? "LYNX" : System == kCoreSystem_NES ? "NES" : "GB_GBC";
 }
 static esp_err_t Reload(const char *Path, uint8_t Hops, CoreSystem_t Target)
 {

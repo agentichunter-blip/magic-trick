@@ -18,8 +18,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 GAMES, ART, VIDEO = 'CHROMAGIC/BACKUPS', 'CHROMAGIC/ART', 'CHROMAGIC/VIDEO'
-EXTENSIONS = {'.gb': 'GB', '.gbc': 'GBC', '.gg': 'GG', '.sms': 'SMS', '.lnx': 'LYNX', '.lyx': 'LYNX'}
-SYSTEM_NAMES = {'GB': 'Game Boy', 'GBC': 'Game Boy Color', 'GG': 'Game Gear', 'SMS': 'Master System', 'LYNX': 'Lynx'}
+EXTENSIONS = {'.gb': 'GB', '.gbc': 'GBC', '.gg': 'GG', '.sms': 'SMS', '.nes': 'NES', '.lnx': 'LYNX', '.lyx': 'LYNX'}
+SYSTEM_NAMES = {'GB': 'Game Boy', 'GBC': 'Game Boy Color', 'GG': 'Game Gear', 'SMS': 'Master System', 'NES': 'NES', 'LYNX': 'Lynx'}
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.m4v'}
 
 # Which pack catalogues to try for each system folder, in order (PACK_FORMAT.md "Shared catalogues").
@@ -30,6 +30,7 @@ PACKS = {
     'GG': [('sega', 'GameGear')],
     # Game Gear releases that run in Master System mode are .sms files too.
     'SMS': [('sega', 'SMS'), ('sega', 'GameGear')],
+    'NES': [('nintendo-consoles', 'NES')],
     'LYNX': [('atari', 'AtariLynx')],
 }
 ART_CREDIT = 'Box art: ScreenScraper, via the MiSTer Artwork Pack by chipster6502.'
@@ -473,10 +474,13 @@ def existing(target, folder):
 
 
 def rom_crcs(name, data):
-    """CRC32/size pairs a dump may be catalogued under (Lynx: also without its 64-byte .lnx header)."""
+    """CRC32/size pairs a dump may be catalogued under (Lynx: also without its 64-byte .lnx header;
+    NES: also without its 16-byte iNES header, as No-Intro lists them)."""
     out = [(zlib.crc32(data), len(data))]
     if data[:4] == b'LYNX' and len(data) > 64:
         out.append((zlib.crc32(data[64:]), len(data) - 64))
+    if data[:4] == b'NES\x1a' and len(data) > 16:
+        out.append((zlib.crc32(data[16:]), len(data) - 16))
     return out
 
 
@@ -534,7 +538,7 @@ def add_games(target, sources, log=print):
     emit('step', key='lib_scan')
     games = collect_games(sources)
     if not games:
-        raise ValueError('No games found there. Pick .gb, .gbc, .gg, .sms, .lnx or .lyx files, or zip files with '
+        raise ValueError('No games found there. Pick .gb, .gbc, .gg, .sms, .nes, .lnx or .lyx files, or zip files with '
                          'them inside.')
     on_card = {}
     for path, size, system in card_games(target):

@@ -27,7 +27,7 @@ LV_FONT_DECLARE(chromatic_progress);
 enum { kCoverDwellMs = 1500, kBadgeMarginX = 132, kBadgeMarginY = 119,
        kBadgeTitleX = 128, kBadgeTitleY = 25, kBadgePaddingStart = 115,
        kOverlayRows = 5, kFolderRows = 4,
-       kVisibleRows = 6, kRowHeight = 13, kListX = 92, kSystems = 6, kShownSystems = 5,
+       kVisibleRows = 6, kRowHeight = 13, kListX = 92, kSystems = 7, kShownSystems = 5,
        kListWidth = 52, kCoverWidth = BOX_ART_WIDTH, kCoverHeight = BOX_ART_HEIGHT };
 typedef enum { kIdle, kCatalog, kSelecting, kEmpty, kLoading, kError, kBlocked, kCheats, kCheatBusy } State_t;
 typedef struct {
@@ -66,7 +66,7 @@ static unsigned Held(void) {
 }
 static bool AtRoot(void) { return !C.Source.AtRoot || C.Source.AtRoot(); }
 /* Plain-text names (no third-party logos), indexed from kRomPlatformGB. */
-static const char *const kSystemNames[kSystems]={"GAME BOY","GAME BOY COLOR","GAME GEAR","MASTER SYSTEM","ATARI LYNX","CARTRIDGE"};
+static const char *const kSystemNames[kSystems]={"GAME BOY","GAME BOY COLOR","GAME GEAR","MASTER SYSTEM","NES","ATARI LYNX","CARTRIDGE"};
 static bool Directory(size_t Index) { return C.Source.IsDirectory && C.Source.IsDirectory(Index); }
 /* The root shows one tile per system folder (plus the Cartridge folder) when
  * every entry is one, in a fixed order; otherwise it falls back to the list. */
@@ -193,7 +193,7 @@ static void DisplayName(size_t Index, char Output[256]) {
     const bool Folder = Directory(Index);
     /* System folders at the root read as their full names (GAME BOY, not GB),
      * also when stray files there turn the tiles into a list. */
-    static const char *const kSystemFolders[kSystems-1]={"GB","GBC","GG","SMS","LYNX"};
+    static const char *const kSystemFolders[kSystems-1]={"GB","GBC","GG","SMS","NES","LYNX"};
     if (Folder && AtRoot() && C.Source.FolderPlatform) {
         const RomPlatform_t Platform = C.Source.FolderPlatform(Index);
         if (Platform >= kRomPlatformGB && Platform <= kRomPlatformLynx &&

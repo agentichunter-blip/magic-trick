@@ -5,6 +5,7 @@
 #include "native_state_control.h"
 #include "gg_rom.h"
 #include "lynx_rom.h"
+#include "nes_rom.h"
 #include "lynx_hle.h"
 #ifdef ESP_PLATFORM
 #include "diag_log.h"
@@ -149,14 +150,16 @@ typedef struct {
     bool Sms;
     bool Lynx;
     LynxRomInfo_t LynxRom;
+    bool Nes;
+    NesRomInfo_t NesRom;
     char Title[17];
 } VirtualCartInfo_t;
 
 /* Core identity byte in the status response (byte 3): 0 GB/GBC, 'G' Game
- * Gear, 'L' Atari Lynx. */
+ * Gear, 'L' Atari Lynx, 'N' NES. */
 static uint8_t CoreTag(const VirtualCartInfo_t *pInfo)
 {
-    return pInfo->GameGear ? 0x47 : pInfo->Lynx ? 0x4c : 0;
+    return pInfo->GameGear ? 0x47 : pInfo->Lynx ? 0x4c : pInfo->Nes ? 0x4e : 0;
 }
 
 static const char *TAG = "VirtualCart";
@@ -369,7 +372,7 @@ static esp_err_t ResolvePath(const char *pInput, char Output[kPathSize])
     const char *pDot = strrchr(Output, '.');
     if (pDot == NULL || (pSlash != NULL && pDot < pSlash) ||
         (strcasecmp(pDot, ".gb") != 0 && strcasecmp(pDot, ".gbc") != 0 && strcasecmp(pDot, ".gg") != 0 &&
-         strcasecmp(pDot, ".sms") != 0 &&
+         strcasecmp(pDot, ".sms") != 0 && strcasecmp(pDot, ".nes") != 0 &&
          strcasecmp(pDot, ".lnx") != 0 && strcasecmp(pDot, ".lyx") != 0 && strcasecmp(pDot, ".o") != 0))
     {
         return ESP_ERR_NOT_SUPPORTED;
@@ -718,6 +721,33 @@ static esp_err_t UploadLynx(FILE *pRom, const VirtualCartInfo_t *pInfo, const ch
             CartStore_StageBlock(kRomBase + kLynxFileAddress + Offset, TransferBuffer);
         ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + kLynxFileAddress + Offset, TransferBuffer),
                             TAG, "Lynx ROM upload");
+        RomBrowserUI_SetProgress(Offset + Count, Size);
+    }
+    return ESP_OK;
+}
+
+/* NES: the info block (nes_rom.h) at the start of the ROM window, then PRG
+ * and CHR ROM from window offset 0x1000 (nes_board_core.sv). */
+static esp_err_t UploadNes(FILE *pRom, const VirtualCartInfo_t *pInfo)
+{
+    memset(TransferBuffer, 0, sizeof(TransferBuffer));
+    NesRom_InfoBlock(&pInfo->NesRom, TransferBuffer);
+    ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase, TransferBuffer), TAG, "NES info");
+    const uint32_t Size = pInfo->NesRom.PrgBytes + pInfo->NesRom.ChrBytes;
+    printf("NES_ROM mapper=%u.%u prg=%lu chr=%lu flags=0x%02x\n", (unsigned)pInfo->NesRom.Mapper,
+           (unsigned)pInfo->NesRom.Submapper, (unsigned long)pInfo->NesRom.PrgBytes,
+           (unsigned long)pInfo->NesRom.ChrBytes, (unsigned)pInfo->NesRom.Flags);
+    GGRomCrc = 0;
+    if (fseek(pRom, (long)pInfo->NesRom.DataOffset, SEEK_SET)) return ESP_FAIL;
+    for (uint32_t Offset = 0; Offset < Size; Offset += sizeof(TransferBuffer))
+    {
+        const size_t Count = Size - Offset < sizeof(TransferBuffer) ? Size - Offset : sizeof(TransferBuffer);
+        memset(TransferBuffer, 0xff, sizeof(TransferBuffer));
+        if (fread(TransferBuffer, 1, Count, pRom) != Count) return ESP_FAIL;
+        /* The ROM's CRC identifies the game in its save-state files. */
+        GGRomCrc = StateFile_Crc32(GGRomCrc, TransferBuffer, Count);
+        ESP_RETURN_ON_ERROR(CartBulk_WritePSRAMBlock(kRomBase + kNesFileAddress + Offset, TransferBuffer),
+                            TAG, "NES ROM upload");
         RomBrowserUI_SetProgress(Offset + Count, Size);
     }
     return ESP_OK;
@@ -1812,7 +1842,7 @@ static esp_err_t StartAndWaitForFrame(const VirtualCartInfo_t *pInfo,
                                       uint32_t RtcState,
                                       bool *pRtcSupported)
 {
-    if (pInfo->GameGear || pInfo->Lynx) {
+    if (pInfo->GameGear || pInfo->Lynx || pInfo->Nes) {
         CartLinkResponse_t response={0};
         ESP_RETURN_ON_ERROR(VirtualCommand(kVirtualCommandStart,pInfo,&response),TAG,"GG start");
         /* "Ready" needs a frame with the display switched on. Some games keep
@@ -1973,6 +2003,7 @@ static esp_err_t RunLoad(const char *pPath)
     Info.Sms=extension && !strcasecmp(extension,".sms");
     Info.GameGear=extension && (!strcasecmp(extension,".gg") || Info.Sms);
     Info.Lynx=CoreSwitch_SystemForPath(pPath)==kCoreSystem_Lynx;
+    Info.Nes=CoreSwitch_SystemForPath(pPath)==kCoreSystem_NES;
 
     if (!ViaGB) pRom = fopen(pPath, "rb");
     if (!ViaGB && pRom == NULL)
@@ -1989,6 +2020,12 @@ static esp_err_t RunLoad(const char *pPath)
         Info.MappedRomSize=Info.LynxRom.Size;
         /* The state file identifies the game by title, size and CRC. */
         snprintf(Info.Title,sizeof(Info.Title),"%.16s",Info.LynxRom.Title);
+    } else if (Info.Nes) {
+        Result=NesRom_Inspect(pRom,&Info.NesRom);
+        if (Result==ESP_ERR_NOT_SUPPORTED) printf("NES_ROM unsupported mapper=%u\n",(unsigned)Info.NesRom.Mapper);
+        Info.RomSize=Info.NesRom.PrgBytes+Info.NesRom.ChrBytes;
+        Info.MappedRomSize=Info.RomSize;
+        snprintf(Info.Title,sizeof(Info.Title),"NES");
     } else if (Info.GameGear) {
         if (Replay) { Info.RomSize=ReplaySize; Result=ESP_OK; }
         else Result=GGRom_InspectSystem(pRom,&Info.RomSize,Info.Sms);
@@ -2066,12 +2103,14 @@ static esp_err_t RunLoad(const char *pPath)
 
     if (Info.Lynx)
         Result = UploadLynx(pRom, &Info, pPath, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
+    else if (Info.Nes)
+        Result = UploadNes(pRom, &Info);
     else if (Info.GameGear && FromCart)
         Result = UploadGGOnce(pRom, &Info, Replay ? kUploadReplay : kUploadNormal, ReplayCrc);
     else
         Result = UploadRomPatched(pRom, &Info, &Cheats);
     if (Replay) CartStore_ReplayDone();
-    if (Info.GameGear || Info.Lynx) Info.GlobalChecksum = (uint16_t)(GGRomCrc ^ (GGRomCrc >> 16));
+    if (Info.GameGear || Info.Lynx || Info.Nes) Info.GlobalChecksum = (uint16_t)(GGRomCrc ^ (GGRomCrc >> 16));
     if (Result != ESP_OK) goto Cleanup;
     if (fclose(pRom) != 0)
     {
