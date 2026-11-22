@@ -5,34 +5,34 @@
 1. PnR Messages
 
   <Report Title>: PnR Report
-  <Design File>: /Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg
-  <Physical Constraints File>: /Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst
-  <Timing Constraints File>: /Volumes/ExternalSSD/MODRETRO/release-lynx/fpga/cores/game-gear/src/board/evt1_x2/gg_board.sdc
+  <Design File>: /Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg
+  <Physical Constraints File>: /Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/board/evt1_x2/evt1_x2.cst
+  <Timing Constraints File>: /Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/board/evt1_x2/gg_board.sdc
   <Tool Version>: V1.9.12.04-1
   <Part Number>: GW5A-EV25UG256CC1/I0
   <Device>: GW5A-25
   <Device Version>: A
-  <Created Time>:Fri Nov 20 11:31:35 2026
+  <Created Time>:Sun Nov 22 10:26:53 2026
 
 
 2. PnR Details
 
   Running placement:
-    Placement Phase 0: CPU time = 0h 0m 11s, Elapsed time = 0h 0m 11s
+    Placement Phase 0: CPU time = 0h 0m 7s, Elapsed time = 0h 0m 7s
     Placement Phase 1: CPU time = 0h 0m 1s, Elapsed time = 0h 0m 1s
-    Placement Phase 2: CPU time = 0h 0m 40s, Elapsed time = 0h 0m 41s
-    Placement Phase 3: CPU time = 0h 1m 48s, Elapsed time = 0h 1m 51s
-    Total Placement: CPU time = 0h 2m 40s, Elapsed time = 0h 2m 44s
+    Placement Phase 2: CPU time = 0h 0m 38s, Elapsed time = 0h 0m 38s
+    Placement Phase 3: CPU time = 0h 1m 48s, Elapsed time = 0h 1m 49s
+    Total Placement: CPU time = 0h 2m 34s, Elapsed time = 0h 2m 36s
  Running routing:
-    Routing Phase 0: CPU time = 0h 0m 0.014s, Elapsed time = 0h 0m 0.015s
-    Routing Phase 1: CPU time = 0h 8m 38s, Elapsed time = 0h 8m 57s
-    Routing Phase 2: CPU time = 0h 0m 0.47s, Elapsed time = 0h 0m 0.491s
+    Routing Phase 0: CPU time = 0h 0m 0.01s, Elapsed time = 0h 0m 0.011s
+    Routing Phase 1: CPU time = 0h 3m 13s, Elapsed time = 0h 3m 16s
+    Routing Phase 2: CPU time = 0h 0m 0.41s, Elapsed time = 0h 0m 0.416s
     Routing Phase 3: CPU time = 0h 0m 0s, Elapsed time = 0h 0m 0s
-    Total Routing: CPU time = 0h 8m 38s, Elapsed time = 0h 8m 57s
+    Total Routing: CPU time = 0h 3m 14s, Elapsed time = 0h 3m 17s
  Generate output files:
     CPU time = 0h 0m 5s, Elapsed time = 0h 0m 5s
 
- Total Time and Memory Usage: CPU time = 0h 11m 24s, Elapsed time = 0h 11m 47s, Peak memory usage = 654MB
+ Total Time and Memory Usage: CPU time = 0h 5m 53s, Elapsed time = 0h 5m 57s, Peak memory usage = 878MB
 
 
 3. Resource Usage Summary
@@ -40,15 +40,15 @@
   --------------------------------------------------------------------------------
   Resources                   | Usage                               | Utilization
   --------------------------------------------------------------------------------
-  Logic                       | 19770/23040                         |  86%
-    --LUT,ALU,ROM16           | 19770(17060 LUT, 2601 ALU, 109 ROM16)| -
+  Logic                       | 20512/23040                         |  90%
+    --LUT,ALU,ROM16           | 20512(17593 LUT, 2810 ALU, 109 ROM16)| -
     --SSRAM(RAM16)            | 0                                   | -
-  Register                    | 10967/23595                         |  47%
+  Register                    | 11235/23595                         |  48%
     --Logic Register as Latch | 0/23040                             |  0%
-    --Logic Register as FF    | 10934/23040                         |  48%
+    --Logic Register as FF    | 11202/23040                         |  49%
     --I/O Register as Latch   | 0/555                               |  0%
     --I/O Register as FF      | 33/555                              |  6%
-  CLS                         | 10909/11520                         |  95%
+  CLS                         | 11160/11520                         |  97%
   I/O Port                    | 126/191                             |  66%
   I/O Buf                     | 113                                 | -
     --Input Buf               | 21                                  | -
@@ -62,9 +62,9 @@
     --OSER4                   | 11
     --OSER16                  | 1
     --IODELAY                 | 11
-  BSRAM                       | 54/56                               | 97%
+  BSRAM                       | 56/56                               | 100%
     --SP                      | 4
-    --SDPB                    | 13
+    --SDPB                    | 15
     --SDPX9B                  | 11
     --DPB                     | 26
   DSP                         | 5/28                                | 18%
@@ -113,7 +113,7 @@
   -------------------------------------------
   QSPI_CLK_d     | PRIMARY        |  TR BR BL
   fClk           | PRIMARY        |  BR
-  pClk           | PRIMARY        |  TR BR
+  pClk           | PRIMARY        |  BR
   hClk           | PRIMARY        |  TR TL BR BL
   AUD_MCLK_d     | PRIMARY        |  TR TL BR BL
   xClk           | PRIMARY        |  TR TL BR BL
