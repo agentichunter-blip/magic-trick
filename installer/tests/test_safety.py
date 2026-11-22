@@ -80,7 +80,10 @@ class Layouts(unittest.TestCase):
     def test_running_versions(self):
         for v in [STOCK, ART31, MB1, core.TARGET, {'mcu': 'v0.13.4-art31-wifi14', 'fpga': '18.38', 'chromatic': 'x'}]:
             self.assertTrue(core.known_running(v), v)
-        for v in [{'mcu': 'v9', 'fpga': '18.38'}, {'mcu': 'v0.13.4', 'fpga': '51.1'}]:
+        # Any of the four cores may be running (an update started from an NES game: 50.4).
+        for fpga in ('50.2', '50.3', '50.4'):
+            self.assertTrue(core.known_running(dict(core.TARGET, fpga=fpga)), fpga)
+        for v in [{'mcu': 'v9', 'fpga': '18.38'}, {'mcu': 'v0.13.4', 'fpga': '51.1'}, dict(core.TARGET, fpga='50.5')]:
             self.assertFalse(core.known_running(v), v)
 
 

@@ -46,13 +46,13 @@ def emit(kind, **data):
 
 TARGET = {'mcu': 'v' + RELEASE, 'fpga': '50.1', 'chromatic': 'Magic Trick 1.0 beta (ChroMagic)'}
 # A JTAG reset boots the slot the running core points to next, so after installation
-# either core may be running; a real power-on always starts the Game Boy core.
-INSTALLED = dict(TARGET, fpga=('50.1', '50.2', '50.3'))
+# any core may be running (50.1 GB, 50.2 GG, 50.3 Lynx, 50.4 NES); a real power-on always starts the Game Boy core.
+INSTALLED = dict(TARGET, fpga=('50.1', '50.2', '50.3', '50.4'))
 
 # Applications this installer recognises in a backup. Anything else is refused.
 KNOWN_APP = re.compile(r'0\.13\.[0-8](?:-art\d+(?:-wifi\d+)?)?|three-systems-mb\d+|1\.0\.0-beta(?:\.\d+)?')
 KNOWN_RUNNING_MCU = re.compile(r'v(?:' + KNOWN_APP.pattern + r')')
-KNOWN_RUNNING_FPGA = re.compile(r'18\.\d+|50\.[123]')
+KNOWN_RUNNING_FPGA = re.compile(r'18\.\d+|50\.[1234]')
 
 
 def image(key):
