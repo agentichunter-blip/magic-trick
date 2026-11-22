@@ -26,6 +26,7 @@ STEPS = {
     'mcu': ('MCU APP', 'Writing the Magic Trick app to the MCU.', 1.5),
     'fpga_chromagic': ('FPGA PREP', 'Putting the ChroMagic core in place so the FPGA can be written safely.', 2.5),
     'fpga_gg': ('GAME GEAR CORE', 'Writing the Game Gear core to the FPGA.', 2.5),
+    'fpga_nes': ('NES CORE', 'Writing the NES core to the FPGA.', 2.5),
     'fpga_lynx': ('ATARI LYNX CORE', 'Writing the Atari Lynx core to the FPGA.', 2.5),
     'fpga_gb': ('GAME BOY CORE', 'Writing the Game Boy and Game Boy Color core to the FPGA.', 2.5),
     'table': ('SWITCH OVER', 'Switching the MCU over to the new firmware.', 0.3),
@@ -39,7 +40,7 @@ STEPS = {
     'lib_remove': ('REMOVING GAMES', 'Deleting the games you picked, with their box art and clips.', 1),
 }
 PLANS = {
-    'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'table', 'confirm'],
+    'install': ['check', 'backup', 'mcu', 'fpga_gg', 'fpga_nes', 'fpga_lynx', 'fpga_gb', 'table', 'confirm'],
     'uninstall': ['check', 'backup', 'fpga_chromagic', 'table', 'confirm'],
     'restore': ['check', 'precopy', 'fpga_chromagic', 'mcu_restore', 'confirm'],
     'games': ['lib_scan', 'lib_copy'],
@@ -257,7 +258,7 @@ class App:
     # ---------- home ----------
     def show_home(self):
         self.clear(); self.mode = 'home'
-        self.label(self.screen, 'Game Boy, Game Boy Color, Game Gear, Master System and Atari Lynx on one Chromatic. What would you like to do?',
+        self.label(self.screen, 'Game Boy, Game Boy Color, Game Gear, Master System, NES and Atari Lynx on one Chromatic. What would you like to do?',
                    self.f_body_big, INK, wrap=840).pack(anchor='w', pady=(4, 8))
         note = tk.Frame(self.screen, bg=BG); note.pack(fill='x')
         self.label(note, '! BETA: installed at your own risk. Magic Trick isn\'t made or supported by ModRetro and may '
@@ -302,7 +303,7 @@ class App:
             words = tk.Frame(tile, bg=PANEL); words.pack(side='left', fill='x', expand=True, padx=16, pady=7)
             self.label(words, 'CARTRIDGE', self.f_pixel, AMBER).pack(anchor='w')
             self.label(words, 'Back up a rewritable Game Boy cart (ModRetro carts, most flash carts) and put Game '
-                       'Gear, Lynx and Game Boy games on it, with box art. No SD card needed to play them.', self.f_body, MUTED,
+                       'Gear, Master System, NES, Lynx and Game Boy games on it, with box art. No SD card needed to play them.', self.f_body, MUTED,
                        wrap=600).pack(anchor='w', pady=(3, 0))
             PixelButton(tile, 'OPEN ▶', self.show_cartridge, self.f_pixel, 'secondary').pack(side='right', padx=16)
         self.refresh_device()
@@ -335,7 +336,7 @@ class App:
         self.draw_routes()
         self.label(self.screen, '2. WHAT TO DO', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
         for key, title, text, buttons in [
-                ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .sms .lnx) or a folder of them. Zip files are '
+                ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .sms .nes .lnx) or a folder of them. Zip files are '
                  'fine. No need to sort them: each game is put in its system\'s folder for you.',
                  [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
                 ('covers', 'GET BOX ART', 'Press START. It finds box art for every game on the card that has '
@@ -369,7 +370,7 @@ class App:
                 'can\'t include them, so you download them yourself:\n\n'
                 '1. Make an account at emumovies.com.\n'
                 '2. Find the "Video Snaps (SQ)" pack for each system you play: Game Boy, Game Boy Color, '
-                'Game Gear, Master System or Atari Lynx.\n'
+                'Game Gear, Master System, NES or Atari Lynx.\n'
                 '3. Download every part of the pack (files ending in .part1.rar, .part2.rar and so on) into one '
                 'folder.\n'
                 '4. Open the first part to unzip it. Windows 11 can do this by itself. On a Mac, use a free app '
@@ -402,7 +403,7 @@ class App:
         sources = []
         if operation not in ('covers', 'remove'):
             if operation == 'games':
-                kinds = [('Games', '*.gb *.gbc *.gg *.sms *.lnx *.lyx *.zip'), ('All files', '*')]
+                kinds = [('Games', '*.gb *.gbc *.gg *.sms *.nes *.lnx *.lyx *.zip'), ('All files', '*')]
             else:
                 kinds = [('Video clips', ' '.join('*' + e for e in sorted(library.VIDEO_EXTENSIONS))), ('All files', '*')]
             what = 'games' if operation == 'games' else 'gameplay clips'   # used in the picker titles
@@ -915,7 +916,7 @@ class App:
                     'secondary').pack(side='right')
         if state:
             return self.cart_editor(state)
-        self.label(self.screen, 'Put Game Gear, Lynx and Game Boy games on a rewritable Game Boy cart: a ModRetro cart or '
+        self.label(self.screen, 'Put Game Gear, Master System, NES, Lynx and Game Boy games on a rewritable Game Boy cart: a ModRetro cart or '
                    'most flash carts. A Chromatic with Magic '
                    'Trick lists them under Games > Cartridge and plays them, even without an SD card. First the '
                    'whole cart is copied to this computer as a backup.', self.f_body_big, INK,
@@ -978,7 +979,7 @@ class App:
                 'computer with a USB cable.')
         self.cart_steps.configure(text='1. Put the cart in and switch the Chromatic on.\n2. Let it start the cart\'s '
                                   'Game Boy game or open the menu. Only the Game Boy side reaches the cart: if the '
-                                  'cart starts a Game Gear or Lynx game, switch off and on holding B to stay in the '
+                                  'cart starts a game for another system, switch off and on holding B to stay in the '
                                   'menu.\n' + last)
 
     def cart_connection(self):
@@ -1001,7 +1002,7 @@ class App:
             ports = []
         if len(ports) != 1:
             messagebox.showinfo('Connect your Chromatic', 'Plug your Chromatic into this computer with a USB cable, '
-                                'switch it on (hold B as it starts if the cart starts a Game Gear or Lynx game), then press '
+                                'switch it on (hold B as it starts if the cart starts a game for another system), then press '
                                 'Menu and open the System tab: set WI-FI off and USB TRANSFERS on. Then try again.')
             return None
         return ('usb', ports[0])
@@ -1375,11 +1376,11 @@ class App:
 
     def cart_add_games(self):
         paths = list(ask_open_filenames(title='Choose games for the cart', filetypes=[
-            ('Games', '*.gb *.gbc *.gg *.sms *.lnx *.lyx *.zip'), ('All files', '*')]))
+            ('Games', '*.gb *.gbc *.gg *.sms *.nes *.lnx *.lyx *.zip'), ('All files', '*')]))
         if not paths:
             return
         have = {g.name.lower() for g in self.cart['games']}
-        added, skipped, first = 0, [], []
+        added, skipped, first, refused = 0, [], [], []
         for name, load, _ in library.collect_games(paths):
             name = cartridge.short_name(name)
             if name.lower() in have:
@@ -1390,9 +1391,15 @@ class App:
                 if self.cart_is_first(data):
                     first.append(name)
                     continue
+                problem = cartridge.nes_problem(data) if name.lower().endswith('.nes') else None
+                if problem:
+                    refused.append('%s: %s' % (name, problem))
+                    continue
                 self.cart['games'].append(cartridge.Game(name, data))
                 have.add(name.lower()); added += 1
         self.draw_cart()
+        if refused:
+            messagebox.showinfo('Not added', 'The Chromatic can\'t run these NES games:\n\n' + '\n'.join(refused[:10]))
         if skipped:
             messagebox.showinfo('Already on the cart', 'These are already in the list:\n\n' + '\n'.join(skipped[:10]))
         if first:
@@ -1871,7 +1878,7 @@ def run_esptool(args):
 def demo_work(speed=1.0, fail=False):
     """A pretend install for screenshots and UI checks: no device is touched."""
     pause = lambda s: time.sleep(s * speed)
-    core.emit('plan', steps=['check', 'backup', 'mcu', 'fpga_chromagic', 'fpga_gg', 'fpga_lynx', 'fpga_gb', 'confirm'])
+    core.emit('plan', steps=['check', 'backup', 'mcu', 'fpga_chromagic', 'fpga_gg', 'fpga_nes', 'fpga_lynx', 'fpga_gb', 'confirm'])
     core.emit('step', key='check'); print('Device versions: {"mcu": "v1.0.0-beta", "fpga": "50.1"}'); pause(2)
     core.emit('step', key='backup')
     for pct in range(0, 101, 4):
@@ -1881,7 +1888,7 @@ def demo_work(speed=1.0, fail=False):
     core.emit('step', key='mcu')
     for pct in range(0, 101, 5):
         print(f'Writing at 0x{0x260000 + pct * 0x3000:08x}... ({pct} %)'); pause(0.2)
-    for key in ('fpga_chromagic', 'fpga_gg', 'fpga_lynx', 'fpga_gb'):
+    for key in ('fpga_chromagic', 'fpga_gg', 'fpga_nes', 'fpga_lynx', 'fpga_gb'):
         core.emit('step', key=key)
         print('FPGA write at 0x000000, attempt 1 of 12…'); pause(3)
         if key == 'fpga_chromagic':
