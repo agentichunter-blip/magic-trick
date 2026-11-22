@@ -18,8 +18,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 GAMES, ART, VIDEO = 'CHROMAGIC/BACKUPS', 'CHROMAGIC/ART', 'CHROMAGIC/VIDEO'
-EXTENSIONS = {'.gb': 'GB', '.gbc': 'GBC', '.gg': 'GG', '.lnx': 'LYNX', '.lyx': 'LYNX'}
-SYSTEM_NAMES = {'GB': 'Game Boy', 'GBC': 'Game Boy Color', 'GG': 'Game Gear', 'LYNX': 'Lynx'}
+EXTENSIONS = {'.gb': 'GB', '.gbc': 'GBC', '.gg': 'GG', '.sms': 'SMS', '.lnx': 'LYNX', '.lyx': 'LYNX'}
+SYSTEM_NAMES = {'GB': 'Game Boy', 'GBC': 'Game Boy Color', 'GG': 'Game Gear', 'SMS': 'Master System', 'LYNX': 'Lynx'}
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.m4v'}
 
 # Which pack catalogues to try for each system folder, in order (PACK_FORMAT.md "Shared catalogues").
@@ -28,6 +28,8 @@ PACKS = {
     'GB': [('nintendo-handhelds', 'GAMEBOY'), ('nintendo-handhelds', 'GBC')],
     'GBC': [('nintendo-handhelds', 'GBC'), ('nintendo-handhelds', 'GAMEBOY')],
     'GG': [('sega', 'GameGear')],
+    # Game Gear releases that run in Master System mode are .sms files too.
+    'SMS': [('sega', 'SMS'), ('sega', 'GameGear')],
     'LYNX': [('atari', 'AtariLynx')],
 }
 ART_CREDIT = 'Box art: ScreenScraper, via the MiSTer Artwork Pack by chipster6502.'
@@ -532,7 +534,7 @@ def add_games(target, sources, log=print):
     emit('step', key='lib_scan')
     games = collect_games(sources)
     if not games:
-        raise ValueError('No games found there. Pick .gb, .gbc, .gg, .lnx or .lyx files, or zip files with '
+        raise ValueError('No games found there. Pick .gb, .gbc, .gg, .sms, .lnx or .lyx files, or zip files with '
                          'them inside.')
     on_card = {}
     for path, size, system in card_games(target):

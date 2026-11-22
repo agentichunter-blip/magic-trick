@@ -41,3 +41,6 @@ installer/*.zip
 
 installer/programmer/
 installer/.tool-build/
+
+# Local MCU builds
+mcu/build-*/

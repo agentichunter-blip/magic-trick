@@ -39,14 +39,14 @@ static esp_err_t OpenResult, StartResult;
 static bool CompleteImmediately;
 static bool FolderFixture, SystemFixture, RecentFixture;
 static size_t SystemIndex;
-static bool ThreeSystems, FourSystems, FiveSystems, StrayFile;
+static bool ThreeSystems, FourSystems, FiveSystems, SixSystems, StrayFile;
 static unsigned Depth;
 static PCBackupModeState_t PCMode;
 PCBackupModeState_t PCBackupMode_GetState(void) { return PCMode; }
 static unsigned BackupStarts;
 static esp_err_t BackupStart(void) { ++BackupStarts; return ESP_OK; }
 static char StartedName[80];
-static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (FiveSystems ? 5 : FourSystems ? 4 : StrayFile ? 4 : ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
+static esp_err_t Open(size_t *pCount) { ++Opens; *pCount = SystemFixture ? (Depth ? (RecentFixture ? 5 : 4) : (SixSystems ? 6 : FiveSystems ? 5 : FourSystems ? 4 : StrayFile ? 4 : ThreeSystems ? 3 : 2)) : FolderFixture ? (Depth == 2 ? 0 : 2) : Count; return OpenResult; }
 static const char *NameAt(size_t Index) {
     if (SystemFixture && StrayFile && !Depth && Index==3) return "MR.TETRIS.gbc";
     if (SystemFixture) {
@@ -63,7 +63,7 @@ static const char *NameAt(size_t Index) {
 }
 static bool IsDirectory(size_t Index) { if (SystemFixture && StrayFile && !Depth && Index==3) return false; return SystemFixture || (FolderFixture && Index == (Depth == 0 ? 1 : 0)); }
 static RomPlatform_t FixturePlatform;
-static RomPlatform_t FolderPlatform(size_t Index) { if (!IsDirectory(Index)) return kRomPlatformUnknown; if (SystemFixture && FiveSystems) return (RomPlatform_t)(kRomPlatformCart - (Depth ? SystemIndex : Index)); if (SystemFixture && FourSystems) return (RomPlatform_t)(kRomPlatformLynx - (Depth ? SystemIndex : Index)); if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
+static RomPlatform_t FolderPlatform(size_t Index) { if (!IsDirectory(Index)) return kRomPlatformUnknown; { static const RomPlatform_t Six[]={kRomPlatformCart,kRomPlatformLynx,kRomPlatformSMS,kRomPlatformGG,kRomPlatformGBC,kRomPlatformGB}, Five[]={kRomPlatformCart,kRomPlatformLynx,kRomPlatformGG,kRomPlatformGBC,kRomPlatformGB}; const size_t At=Depth ? SystemIndex : Index; if (SystemFixture && SixSystems) return Six[At]; if (SystemFixture && FiveSystems) return Five[At]; if (SystemFixture && FourSystems) return Five[At+1]; } if (SystemFixture && (Depth ? SystemIndex : Index)==2) return kRomPlatformGG; if (SystemFixture) return (Depth ? SystemIndex : Index) ? kRomPlatformGB : kRomPlatformGBC; return IsDirectory(Index) ? FixturePlatform : kRomPlatformUnknown; }
 static bool AtRoot(void) { return Depth == 0; }
 static esp_err_t Enter(size_t Index, size_t *pCount) {
     assert(IsDirectory(Index)); if (SystemFixture && !Depth) SystemIndex=Index; ++Depth; return Open(pCount);
@@ -539,6 +539,22 @@ int main(void) {
     assert(Depth==1 && SystemIndex==0 && Text(Screen,"CARTRIDGE"));
     Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
     FiveSystems=false;
+    /* Five systems plus the cart folder: six tiles, five shown at a time,
+     * scrolling with the selection (Master System after Game Gear). */
+    SixSystems=true;
+    Menu.fnOnTransition(NULL); DrawScreen(&Menu,Screen);
+    /* The catalog lists the cart folder first, so it starts selected. */
+    assert(VisibleText(Screen,"CARTRIDGE") && VisibleText(Screen,"MASTER SYSTEM") && !VisibleText(Screen,"GAME BOY"));
+    Snapshot("systems-six-cartridge");
+    for(unsigned I=0;I<2;++I) { Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen); }
+    Snapshot("systems-master-system");
+    Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    assert(Depth==1 && SystemIndex==2 && Text(Screen,"MASTER SYSTEM"));
+    Menu.fnOnButton(kButton_B,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen);
+    for(unsigned I=0;I<3;++I) { Menu.fnOnButton(kButton_Up,kButtonState_Pressed,NULL); DrawScreen(&Menu,Screen); }
+    Snapshot("systems-six-game-boy");
+    assert(VisibleText(Screen,"GAME BOY") && !VisibleText(Screen,"CARTRIDGE"));
+    SixSystems=false;
     /* A loose file at the root (e.g. a cart backup) turns the tiles into a
      * list; system folders still read as full names, never GB/GBC/GG. */
     StrayFile=true;

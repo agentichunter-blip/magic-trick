@@ -257,7 +257,7 @@ class App:
     # ---------- home ----------
     def show_home(self):
         self.clear(); self.mode = 'home'
-        self.label(self.screen, 'Game Boy, Game Boy Color, Game Gear and Atari Lynx on one Chromatic. What would you like to do?',
+        self.label(self.screen, 'Game Boy, Game Boy Color, Game Gear, Master System and Atari Lynx on one Chromatic. What would you like to do?',
                    self.f_body_big, INK, wrap=840).pack(anchor='w', pady=(4, 8))
         note = tk.Frame(self.screen, bg=BG); note.pack(fill='x')
         self.label(note, '! BETA: installed at your own risk. Magic Trick isn\'t made or supported by ModRetro and may '
@@ -335,7 +335,7 @@ class App:
         self.draw_routes()
         self.label(self.screen, '2. WHAT TO DO', self.f_pixel, ACCENT).pack(anchor='w', pady=(12, 4))
         for key, title, text, buttons in [
-                ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .lnx) or a folder of them. Zip files are '
+                ('games', 'ADD GAMES', 'Pick game files (.gb .gbc .gg .sms .lnx) or a folder of them. Zip files are '
                  'fine. No need to sort them: each game is put in its system\'s folder for you.',
                  [('FILES ▶', 'files'), ('FOLDER ▶', 'folder')]),
                 ('covers', 'GET BOX ART', 'Press START. It finds box art for every game on the card that has '
@@ -369,7 +369,7 @@ class App:
                 'can\'t include them, so you download them yourself:\n\n'
                 '1. Make an account at emumovies.com.\n'
                 '2. Find the "Video Snaps (SQ)" pack for each system you play: Game Boy, Game Boy Color, '
-                'Game Gear or Atari Lynx.\n'
+                'Game Gear, Master System or Atari Lynx.\n'
                 '3. Download every part of the pack (files ending in .part1.rar, .part2.rar and so on) into one '
                 'folder.\n'
                 '4. Open the first part to unzip it. Windows 11 can do this by itself. On a Mac, use a free app '
@@ -402,7 +402,7 @@ class App:
         sources = []
         if operation not in ('covers', 'remove'):
             if operation == 'games':
-                kinds = [('Games', '*.gb *.gbc *.gg *.lnx *.lyx *.zip'), ('All files', '*')]
+                kinds = [('Games', '*.gb *.gbc *.gg *.sms *.lnx *.lyx *.zip'), ('All files', '*')]
             else:
                 kinds = [('Video clips', ' '.join('*' + e for e in sorted(library.VIDEO_EXTENSIONS))), ('All files', '*')]
             what = 'games' if operation == 'games' else 'gameplay clips'   # used in the picker titles
@@ -1375,7 +1375,7 @@ class App:
 
     def cart_add_games(self):
         paths = list(ask_open_filenames(title='Choose games for the cart', filetypes=[
-            ('Games', '*.gb *.gbc *.gg *.lnx *.lyx *.zip'), ('All files', '*')]))
+            ('Games', '*.gb *.gbc *.gg *.sms *.lnx *.lyx *.zip'), ('All files', '*')]))
         if not paths:
             return
         have = {g.name.lower() for g in self.cart['games']}

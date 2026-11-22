@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef enum { kRomPlatformUnknown, kRomPlatformGB, kRomPlatformGBC, kRomPlatformGG, kRomPlatformLynx,
+typedef enum { kRomPlatformUnknown, kRomPlatformGB, kRomPlatformGBC, kRomPlatformGG, kRomPlatformSMS, kRomPlatformLynx,
                kRomPlatformCart /* the library root's "Cartridge" folder */ } RomPlatform_t;
 
 typedef struct RomBrowserDataSource {

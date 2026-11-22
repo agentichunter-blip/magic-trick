@@ -28,7 +28,8 @@ bool CoreSwitch_IsTarget(bool GameGear) { return CoreSwitch_IsCore(GameGear ? kC
 CoreSystem_t CoreSwitch_SystemForPath(const char *Path)
 {
     const char *Extension = Path ? strrchr(Path, '.') : NULL;
-    if (Extension && !strcasecmp(Extension, ".gg")) return kCoreSystem_GG;
+    /* Master System games run on the Game Gear core in SMS mode. */
+    if (Extension && (!strcasecmp(Extension, ".gg") || !strcasecmp(Extension, ".sms"))) return kCoreSystem_GG;
     if (Extension && (!strcasecmp(Extension, ".lnx") || !strcasecmp(Extension, ".lyx") ||
                       !strcasecmp(Extension, ".o"))) return kCoreSystem_Lynx;
     return kCoreSystem_GB;

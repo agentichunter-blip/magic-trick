@@ -14,7 +14,7 @@ static const char Root[] = RECENT_GAMES_ROOT "/";
 enum { kHeaderSize = 5, kBlobSize = kHeaderSize + RECENT_GAMES_LIMIT * RECENT_GAME_PATH_SIZE };
 static const char *Key(RecentSystem_t System) {
     return System==kRecentGB ? "gb" : System==kRecentGBC ? "gbc" : System==kRecentGG ? "gg" :
-        System==kRecentLynx ? "lynx" : NULL;
+        System==kRecentLynx ? "lynx" : System==kRecentSMS ? "sms" : NULL;
 }
 RecentSystem_t RecentGames_System(const char *Path) {
     if (!Path || strnlen(Path,RECENT_GAME_PATH_SIZE)>=RECENT_GAME_PATH_SIZE ||
@@ -24,6 +24,7 @@ RecentSystem_t RecentGames_System(const char *Path) {
     RecentSystem_t System=First==2 && !strncasecmp(Part,"GB",2) ? kRecentGB :
         First==3 && !strncasecmp(Part,"GBC",3) ? kRecentGBC :
         First==2 && !strncasecmp(Part,"GG",2) ? kRecentGG :
+        First==3 && !strncasecmp(Part,"SMS",3) ? kRecentSMS :
         First==4 && !strncasecmp(Part,"LYNX",4) ? kRecentLynx : kRecentNone;
     if (!System || !Part[First]) return kRecentNone;
     while (*Part) {
@@ -36,7 +37,8 @@ RecentSystem_t RecentGames_System(const char *Path) {
     if (!strncasecmp(Part,"[BIOS]",6)) return kRecentNone;
     const char *Ext=strrchr(Part,'.');
     if (!Ext) return kRecentNone;
-    if (System==kRecentGG) return !strcasecmp(Ext,".gg") ? System : kRecentNone;
+    /* Game Gear releases that run in Master System mode are .sms files. */
+    if (System==kRecentGG || System==kRecentSMS) return !strcasecmp(Ext,".gg") || !strcasecmp(Ext,".sms") ? System : kRecentNone;
     if (System==kRecentLynx) return !strcasecmp(Ext,".lnx") || !strcasecmp(Ext,".lyx") || !strcasecmp(Ext,".o") ? System : kRecentNone;
     return !strcasecmp(Ext,".gb") || !strcasecmp(Ext,".gbc") ? System : kRecentNone;
 }

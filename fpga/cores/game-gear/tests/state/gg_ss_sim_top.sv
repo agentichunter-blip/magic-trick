@@ -1,7 +1,9 @@
 // Simulation wrapper: board core + save-state engine + the real ROM cache.
 // PSRAM is modelled in C++ behind the cache's bus interface.
 module gg_ss_sim_top(
- input clk, reset_n, input [6:0] buttons,
+ input clk, reset_n, input [6:0] buttons, input sms, stretch,
+ output lcd_pixel, output [14:0] lcd_data, output lcd_repeat, output [1:0] lcd_mode, output lcd_vsync,
+ output video_overflow,
  output bus_request, output [22:0] bus_address, input bus_done, bus_valid, input [15:0] bus_data,
  input freeze_t, release_t, load_t, block_t, input [6:0] block_number, input [15:0] block_seq,
  output block_ready, output [15:0] block_ready_seq, output busy, fault, frozen, loaded,
@@ -19,6 +21,12 @@ module gg_ss_sim_top(
  wire owns_rom,eng_read,cache_invalidate;wire [23:0] eng_address;
  wire [7:0] rom_byte;wire rom_fault,rom_idle;
  wire boot_hold,cart_dirty_clear;wire [7:0] cart_q;
+ wire resume_ok,freeze_active;
+ // Panel path: the real bridge (hclk = clk here; the FIFO only needs to drain).
+ gg_video_bridge video(.xclk(clk),.xreset(!reset_n),.hclk(clk),.hreset(!reset_n),.enable(reset_n),
+  .sms(sms),.stretch(stretch),.hold(freeze_active),.resume_ok(resume_ok),
+  .pixel(ce_pix),.x(x),.y(y),.color(color),.overflow(video_overflow),
+  .lcd_pixel(lcd_pixel),.lcd_data(lcd_data),.lcd_repeat(lcd_repeat),.lcd_mode(lcd_mode),.lcd_on(),.lcd_vsync(lcd_vsync));
  gg_rom_bridge #(.TIMEOUT_CYCLES(65536)) bridge(.clk(clk),.reset(!reset_n),.enable(reset_n),
   .invalidate(!reset_n || cache_invalidate),
   .read(owns_rom ? eng_read : rom_rd),.address(owns_rom ? eng_address : rom_a),
@@ -26,14 +34,14 @@ module gg_ss_sim_top(
   .request(bus_request),.bus_read(),.bus_address(bus_address),.bus_write_data(),.bus_length(),
   .done(bus_done),.valid(bus_valid),.read_data(bus_data));
  gg_board_core core(.gg_code(129'd0),.gg_clear(1'b0),.clk(clk),.reset_n(reset_n),
-  .rom_ready(rom_ready),.quiesce(1'b0),.buttons(buttons),.rom_do(rom_byte),.rom_a(rom_a),.rom_rd(rom_rd),
+  .rom_ready(rom_ready),.quiesce(1'b0),.sms(sms),.buttons(buttons),.rom_do(rom_byte),.rom_a(rom_a),.rom_rd(rom_rd),
   .color(color),.x(x),.y(y),.audioL(audioL),.audioR(audioR),.ce_pix(ce_pix),.hblank(),.vblank(),
   .ram_we(ram_we),.ram_a(ram_a),.ram_d(ram_d),
   .state_request(state_request),.state_release(state_release),.state_apply(state_apply),
   .state_in(state_in),.state_out(state_out),.state_frozen(state_frozen),
   .mem_select(mem_select),.mem_address(mem_address),.mem_write(mem_write),.mem_data(mem_data),.mem_q(mem_q),
   .boot_hold(boot_hold),.cart_dirty_clear(cart_dirty_clear),.cart_dirty(cart_dirty),.cart_q(cart_q),
-  .cart_written(cart_written),.cart_snapshot(cart_snapshot));
+  .cart_written(cart_written),.cart_snapshot(cart_snapshot),.freeze_active(freeze_active));
  gg_state_engine engine(.clk(clk),.reset(!reset_n),
   .freeze_toggle(freeze_t),.release_toggle(release_t),.load_toggle(load_t),.block_toggle(block_t),
   .block_number(block_number),.block_sequence(block_seq),
@@ -44,7 +52,7 @@ module gg_ss_sim_top(
   .mem_select(mem_select),.mem_address(mem_address),.mem_write(mem_write),.mem_data(mem_data),.mem_q(mem_q),
   .owns_rom(owns_rom),.cache_invalidate(cache_invalidate),.rom_address(eng_address),.rom_read(eng_read),
   .rom_data(rom_byte),.rom_ready(rom_ready),.rom_fault(rom_fault),
-  .qclk(clk),.qaddress(qaddress),.qdata(qdata),.video_resume_ok(1'b1),
+  .qclk(clk),.qaddress(qaddress),.qdata(qdata),.video_resume_ok(resume_ok),
   .cart_import(cart_import),.boot_hold(boot_hold),.cart_dirty_clear(cart_dirty_clear),.cart_q(cart_q),.imported(imported));
 endmodule
 

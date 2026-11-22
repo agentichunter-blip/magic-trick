@@ -6,7 +6,7 @@
 LV_IMG_DECLARE(img_option_dis);
 LV_IMG_DECLARE(img_option_en);
 
-/* Same two-option toggle as LYNX SCREEN and the other settings. */
+/* Same two-option toggle as LYNX/SMS SCREEN and the other settings. */
 enum {
     kToggleOptX_px = 77,
     kToggleOptTop_Y_px = 52,
