@@ -1,0 +1,8 @@
+core/NES_MiSTer/
+core/testroms/
+core/sim/build*/
+core/sim/out/
+core/board/test/obj/
+impl/
+build.log
+result.json
