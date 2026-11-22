@@ -737,10 +737,11 @@ static void Start(void)
 {
     /* With the Atari Lynx core loaded, Wi-Fi Files started, but the menu then stopped
      * responding and froze on screen (2026-11-18; long static images leave a fading ghost
-     * on the LCD). Until that's understood, Wi-Fi needs a Game Boy or Game Gear core. */
-    if (CoreSwitch_IsCore(kCoreSystem_Lynx))
+     * on the LCD). Until that's understood, Wi-Fi needs a Game Boy or Game Gear core
+     * (the NES core shares the Lynx core's stub cartridge engine: untested, refused too). */
+    if (CoreSwitch_HasCartStub())
     {
-        LYNX_STEP("wifi refused: Lynx core");
+        LYNX_STEP("wifi refused: Lynx/NES core");
         Message("PLAY A GB GAME FIRST");
         return;
     }

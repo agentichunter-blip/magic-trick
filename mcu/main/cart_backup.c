@@ -1279,14 +1279,15 @@ esp_err_t CartBackup_SetPCMode(bool Enabled)
      * rejects Enter/Exit (ESP_ERR_INVALID_RESPONSE), so starting Wi-Fi Files in
      * a Lynx game stopped the game and then failed, leaving a frozen picture
      * (2026-11-18). PC mode only matters to the cartridge link; Wi-Fi Files just
-     * needs the game stopped, which PCBackup already does. Track it in software. */
-    if (CoreSwitch_IsCore(kCoreSystem_Lynx))
+     * needs the game stopped, which PCBackup already does. Track it in software.
+     * The NES core carries the same stub. */
+    if (CoreSwitch_HasCartStub())
     {
         portENTER_CRITICAL(&StateLock);
         const bool Changed = PCModeActive != Enabled;
         PCModeActive = Enabled;
         portEXIT_CRITICAL(&StateLock);
-        if (Changed) LYNX_STEP("pcmode %s (software, Lynx core)", Enabled ? "on" : "off");
+        if (Changed) LYNX_STEP("pcmode %s (software, stub cartridge engine)", Enabled ? "on" : "off");
         return ESP_OK;
     }
     if (!BeginRun(false))
