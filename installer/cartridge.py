@@ -787,17 +787,18 @@ class CartUsb(CartAccess):
         if that line is lost, it is waiting for the next request, so the sequence moves on anyway."""
         import base64
         import binascii
-        usb, got = self.usb, set()
+        usb, got, heard = self.usb, set(), False
         usb._timeout(60)
         usb._send(bytes([op]) + struct.pack('<II', offset, n))
         while True:
             try:
                 rec = usb._record()
             except TimeoutError:
-                if not got:
+                if not heard:
                     raise   # nothing came back: the Chromatic isn't answering
                 usb.seq += 1
                 return got
+            heard = True
             usb._timeout(20)   # the next line comes quickly once data flows
             if rec.startswith('OK seq='):
                 try:

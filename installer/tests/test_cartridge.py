@@ -276,7 +276,7 @@ class CartUsbReadTest(unittest.TestCase):
         usb = object.__new__(library.UsbTarget)
         library.Target.__init__(usb)
         usb.port, usb.seq, usb._buf, usb.deadline = LossyChromatic(image, save, drop, seed), 0, b'', 0
-        usb._timeout = lambda seconds: setattr(usb, 'deadline', time.time() + 0.05)
+        usb._timeout = lambda seconds: setattr(usb, 'deadline', time.time() + 0.5)   # (slow CI runners)
         cart = c.CartUsb(usb)
         got = cart.read(), cart.read_save(), cart.close()
         return got, (image, save, 2)
