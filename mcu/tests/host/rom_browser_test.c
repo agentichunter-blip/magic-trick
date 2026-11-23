@@ -41,6 +41,7 @@ static void FileAt(const char *pName) {
     FILE *pFile = fopen(pName, "wb"); assert(pFile); assert(fclose(pFile) == 0);
 }
 static void Row(size_t Index, const char *pName, bool Directory) {
+    if (!Source.NameAt(Index) || strcmp(Source.NameAt(Index), pName)) fprintf(stderr, "row %zu: want \"%s\" got \"%s\"\n", Index, pName, Source.NameAt(Index) ? Source.NameAt(Index) : "(none)");
     assert(strcmp(Source.NameAt(Index), pName) == 0);
     assert(Source.IsDirectory(Index) == Directory);
 }
@@ -162,10 +163,14 @@ int main(void) {
         snprintf(Path, sizeof(Path), "%s/._Game_%04u.gb", ROM_BROWSER_ROOT, I);
         FileAt(Path);
     }
-    assert(Source.Open(&Count) == ESP_OK && Count == 2000);
+    /* Over the list limit, all under one letter: a single "G" range holding them all. */
+    assert(Source.Open(&Count) == ESP_OK && Count == 1 && Source.AtRoot());
+    Row(0, "G", true);
+    assert(Source.Enter(0, &Count) == ESP_OK && Count == 2000 && !Source.AtRoot());
     Row(0, "Game_0000.gb", false); Row(1999, "Game_1999.gb", false);
     Source.Remember(1955); Source.Close();
     assert(Source.Open(&Count) == ESP_OK && Count == 2000 && Source.Restore() == 1955);
+    assert(Source.Parent(&Count, &Selected) == ESP_OK && Count == 1 && Selected == 0 && Source.AtRoot());
     Source.Close();
     for (unsigned I = 0; I < 2000; ++I) {
         char Path[320]; snprintf(Path, sizeof(Path), "%s/Game_%04u.gb", ROM_BROWSER_ROOT, I);
@@ -318,6 +323,66 @@ int main(void) {
     assert(Source.FolderPlatform(0)==kRomPlatformGG);
     Source.Close();
     assert(rmdir(ROM_BROWSER_ROOT "/GG")==0);
+
+    /* A folder over the 600-game list limit shows letter ranges (at most 400 games
+     * each unless one letter has more); entering a range lists only its games. */
+    assert(mkdir(ROM_BROWSER_ROOT "/Big",0700)==0);
+    assert(mkdir(ROM_BROWSER_ROOT "/Big/Hacks",0700)==0);
+    char BigName[512];
+    for (unsigned I=0;I<1000;++I) {
+        const char Letter = I<100 ? '9' : I<400 ? 'S' : (char)('a' + (I-400)%18);   /* lower case: titles are upper-cased */
+        snprintf(BigName,sizeof(BigName),ROM_BROWSER_ROOT "/Big/%c%03u game.gb",Letter,I);
+        FileAt(BigName);
+    }
+    assert(Source.Open(&Count)==ESP_OK && Count==1);
+    assert(Source.Enter(0,&Count)==ESP_OK && !Source.AtRoot());
+    const size_t Ranges=Count;
+    Row(Ranges-1,"Hacks",true);                       /* ranges first, then real folders */
+    assert(Ranges>=4 && Ranges<=6);
+    assert(Source.NameAt(0)[0]=='0');
+    size_t Total=0;
+    char Labels[8][8];
+    char Previous=0;
+    for (size_t R=0;R+1<Ranges;++R) {
+        assert(Source.IsDirectory(R));
+        snprintf(Labels[R],sizeof(Labels[R]),"%s",Source.NameAt(R));
+        assert(Labels[R][0]>Previous); Previous=Labels[R][0];
+        assert(Source.Enter(R,&Count)==ESP_OK && Count>0 && !Source.AtRoot());
+        assert(Count<=400 || !strcmp(Labels[R],"S"));
+        const char Lo=Labels[R][0]=='0' ? '0' : Labels[R][0], Hi=Labels[R][1]=='-' ? Labels[R][2] : Labels[R][0];
+        for (size_t I=0;I<Count;++I) {
+            assert(!Source.IsDirectory(I));
+            char First=Source.NameAt(I)[0]; if (First>='a' && First<='z') First-=32;
+            if (Lo=='0') assert((First>='0' && First<='9') || First<=Hi);
+            else assert(First>=Lo && First<=Hi);
+        }
+        Total+=Count;
+        if (R==Ranges-2) {
+            Source.Remember(Count-1);
+            assert(Source.Start(Source.NameAt(Count-1))==ESP_OK);
+            assert(!strncmp(StartedPath,ROM_BROWSER_ROOT "/Big/",strlen(ROM_BROWSER_ROOT "/Big/")));
+            Source.Close();                                  /* back from the game */
+            size_t Again=0;
+            assert(Source.Open(&Again)==ESP_OK && Again==Count && Source.Restore()==Count-1);
+        }
+        assert(Source.Parent(&Count,&Selected)==ESP_OK && Count==Ranges && Selected==R);
+    }
+    assert(Total==1000);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Source.AtRoot() && Count==1);
+    Source.Close();
+    for (unsigned I=0;I<1000;++I) {
+        const char Letter = I<100 ? '9' : I<400 ? 'S' : (char)('a' + (I-400)%18);
+        snprintf(BigName,sizeof(BigName),ROM_BROWSER_ROOT "/Big/%c%03u game.gb",Letter,I);
+        assert(unlink(BigName)==0);
+    }
+    /* Exactly at the limit: an ordinary list. */
+    for (unsigned I=0;I<600;++I) { snprintf(BigName,sizeof(BigName),ROM_BROWSER_ROOT "/Big/g%03u.gb",I); FileAt(BigName); }
+    assert(Source.Open(&Count)==ESP_OK && Source.Enter(0,&Count)==ESP_OK && Count==601);
+    Row(0,"Hacks",true); Row(1,"g000.gb",false);
+    assert(Source.Parent(&Count,&Selected)==ESP_OK && Source.AtRoot());
+    Source.Close();
+    for (unsigned I=0;I<600;++I) { snprintf(BigName,sizeof(BigName),ROM_BROWSER_ROOT "/Big/g%03u.gb",I); assert(unlink(BigName)==0); }
+    assert(rmdir(ROM_BROWSER_ROOT "/Big/Hacks")==0 && rmdir(ROM_BROWSER_ROOT "/Big")==0);
     assert(rmdir(ROM_BROWSER_ROOT) == 0);
     assert(Mounts == Unmounts && !Mounted);
     puts("PASS: real folder enumeration, full ROM paths, back selection, SD ownership and path limits");
