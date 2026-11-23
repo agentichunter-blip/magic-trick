@@ -2139,8 +2139,9 @@ static esp_err_t RunLoad(const char *pPath)
     }
     pRom = NULL;
 
+    /* Game Genie codes go to the Game Gear or NES core's engine (cleared on every launch). */
     if (Info.GameGear || Info.Nes) {
-        if (CoreSwitch_IsTarget(true)) Result=GGCheats_Install(&Cheats);
+        if (CoreSwitch_IsCore(Info.Nes ? kCoreSystem_NES : kCoreSystem_GG)) Result=GGCheats_Install(&Cheats);
         else if(Cheats.Count) Result=ESP_ERR_NOT_SUPPORTED;
         if(Result!=ESP_OK) goto Cleanup;
     }
