@@ -13,6 +13,19 @@ def fetch(name,url,sha):
     if hashlib.sha256(p.read_bytes()).hexdigest()!=sha: raise ValueError('Tool checksum mismatch: '+name)
     return p
 
+# Oldest macOS the Mac programmer must run on (the app's own Python and Tk need 11 on Apple silicon).
+MAC_MIN='11.0' if platform.machine()=='arm64' else '10.15'
+
+def mac_min(path):
+    """The minimum macOS a Mach-O file says it needs, as a tuple."""
+    out=subprocess.check_output(['otool','-l',str(path)],text=True).split()
+    for key in ('minos','LC_VERSION_MIN_MACOSX'):
+        if key in out:
+            i=out.index(key)
+            value=out[i+1] if key=='minos' else out[out.index('version',i)+1]
+            return tuple(int(x) for x in value.split('.'))
+    raise ValueError('No minimum macOS in '+str(path))
+
 def main():
     WORK.mkdir(exist_ok=True)
     if OUT.exists(): shutil.rmtree(OUT)
@@ -36,13 +49,15 @@ def main():
         for p in [srcarchive,usbarchive]:
             with tarfile.open(p) as t: t.extractall(WORK,filter='data')
         usb=WORK/'libusb-1.0.27'; prefix=WORK/'deps'
-        run(usb/'configure','--prefix='+str(prefix),'--disable-static',cwd=usb)
-        run('make','-j3',cwd=usb); run('make','install',cwd=usb)
+        # Build for the oldest macOS the app runs on, not the build machine's: without this, a CI
+        # runner on macOS 15 made a programmer that macOS 14 and older refuse to start.
+        env=dict(os.environ,MACOSX_DEPLOYMENT_TARGET=MAC_MIN,PKG_CONFIG_PATH=str(prefix/'lib/pkgconfig'))
+        run(usb/'configure','--prefix='+str(prefix),'--disable-static',cwd=usb,env=env)
+        run('make','-j3',cwd=usb,env=env); run('make','install',cwd=usb,env=env)
         src=WORK/('openFPGALoader-'+REV)
-        env=dict(os.environ,PKG_CONFIG_PATH=str(prefix/'lib/pkgconfig'))
         run('cmake','-S',src,'-B',WORK/'build','-DCMAKE_BUILD_TYPE=Release',
             '-DENABLE_CABLE_ALL=OFF','-DENABLE_GOWIN_GWU2X=ON','-DENABLE_USB_SCAN=ON',
-            '-DENABLE_VENDORS_ALL=OFF','-DENABLE_GOWIN_SUPPORT=ON',env=env)
+            '-DENABLE_VENDORS_ALL=OFF','-DENABLE_GOWIN_SUPPORT=ON','-DCMAKE_OSX_DEPLOYMENT_TARGET='+MAC_MIN,env=env)
         run('cmake','--build',WORK/'build','--parallel','3')
         target=OUT/'tools'; target.mkdir()
         binary=target/'openFPGALoader'; shutil.copy2(WORK/'build/openFPGALoader',binary)
@@ -53,7 +68,10 @@ def main():
             if 'libusb' in dep: run('install_name_tool','-change',dep,'@loader_path/libusb-1.0.0.dylib',binary)
             elif not dep.startswith(('/usr/lib/','/System/Library/')): raise ValueError('Unbundled dependency '+dep)
         run('install_name_tool','-id','@loader_path/libusb-1.0.0.dylib',dylib)
-        for p in [dylib,binary]: run('codesign','--force','--sign','-',p)
+        for p in [dylib,binary]:
+            run('codesign','--force','--sign','-',p)
+            if mac_min(p)>tuple(map(int,MAC_MIN.split('.'))):
+                raise ValueError('%s needs macOS %s; it must run on %s' % (p.name,'.'.join(map(str,mac_min(p))),MAC_MIN))
         (OUT/'licenses').mkdir(); (OUT/'sources').mkdir()
         shutil.copy2(src/'LICENSE',OUT/'licenses/openFPGALoader.txt')
         shutil.copy2(usb/'COPYING',OUT/'licenses/libusb.txt')
