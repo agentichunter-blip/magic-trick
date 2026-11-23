@@ -31,6 +31,8 @@ module nes_sim_top (
 	input         cart_import,
 	output        cart_imported, cart_dirty,
 	output  [7:0] cart_written, cart_snapshot,
+	input [128:0] gg_code,
+	input         gg_clear,
 	// debug
 	input  [12:0] dbg_addr,
 	output  [7:0] dbg_prgram, dbg_cpuram, dbg_ciram, dbg_chrram,
@@ -53,7 +55,8 @@ module nes_sim_top (
 		.state_busy(st_busy), .state_fault(st_fault), .state_frozen(st_frozen), .state_loaded(st_loaded),
 		.qclk(clk), .qaddress(qaddress), .qdata(qdata), .video_resume_ok(video_resume_ok),
 		.cart_import(cart_import), .cart_imported(cart_imported), .cart_dirty(cart_dirty),
-		.cart_dirty_clear(cart_dirty_clear), .cart_written(cart_written), .cart_snapshot(cart_snapshot));
+		.cart_dirty_clear(cart_dirty_clear), .cart_written(cart_written), .cart_snapshot(cart_snapshot),
+		.gg_code(gg_code), .gg_clear(gg_clear));
 	assign dbg_prgram = dut.prgram[dbg_addr];
 	assign dbg_cpuram = dut.cpuram[dbg_addr[10:0]];
 	assign dbg_ciram = dut.ciram[dbg_addr[10:0]];

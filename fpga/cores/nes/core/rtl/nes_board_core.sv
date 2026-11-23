@@ -90,7 +90,11 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	                                    // cart_snapshot <= cart_written (plus a write in this very cycle),
 	                                    // cart_written <= 0, cart_dirty <= 0 (no write is lost)
 	output reg  [7:0] cart_written = 8'd0,  // 1 KiB blocks ($6000+n*1K) written since the last clear
-	output reg  [7:0] cart_snapshot = 8'd0
+	output reg  [7:0] cart_snapshot = 8'd0,
+	// Game Genie (CODES in rtl/gen/cheatcodes.sv, 16 codes): the shell's gg_cheat_loader drives these
+	// on xclk while the core is stopped; tie to 0 for no codes.
+	input     [128:0] gg_code,
+	input             gg_clear
 );
 	// ------------------------------------------------------------------ info block loader
 	localparam [21:0] PRG_BASE = 22'h001000;
@@ -160,7 +164,7 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 		.prg_mask({11'd0, prg_mask}), .chr_mask({10'd0, chr_mask}),
 		.bram_addr(), .bram_din(8'd0), .bram_dout(), .bram_write(), .bram_override(),
 		.cycle(cycle), .scanline(scanline), .int_audio(1'b1), .ext_audio(1'b0), .apu_ce(apu_ce),
-		.gg(1'b1), .gg_code(129'd0), .gg_avail(), .gg_reset(1'b0), .emphasis(emphasis),
+		.gg(1'b0), .gg_code(gg_code), .gg_avail(), .gg_reset(gg_clear), .gg_clk(clk), .emphasis(emphasis),
 		.save_written(), .mapper_has_flashsaves(), .debug_dots(1'b0),
 		.mapper_has_savestate(), .increaseSSHeaderCount(1'b1), .save_state(save_req), .load_state(load_req),
 		.savestate_number(2'd0), .sleep_savestate(sleep_savestate), .state_loaded(nes_state_loaded),

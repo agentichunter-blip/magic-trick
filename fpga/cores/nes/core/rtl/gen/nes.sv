@@ -134,6 +134,7 @@ module NES(
 	input [128:0] gg_code,
 	output        gg_avail,
 	input         gg_reset,
+	input         gg_clk,         // Chromatic: free-running clock for the Game Genie code table
 	output  [2:0] emphasis,
 	output        save_written,
 	output        mapper_has_flashsaves,
@@ -840,6 +841,7 @@ wire [7:0] genie_data;
 
 CODES codes (
 	.clk        (clk),
+	.cfg_clk    (gg_clk),
 	.reset      (gg_reset),
 	.enable     (~gg),
 	.addr_in    (addr),

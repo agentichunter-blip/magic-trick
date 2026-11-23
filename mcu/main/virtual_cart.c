@@ -2040,6 +2040,7 @@ static esp_err_t RunLoad(const char *pPath)
     } else if (Info.Nes) {
         Result=NesRom_Inspect(pRom,&Info.NesRom);
         if (Result==ESP_ERR_NOT_SUPPORTED) printf("NES_ROM unsupported mapper=%u\n",(unsigned)Info.NesRom.Mapper);
+        if (Result==ESP_OK) Result=Cheats_Prepare(pPath,pRom,&Cheats);
         Info.RomSize=Info.NesRom.PrgBytes+Info.NesRom.ChrBytes;
         Info.MappedRomSize=Info.RomSize;
         snprintf(Info.Title,sizeof(Info.Title),"NES");
@@ -2138,7 +2139,7 @@ static esp_err_t RunLoad(const char *pPath)
     }
     pRom = NULL;
 
-    if (Info.GameGear) {
+    if (Info.GameGear || Info.Nes) {
         if (CoreSwitch_IsTarget(true)) Result=GGCheats_Install(&Cheats);
         else if(Cheats.Count) Result=ESP_ERR_NOT_SUPPORTED;
         if(Result!=ESP_OK) goto Cleanup;
@@ -3313,6 +3314,32 @@ static int LoadCommand(int argc, char **argv)
     return Result == ESP_OK ? 0 : 1;
 }
 
+/* Diagnostics: open a game's cheat pack and toggle option N (1-based) or "off" (disable all),
+ * as the menu does (settings in NVS, next launch). Prints the options. */
+static int CheatCommand(int argc, char **argv)
+{
+    if (argc < 2 || argc > 3)
+    {
+        printf("usage: cheat <rom path> [option number|off]\n");
+        return 1;
+    }
+    CheatView_t View;
+    esp_err_t Result = Cheats_Menu(kCheatOpen, argv[1], 0, &View);
+    if (Result == ESP_OK && argc == 3)
+        Result = !strcmp(argv[2], "off") ? Cheats_Menu(kCheatDisableAll, NULL, 0, &View)
+                                         : Cheats_Menu(kCheatToggle, NULL, (size_t)atoi(argv[2]), &View);
+    if (Result == ESP_OK)
+        for (size_t I = 1; I < View.Count; ++I) {
+            CheatView_t Row;
+            if (Cheats_Menu(kCheatView, NULL, I, &Row) != ESP_OK) break;
+            for (unsigned R = 0; R < CHEAT_ROWS; ++R)
+                if (Row.First + R == I) printf("CHEAT %u %s %s\n", (unsigned)I, Row.Rows[R].Enabled ? "ON " : "off", Row.Rows[R].Name);
+        }
+    Cheats_Close();
+    printf("CHEAT_MENU=%s error=%s enabled=%u\n", Result == ESP_OK ? "PASS" : "FAIL", esp_err_to_name(Result), (unsigned)View.Enabled);
+    return Result == ESP_OK ? 0 : 1;
+}
+
 static int StopCommand(int argc, char **argv)
 {
     (void)argc;
@@ -3340,6 +3367,7 @@ esp_err_t VirtualCart_RegisterConsoleCommands(void)
         .argtable = NULL,
     };
     const esp_console_cmd_t NativeCommands[]={
+      {.command="cheat",.help="List a game's Game Genie options; toggle one (number) or all off",.hint="<rom> [n|off]",.func=CheatCommand},
       {.command="statesave",.help="Save native state to slot 1-3 (default 1)",.hint="[slot]",.func=NativeSaveCommand},
       {.command="stateload",.help="Load native state from slot 1-3 (default 1) into a separate battery-save branch",.hint="[slot]",.func=NativeLoadCommand},
       {.command="statestatus",.help="Report native snapshot capability and status",.func=NativeStatusCommand},

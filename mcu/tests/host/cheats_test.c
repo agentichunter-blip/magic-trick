@@ -21,11 +21,11 @@ esp_err_t nvs_commit(nvs_handle_t H) { assert(H==1); if(NvsFail) return ESP_FAIL
 void nvs_close(nvs_handle_t H) { assert(H==1); }
 static const char *Rom=CHEAT_ROM_ROOT "Game.gb", *Pack=CHEAT_PACK_ROOT "Game.gb.cmc";
 static void Write(const char *Path,const void *Data,size_t N) { FILE *F=fopen(Path,"wb"); assert(F && fwrite(Data,1,N,F)==N && !fclose(F)); }
-static bool GGPack;
+static bool GGPack, NesPack;
 static void MakePack(void) {
-    uint8_t B[32+3*104+3*8]={0}; memcpy(B,"CMCH",4); Put(B+4,GGPack?2:1); Put(B+8,sizeof(ROM)); Put(B+12,Cheats_CRC32(0,ROM,sizeof(ROM))); Put(B+16,3); Put(B+20,3);
+    uint8_t B[32+3*104+3*8]={0}; memcpy(B,"CMCH",4); Put(B+4,NesPack?3:GGPack?2:1); Put(B+8,sizeof(ROM)); Put(B+12,Cheats_CRC32(0,ROM,sizeof(ROM))); Put(B+16,3); Put(B+20,3);
     const char *Names[]={"Infinite lives","Start with 99 lives","Infinite health"};
-    for(unsigned I=0;I<3;++I) { uint8_t *E=B+32+104*I; strcpy((char *)E,Names[I]); Put(E+96,I); E[100]=1; uint8_t *P=B+32+3*104+8*I; Put(P,I==2?0x2400:0x200); P[4]=0; P[5]=I+1;P[6]=GGPack?1:0; }
+    for(unsigned I=0;I<3;++I) { uint8_t *E=B+32+104*I; strcpy((char *)E,Names[I]); Put(E+96,I); E[100]=1; uint8_t *P=B+32+3*104+8*I; Put(P,(I==2?0x2400:0x200)|(NesPack?0x8000:0)); P[4]=0; P[5]=I+1;P[6]=GGPack||NesPack?1:0; }
     Put(B+24,Cheats_CRC32(0,B+32,sizeof(B)-32)); Write(Pack,B,sizeof(B));
 }
 int main(void) {
@@ -79,5 +79,21 @@ int main(void) {
     Cheats_Free(&P);fclose(F);
     GGPack=false;MakePack();assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_ERR_INVALID_ARG);
     unlink(Pack);unlink(Rom);
+    /* NES (CMCH v3): CPU-address codes $8000-$FFFF for the NES core's engine; a v3 pack only fits .nes. */
+    Rom=CHEAT_ROM_ROOT "Game.nes";Pack=CHEAT_PACK_ROOT "Game.nes.cmc";NesPack=true;Stored=false;
+    Write(Rom,ROM,sizeof(ROM));MakePack();
+    assert(Cheats_Badge(Rom,&Badge)==ESP_OK && Badge.Available && !Badge.Enabled);
+    assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_OK && V.Count==4);
+    assert(Cheats_Menu(kCheatToggle,NULL,1,&V)==ESP_OK && Cheats_Menu(kCheatToggle,NULL,3,&V)==ESP_OK && V.Enabled==2);
+    F=fopen(Rom,"rb");assert(F);
+    assert(Cheats_Prepare(Rom,F,&P)==ESP_OK && P.Nes && !P.GameGear && P.Count==2);
+    assert(P.Patches[0].Offset==0x8200 && P.Patches[0].Value==1 && P.Patches[0].Compare && P.Patches[1].Offset==0xa400);
+    memset(Data,0,sizeof(Data));assert(Cheats_Apply(&P,0,Data,sizeof(Data))==ESP_ERR_NOT_SUPPORTED);
+    Cheats_Free(&P);fclose(F);
+    NesPack=false;MakePack();assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_ERR_INVALID_ARG);   /* GB pack on .nes */
+    NesPack=true;MakePack();Rom=CHEAT_ROM_ROOT "Game.gb";Write(Rom,ROM,sizeof(ROM));
+    rename(CHEAT_PACK_ROOT "Game.nes.cmc",CHEAT_PACK_ROOT "Game.gb.cmc");Pack=CHEAT_PACK_ROOT "Game.gb.cmc";
+    assert(Cheats_Menu(kCheatOpen,Rom,0,&V)==ESP_ERR_INVALID_ARG);                           /* NES pack on .gb */
+    unlink(Pack);unlink(Rom);unlink(CHEAT_ROM_ROOT "Game.nes");NesPack=false;
     puts("PASS: exact ROM identity, grouped/conflicting patches, persistent toggles, disable all, failed commit, corrupt packs/settings, original ROM unchanged");
 }

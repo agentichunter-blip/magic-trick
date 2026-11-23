@@ -52,6 +52,20 @@ class Cheats(unittest.TestCase):
             self.assertEqual(m.PATCH.unpack(blob[-8:]),(0x3d49,2,0x99,0))
             self.assertEqual((roms/'GB/0-F/Game (World).gb').read_bytes(),r)
 
+    def test_nes_runtime(self):
+        # SXIOPO is Super Mario Bros.' well-known infinite lives code: $91D9 = $AD.
+        self.assertEqual(m.nes_decode('SXIOPO'),(0x91d9,0xad,None))
+        self.assertEqual(m.nes_decode('AZSLPIAK'),(0xb551,0x28,0x40))
+        prg=bytearray([0xEA])*32768; prg[0x3551]=0x40              # $B551 in a 32 KiB NROM
+        rom=b'NES\x1a'+bytes([2,1,0,0])+bytes(8)+bytes(prg)+bytes(8192)
+        self.assertEqual(m.nes_codes(rom,'SXIOPO+AZSLPIAK'),[(0x91d9,0,0xad,0),(0xb551,0x40,0x28,1)])
+        with self.assertRaisesRegex(ValueError,'compare'):m.nes_codes(rom,'AZSLPIAE')
+        for text in ['SXIOP','SXIOPO1','00A-17B-C49','']:
+            with self.assertRaises(ValueError):m.nes_codes(rom,text)
+        with self.assertRaisesRegex(ValueError,'iNES'):m.nes_codes(b'XYZ'+rom[3:],'SXIOPO')
+        blob=m.encode(rom,[('Lives',m.nes_codes(rom,'SXIOPO'))],nes=True)
+        self.assertEqual(m.HEADER.unpack_from(blob)[1],3)
+
     def test_gamegear_runtime(self):
         rom=bytearray(65536);rom[0x7ff0:0x7ff8]=b'TMR SEGA';rom[0x7fff]=0x60
         rom[0xa17]=0xc8

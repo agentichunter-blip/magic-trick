@@ -4,7 +4,10 @@
 #include <stddef.h>
 #include <stdio.h>
 typedef struct { uint32_t Offset; uint8_t Original, Value; bool Compare; } CheatPatch_t;
-typedef struct { CheatPatch_t *Patches; size_t Count; bool GameGear; } CheatPlan_t;
+/* GameGear / Nes: live CPU-address codes for the core's Game Genie engine (Offset = CPU address,
+ * Original = compare byte when Compare); otherwise physical ROM byte patches (Game Boy). */
+typedef struct { CheatPatch_t *Patches; size_t Count; bool GameGear, Nes; } CheatPlan_t;
+enum { kCheatGGCodes = 32, kCheatNesCodes = 16 };   /* FPGA CODES table sizes */
 /* Menu functions run only on the serialized browser worker. */
 esp_err_t Cheats_Menu(CheatAction_t Action, const char *RomPath, size_t Selected, CheatView_t *View);
 void Cheats_Close(void);

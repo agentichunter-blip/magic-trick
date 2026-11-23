@@ -67,4 +67,9 @@ set_multicycle_path -from [get_regs {u_emu_system_top/core/nes/* u_emu_system_to
 # logic into the caches and the enable are two-cycle paths like the NES's own.
 set_multicycle_path -from [get_regs {u_emu_system_top/core/mapper_flags* u_emu_system_top/core/prg_mask* u_emu_system_top/core/chr_mask* u_emu_system_top/core/chr_ram* u_emu_system_top/core/chr_base* u_emu_system_top/core/flags_hide* u_emu_system_top/core/info* u_emu_system_top/core/nes_reset*}] -to [get_clocks {xclk}] -setup -end 2
 set_multicycle_path -from [get_regs {u_emu_system_top/core/mapper_flags* u_emu_system_top/core/prg_mask* u_emu_system_top/core/chr_mask* u_emu_system_top/core/chr_ram* u_emu_system_top/core/chr_base* u_emu_system_top/core/flags_hide* u_emu_system_top/core/info* u_emu_system_top/core/nes_reset*}] -to [get_clocks {xclk}] -hold -end 1
+# Game Genie code table (CODES in rtl/gen/cheatcodes.sv): written on xclk only while the
+# core is stopped (gg_cheat_loader), constant while the game runs; it feeds the NES CPU's
+# data bus combinationally, a two-cycle path like the NES's own registers.
+set_multicycle_path -from [get_regs {u_emu_system_top/core/nes/codes/*}] -to [get_clocks {xclk}] -setup -end 2
+set_multicycle_path -from [get_regs {u_emu_system_top/core/nes/codes/*}] -to [get_clocks {xclk}] -hold -end 1
 report_timing -setup -max_paths 400 -max_common_paths 1

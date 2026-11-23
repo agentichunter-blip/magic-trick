@@ -6,7 +6,9 @@
 #include "freertos/task.h"
 static uint8_t Sequence=255,Count;static bool Busy,Drop,BadMagic,BadCount,SendFail;
 static unsigned Sends,Delays;
-static const CheatPatch_t Patches[]={{0x9234,0x3a,0x99,true},{0x4567,0,0x42,false}};
+static const CheatPatch_t GGPatches[]={{0x9234,0x3a,0x99,true},{0x4567,0,0x42,false}};
+static const CheatPatch_t NesPatches[]={{0x91d9,0,0xad,false},{0xb551,0x40,0x28,true}};
+static const CheatPatch_t *Patches=GGPatches;
 esp_err_t CartLink_VirtualCommand(uint8_t C,uint16_t Config,uint8_t High,CartLinkResponse_t *R) {
  assert(C==0x30 && !Config && !High);
  *R=(CartLinkResponse_t){.Count=4,.Data={Busy,BadCount?99:Count,Sequence,BadMagic?0:0xc7}};return ESP_OK;
@@ -32,5 +34,10 @@ int main(void) {
  SendFail=true;assert(GGCheats_Install(&P)==ESP_FAIL);SendFail=false;
  P.Count=33;assert(GGCheats_Install(&P)==ESP_ERR_INVALID_ARG);
  P.Count=1;P.GameGear=false;assert(GGCheats_Install(&P)==ESP_ERR_INVALID_ARG);
- puts("PASS: GG clear/append acknowledgement, sequence rollover, wrong core, busy, dropped UART, bad count and bounds");
+ /* NES: $8000-$FFFF, at most 16 codes (the NES core's CODES table). */
+ Patches=NesPatches;P=(CheatPlan_t){.Patches=(CheatPatch_t*)NesPatches,.Count=2,.Nes=true};Sends=0;
+ assert(GGCheats_Install(&P)==ESP_OK && Sends==3 && Count==2);
+ P.Count=17;assert(GGCheats_Install(&P)==ESP_ERR_INVALID_ARG && Sends==3);
+ P=(CheatPlan_t){.Patches=(CheatPatch_t*)GGPatches,.Count=2,.Nes=true};assert(GGCheats_Install(&P)==ESP_ERR_INVALID_ARG && Sends==3);
+ puts("PASS: NES codes $8000-$FFFF, 16-code limit; GG clear/append acknowledgement, sequence rollover, wrong core, busy, dropped UART, bad count and bounds");
 }

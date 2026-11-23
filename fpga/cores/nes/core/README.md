@@ -49,7 +49,10 @@ T65 goes in as the GHDL netlist (like the Lynx core), not through Gowin's VHDL f
   "not selected" initialisation with the real header flags (MiSTer does this with flags = 0 during
   the download, which leaves MMC3 in horizontal mirroring; with no initialisation at all the MMC3
   fixed $C000 bank was 0).
-* Game Genie (`CODES`) is a stub. Vs./PAL/Dendy/FDS/expansion audio not built (sys_type 0).
+* Game Genie: `CODES` (rtl/gen/cheatcodes.sv, 16 codes) with its table on the free-running clock (`gg_clk`), loaded by the shell's
+  `gg_cheat_loader` (NES=1: $8000-$FFFF). Sim check: `sim/gg_test_rom.py` and `NES_GG=9000:55,9001:66:23,9002:77:33 NES_ZP=10,11,12`
+  (expect 55 22 77; without codes 11 22 33).
+* Vs./PAL/Dendy/FDS/expansion audio not built (sys_type 0).
 
 ## nes_board_core interface (all xclk unless noted)
 

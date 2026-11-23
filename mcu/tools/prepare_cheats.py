@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile conservative Game Genie packs for exact, user-supplied GB/GBC/GG ROMs.
+"""Compile conservative Game Genie packs for exact, user-supplied GB/GBC/GG/NES ROMs.
 
 No ROM bytes are distributed: packs contain descriptions and sparse byte patches.
 Input: libretro-database/cht, output: CHROMAGIC/CHEATS mirroring BACKUPS.
@@ -128,6 +128,57 @@ def gg_codes(rom, text):
         raise ValueError('GG code limit')
     return [(address,*item) for address,item in sorted(result.items())]
 
+NES_LETTERS = 'APZLGITYEOXUKSVN'
+NES_CODE = re.compile(r'[APZLGITYEOXUKSVN]{6}(?:[APZLGITYEOXUKSVN]{2})?')
+NES_MAX_CODES = 16   # FPGA CODES table in the NES core (rtl/gen/cheatcodes.sv)
+
+def nes_decode(code):
+    """NES Game Genie letters -> (CPU address $8000-$FFFF, value, compare or None).
+    The standard letter-to-nibble layout (6 letters: no compare; 8 letters: compare)."""
+    if not NES_CODE.fullmatch(code):
+        raise ValueError('unsupported code format')
+    n = [NES_LETTERS.index(c) for c in code]
+    address = 0x8000 | ((n[3] & 7) << 12) | ((n[5] & 7) << 8) | ((n[4] & 8) << 8) | \
+        ((n[2] & 7) << 4) | ((n[1] & 8) << 4) | (n[4] & 7) | (n[3] & 8)
+    if len(n) == 6:
+        return address, ((n[1] & 7) << 4) | ((n[0] & 8) << 4) | (n[0] & 7) | (n[5] & 8), None
+    value = ((n[1] & 7) << 4) | ((n[0] & 8) << 4) | (n[0] & 7) | (n[7] & 8)
+    compare = ((n[7] & 7) << 4) | ((n[6] & 8) << 4) | (n[6] & 7) | (n[5] & 8)
+    return address, value, compare
+
+def nes_prg(rom):
+    """PRG ROM of an iNES / NES 2.0 file (the bytes the CPU reads at $8000-$FFFF)."""
+    if len(rom) < 16 + 16384 or rom[:4] != b'NES\x1a':
+        raise ValueError('not an iNES file')
+    nes20 = (rom[7] & 0x0C) == 0x08
+    banks = rom[4] | ((rom[9] & 0x0F) << 8 if nes20 else 0)
+    start = 16 + (512 if rom[6] & 4 else 0)
+    prg = rom[start:start + banks * 16384]
+    if not banks or len(prg) != banks * 16384:
+        raise ValueError('unsupported PRG ROM size')
+    return prg
+
+def nes_codes(rom, text):
+    """Runtime CPU-address codes for the NES core's CODES engine (live, like a real Game Genie:
+    every read of the address is replaced, in any bank). A compare byte must occur in this ROM's
+    PRG at that address within some 8 KiB bank (the smallest PRG bank of the supported mappers)."""
+    prg = nes_prg(rom)
+    parts = [x for x in re.split(r'[+\s,;]+', text.strip().upper()) if x]
+    if not parts:
+        raise ValueError('mixed or unsupported code format')
+    result = {}
+    for part in parts:
+        address, value, compare = nes_decode(part)
+        if compare is not None and not any(prg[o] == compare for o in range(address & 0x1FFF, len(prg), 0x2000)):
+            raise ValueError('compare byte does not match this ROM')
+        item = (compare or 0, value, 1 if compare is not None else 0)
+        if address in result and result[address] != item:
+            raise ValueError('conflicting codes within one option')
+        result[address] = item
+    if len(result) > NES_MAX_CODES:
+        raise ValueError('NES code limit')
+    return [(address, *item) for address, item in sorted(result.items())]
+
 def parse_cht(path):
     entries = {}
     for line in path.read_text(encoding='utf-8-sig', errors='replace').splitlines():
@@ -147,7 +198,7 @@ def identity(name):
     tags = tuple(sorted(''.join(sorted(x.strip().casefold() for x in g.split(','))) for g in groups))
     return title, tags
 
-def encode(rom, entries, gamegear=False):
+def encode(rom, entries, gamegear=False, nes=False):
     names, body = bytearray(), bytearray()
     for name, values in entries:
         ascii_name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
@@ -158,28 +209,34 @@ def encode(rom, entries, gamegear=False):
         names += ENTRY.pack(ascii_name.encode(), len(body)//PATCH.size, len(values), 0)
         for item in values:
             offset, original, value = item[:3]
-            body += PATCH.pack(offset, original, value, item[3] if gamegear else 0)
+            body += PATCH.pack(offset, original, value, item[3] if gamegear or nes else 0)
     payload = names + body
-    return HEADER.pack(b'CMCH', 2 if gamegear else 1, len(rom), zlib.crc32(rom), len(entries), len(body)//PATCH.size, zlib.crc32(payload), 0) + payload
+    return HEADER.pack(b'CMCH', 3 if nes else 2 if gamegear else 1, len(rom), zlib.crc32(rom), len(entries), len(body)//PATCH.size, zlib.crc32(payload), 0) + payload
 
 def prepare(rom_root, database, output):
     index = {}
-    for system, directory in [('GB', 'Nintendo - Game Boy'), ('GBC', 'Nintendo - Game Boy Color'), ('GG', 'Sega - Game Gear')]:
+    for system, directory in [('GB', 'Nintendo - Game Boy'), ('GBC', 'Nintendo - Game Boy Color'), ('GG', 'Sega - Game Gear'),
+                              ('NES', 'Nintendo - Nintendo Entertainment System')]:
         for path in sorted((database/'cht'/directory).glob('* (Game Genie).cht')):
             index.setdefault((system, identity(path.stem)), []).append(path)
     report = {'matched_games': [], 'unmatched_games': [], 'rejected': [], 'pack_count': 0, 'cheat_count': 0}
     for path in sorted(rom_root.rglob('*')):
-        if not path.is_file() or path.suffix.lower() not in ('.gb', '.gbc', '.gg') or path.name.startswith('.'):
+        if not path.is_file() or path.suffix.lower() not in ('.gb', '.gbc', '.gg', '.nes') or path.name.startswith('.'):
             continue
         relative = path.relative_to(rom_root)
-        if relative.parts[0] not in ('GB', 'GBC', 'GG') or path.name.startswith('[BIOS]'):
+        if relative.parts[0] not in ('GB', 'GBC', 'GG', 'NES') or path.name.startswith('[BIOS]'):
             continue
         sources = index.get((relative.parts[0], identity(path.stem)), [])
         if not sources:
             report['unmatched_games'].append(str(relative)); continue
         rom = path.read_bytes()
         gamegear=relative.parts[0]=='GG'
-        if len(rom) < (8192 if gamegear else 32768) or len(rom) % (8192 if gamegear else 16384) or len(rom) > 4*1024*1024:
+        nes=relative.parts[0]=='NES'
+        if nes:
+            try: nes_prg(rom)
+            except ValueError as exc:
+                report['rejected'].append({'game':str(relative), 'reason':str(exc)}); continue
+        elif len(rom) < (8192 if gamegear else 32768) or len(rom) % (8192 if gamegear else 16384) or len(rom) > 4*1024*1024:
             report['rejected'].append({'game':str(relative), 'reason':'unsupported ROM extent'}); continue
         options, seen = [], set()
         for source in sources:
@@ -187,7 +244,7 @@ def prepare(rom_root, database, output):
                 try:
                     if LIVE_TOGGLE.search(e['desc']):
                         raise ValueError('requires live toggling/input; restart-only unsupported')
-                    values = gg_codes(rom,e['code']) if gamegear else patches(rom,e['code'])
+                    values = nes_codes(rom,e['code']) if nes else gg_codes(rom,e['code']) if gamegear else patches(rom,e['code'])
                     key = tuple(values)
                     if key in seen:
                         continue
@@ -199,7 +256,7 @@ def prepare(rom_root, database, output):
         if options:
             target = output/relative.parent/(relative.name+'.cmc')
             target.parent.mkdir(parents=True, exist_ok=True)
-            data = encode(rom, options, gamegear=gamegear); target.write_bytes(data)
+            data = encode(rom, options, gamegear=gamegear, nes=nes); target.write_bytes(data)
             report['pack_count'] += 1; report['cheat_count'] += len(options)
             report['matched_games'].append({'game':str(relative), 'rom_sha256':hashlib.sha256(rom).hexdigest(), 'pack_sha256':hashlib.sha256(data).hexdigest(), 'options':len(options), 'sources':[str(p.relative_to(database)) for p in sources]})
     return report

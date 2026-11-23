@@ -154,7 +154,7 @@ module emu_system_top
         cart_dirty_clear<=(block_t_x[2]!=block_t_x[1]) && virtual_snapshot_block==7'd64 && !state_frozen;
     end
     wire video_resume_ok;
-    nes_board_core core(.clk(xclk),.reset_n(!core_reset_x),.pause(quiet_x[1]),.buttons(buttons_x),
+    nes_board_core core(.gg_code(gg_code_x),.gg_clear(gg_clear_x),.clk(xclk),.reset_n(!core_reset_x),.pause(quiet_x[1]),.buttons(buttons_x),
         .x_request(virtual_xrequest),.x_read(virtual_xread),.x_address(virtual_xaddress),
         .x_length(virtual_xlength),.x_write_data(virtual_xwritedata),.x_write_next(virtual_xwrite_next),
         .x_done(virtual_xdone),.x_read_valid(virtual_xread_valid),.x_read_data(virtual_xreaddata),

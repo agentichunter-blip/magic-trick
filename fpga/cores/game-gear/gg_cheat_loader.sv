@@ -1,7 +1,8 @@
 // Atomic stopped-core transfer to the existing SMS_MiSTer Game Genie engine.
 // UART 0x12 payload: op(0 clear,1 append), address BE16, compare, value, compare-enable.
 // Cart virtual command 0x30 reads {c7, acknowledged sequence, code count, busy}.
-module gg_cheat_loader(
+// NES=1 (NES core): addresses $8000-$FFFF and at most MAX_CODES codes; Game Gear: below $C000.
+module gg_cheat_loader #(parameter NES = 0, parameter [7:0] MAX_CODES = 8'd32) (
  input gclk,xclk,reset,allowed,request,
  input [47:0] payload,
  output [31:0] status,
@@ -16,7 +17,7 @@ module gg_cheat_loader(
  reg [1:0] phase_x=0;
  wire busy=req_toggle!=ack_sync[1];
  wire encoding=(payload==48'd0) ||
-   (payload[47:40]==1 && payload[39:24]<16'hc000 && payload[7:1]==0 && count_g<32);
+   (payload[47:40]==1 && (NES ? payload[39:24]>=16'h8000 : payload[39:24]<16'hc000) && payload[7:1]==0 && count_g<MAX_CODES);
  assign status={8'hc7,sequence_g,count_g,7'd0,busy};
  always @(posedge gclk or posedge reset) begin
   if(reset)begin req_toggle<=0;held<=0;ack_sync<=0;ack_seen<=0;sequence_g<=0;count_g<=0;end

@@ -7,12 +7,12 @@ RELEASE = '1.0.0-beta.11'          # firmware this installer installs
 INSTALLER_VERSION = '1.0.0-beta.16'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
-    'mcu': ('magic-trick-1.0.0-beta.11-mcu.bin', '5045a8857744f15553633cd2814e802f10f8a6e8e83caae1d731f9ac655399fa'),
+    'mcu': ('magic-trick-1.0.0-beta.11-mcu.bin', '432f1290dd6c66373171f5cfa8dacc7c929d48982d023dc15c9e641e1d2cd794'),
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '6d3bf3dabc947fc4865ce8e749426afea3888d18040bc772ff284a4b62ff33bc'),
     'fpga_gg': ('magic-trick-game-gear.fs', '6c689c26acd895a2ab70fe13769d492ffd6a3bb612aae27a04a6ee16fb64973d'),
-    'fpga_nes': ('magic-trick-nes.fs', 'b32960c2f8dc128ff90505ab7f33b0cf8799306fc3483b592ffc574d2301001b'),
+    'fpga_nes': ('magic-trick-nes.fs', 'b51cf4824fd221c7e4ae14e5d8fc40ce31e257b94452f7af61016eb7be279179'),
     'fpga_lynx': ('magic-trick-lynx.fs', '9dc68edd11b90f21625764439e84c81f8eee1f69485b16faabbaf0b3653d9518'),
     'fpga_chromagic': ('chromagic-1.0.1-fpga.fs', '79791d915060a9898c9be6adc7ab22f298cbea9619c6bb765b8667db62c337a2'),
 }

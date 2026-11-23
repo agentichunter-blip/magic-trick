@@ -32,10 +32,13 @@ static esp_err_t Send(const uint8_t Payload[6],uint8_t *Sequence,uint8_t Expecte
 }
 esp_err_t GGCheats_Install(const CheatPlan_t *Plan)
 {
-    if(!Plan || Plan->Count>32 || (Plan->Count && (!Plan->GameGear || !Plan->Patches)))return ESP_ERR_INVALID_ARG;
-    /* Validate before clearing the old list. */
-    for(size_t I=0;I<Plan->Count;++I)
-        if(Plan->Patches[I].Offset>=0xc000)return ESP_ERR_INVALID_ARG;
+    if(!Plan || Plan->Count>(Plan->Nes ? kCheatNesCodes : kCheatGGCodes) ||
+       (Plan->Count && ((!Plan->GameGear && !Plan->Nes) || !Plan->Patches)))return ESP_ERR_INVALID_ARG;
+    /* Validate before clearing the old list (the FPGA refuses other addresses too). */
+    for(size_t I=0;I<Plan->Count;++I) {
+        const uint32_t Address=Plan->Patches[I].Offset;
+        if(Plan->Nes ? (Address<0x8000 || Address>0xffff) : Address>=0xc000)return ESP_ERR_INVALID_ARG;
+    }
     uint8_t Sequence,Count;bool Busy;
     esp_err_t Result=Status(&Sequence,&Count,&Busy);
     if(Result!=ESP_OK)return Result;

@@ -34,7 +34,9 @@ The preparation workflow uses [libretro/libretro-database](https://github.com/li
 
 The compiler uses exact normalized titles, region sets and revision tags from explicitly labeled Game Genie files. It ignores only hardware-description tags (SGB Enhanced, GB Compatible, Rumble Version). It does not guess matches between USA/Europe/World releases or between revisions. It checks comparison bytes against the supplied ROM and binds the output to the ROM's size and full CRC32. This prevents applying a generated pack to a different ROM; it does not prove that every community-authored cheat works. Actual gameplay testing remains necessary.
 
-Six- and nine-digit Game Genie ROM codes are supported. Grouped codes remain one toggle. Each option is compiled to physical ROM byte patches; comparison-byte checks, header protection and bank mapping checks run during preparation. Codes needing live on/off switching, unsupported formats/mappers, large or multicart MBC1 arrangements, and ambiguous MBC5 bank-zero aliases are excluded. These exclusions are recorded in the preparation report. GameShark and Pro Action Replay are not supported by this MCU-only implementation.
+**NES** packs use the NES core's own Game Genie engine (MiSTer's CODES, 16 codes per launch), like a real Game Genie: every CPU read of the code's address ($8000-$FFFF) is replaced, in any bank, and eight-letter codes only when the original byte matches their compare byte. Six- and eight-letter codes are supported (several per option, joined with +). The compiler checks that an eight-letter code's compare byte occurs at that address in the ROM's PRG (in some 8 KiB bank) and rejects the option otherwise. NES packs are CMCH version 3 and only load for `.nes` games; Game Gear packs (version 2) use the same kind of engine with nine-digit codes.
+
+For Game Boy, six- and nine-digit Game Genie ROM codes are supported. Grouped codes remain one toggle. Each option is compiled to physical ROM byte patches; comparison-byte checks, header protection and bank mapping checks run during preparation. Codes needing live on/off switching, unsupported formats/mappers, large or multicart MBC1 arrangements, and ambiguous MBC5 bank-zero aliases are excluded. These exclusions are recorded in the preparation report. GameShark and Pro Action Replay are not supported by this MCU-only implementation.
 
 ## Install data
 
@@ -49,7 +51,7 @@ Firmware alone does not include the database. Existing games, artwork and previe
 
 ## Build packs for your library
 
-Use an empty staging destination outside this repository. Obtain the database revision above and provide your own ROM collection. The database path must contain `LICENSE` and `cht/`; the ROM root must contain `GB/` and/or `GBC/` subfolders. Create the output folder first, including when no games match:
+Use an empty staging destination outside this repository. Obtain the database revision above and provide your own ROM collection. The database path must contain `LICENSE` and `cht/`; the ROM root must contain `GB/`, `GBC/`, `GG/` and/or `NES/` subfolders. For NES packs the database needs `cht/Nintendo - Nintendo Entertainment System`. Create the output folder first, including when no games match:
 
 ```sh
 mkdir -p /path/to/staging/CHROMAGIC/CHEATS

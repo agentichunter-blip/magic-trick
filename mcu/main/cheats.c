@@ -12,10 +12,11 @@
 #ifndef CHEAT_PACK_ROOT
 #define CHEAT_PACK_ROOT "/sdcard/CHROMAGIC/CHEATS/"
 #endif
-/* CMCH v1: LE header, ROM size/CRC32, entry count, patch count, payload CRC32.
+/* CMCH v1 (Game Boy), v2 (Game Gear), v3 (NES): LE header, ROM size/CRC32, entry count, patch count, payload CRC32.
  * Each entry has 96-byte ASCII name, first patch u32, patch count u16, zero u16.
  * Each patch has physical ROM offset u32, original byte, replacement, zero u16.
- * Static ROM patches only: no RAM writes, no changes to the ROM on SD. */
+ * v1: static ROM patches only: no RAM writes, no changes to the ROM on SD. v2/v3: CPU-address codes
+ * (address u32, compare, value, compare flag u16) for the core's Game Genie engine. */
 typedef struct { uint32_t Size, RomCRC, Count, Patches, DataCRC, Version; } Header_t;
 static struct { char Path[352]; Header_t Header; uint8_t Bits[CHEAT_SELECTION_BYTES]; bool Open; } Menu;
 static uint16_t U16(const uint8_t *P) { return P[0] | (uint16_t)P[1]<<8; }
@@ -34,9 +35,9 @@ static esp_err_t ReadAt(FILE *F,long Offset,void *Data,size_t Size) {
 }
 static esp_err_t Header(FILE *F,Header_t *H,bool Verify) {
     uint8_t B[CHEAT_HEADER_SIZE];
-    if(ReadAt(F,0,B,sizeof(B))!=ESP_OK || memcmp(B,"CMCH",4) || (U32(B+4)!=1 && U32(B+4)!=2) || U32(B+28)) return ESP_ERR_INVALID_ARG;
+    if(ReadAt(F,0,B,sizeof(B))!=ESP_OK || memcmp(B,"CMCH",4) || (U32(B+4)<1 || U32(B+4)>3) || U32(B+28)) return ESP_ERR_INVALID_ARG;
     *H=(Header_t){U32(B+8),U32(B+12),U32(B+16),U32(B+20),U32(B+24),U32(B+4)};
-    if(H->Size<(H->Version==2 ? 8192 : 32768) || H->Size>8*1024*1024 || !H->Count || H->Count>CHEAT_MAX_ENTRIES || !H->Patches || H->Patches>65536) return ESP_ERR_INVALID_SIZE;
+    if(H->Size<(H->Version==1 ? 32768 : 8192) || H->Size>8*1024*1024 || !H->Count || H->Count>CHEAT_MAX_ENTRIES || !H->Patches || H->Patches>65536) return ESP_ERR_INVALID_SIZE;
     const long End=CHEAT_HEADER_SIZE+H->Count*CHEAT_ENTRY_SIZE+H->Patches*CHEAT_PATCH_SIZE;
     if(fseek(F,0,SEEK_END) || ftell(F)!=End) return ESP_ERR_INVALID_SIZE;
     if(Verify) {
@@ -49,7 +50,8 @@ static esp_err_t Header(FILE *F,Header_t *H,bool Verify) {
 }
 static bool PackMatchesSystem(const Header_t *H,const char *Path) {
     const char *Ext=strrchr(Path,'.');
-    return (H->Version==2)==(Ext && !strcasecmp(Ext,".gg"));
+    const unsigned Want=Ext && !strcasecmp(Ext,".gg") ? 2 : Ext && !strcasecmp(Ext,".nes") ? 3 : 1;
+    return H->Version==Want;
 }
 static bool SameHeader(const Header_t *A,const Header_t *B) {
     return A->Version==B->Version && A->Size==B->Size && A->RomCRC==B->RomCRC && A->Count==B->Count && A->Patches==B->Patches && A->DataCRC==B->DataCRC;
@@ -111,21 +113,22 @@ static int ComparePatch(const void *A,const void *B) {
     uint32_t X=((const CheatPatch_t *)A)->Offset,Y=((const CheatPatch_t *)B)->Offset; return (X>Y)-(X<Y);
 }
 static esp_err_t Plan(FILE *F,const Header_t *H,const uint8_t *Bits,CheatPlan_t *Out) {
-    *Out=(CheatPlan_t){.GameGear=H->Version==2};
+    *Out=(CheatPlan_t){.GameGear=H->Version==2,.Nes=H->Version==3};
     if(!EnabledCount(H,Bits)) return ESP_OK;
     Out->Patches=malloc(CHEAT_MAX_PATCHES*sizeof(*Out->Patches)); if(!Out->Patches) return ESP_ERR_NO_MEM;
     esp_err_t R=ESP_OK;
     for(unsigned I=0;I<H->Count && R==ESP_OK;++I) if(Enabled(Bits,I)) {
         uint8_t B[CHEAT_ENTRY_SIZE]; R=Entry(F,H,I,B); if(R!=ESP_OK) break;
         unsigned First=U32(B+96),Count=U16(B+100);
-        if(Count>(Out->GameGear ? 32 : CHEAT_MAX_PATCHES)-Out->Count) { R=ESP_ERR_INVALID_SIZE; break; }
+        if(Count>(Out->GameGear ? kCheatGGCodes : Out->Nes ? kCheatNesCodes : CHEAT_MAX_PATCHES)-Out->Count) { R=ESP_ERR_INVALID_SIZE; break; }
         for(unsigned J=0;J<Count;++J) {
             uint8_t P[8]; R=ReadAt(F,CHEAT_HEADER_SIZE+H->Count*CHEAT_ENTRY_SIZE+(First+J)*8,P,8); if(R!=ESP_OK) break;
             uint32_t Address=U32(P);
             const bool Invalid=Out->GameGear ? (Address>=0xc000 || U16(P+6)>1) :
+                Out->Nes ? (Address<0x8000 || Address>0xffff || U16(P+6)>1) :
                 (Address>=H->Size || (Address>=0x100 && Address<=0x14f) || U16(P+6) || P[4]==P[5]);
             if(Invalid) { R=ESP_ERR_INVALID_ARG; break; }
-            Out->Patches[Out->Count++]=(CheatPatch_t){Address,P[4],P[5],Out->GameGear && U16(P+6)==1};
+            Out->Patches[Out->Count++]=(CheatPatch_t){Address,P[4],P[5],(Out->GameGear || Out->Nes) && U16(P+6)==1};
         }
     }
     if(R==ESP_OK) {

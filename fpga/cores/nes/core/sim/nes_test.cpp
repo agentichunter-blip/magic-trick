@@ -226,6 +226,23 @@ int main(int argc, char **argv) {
     t->video_resume_ok = 1; t->cart_dirty_clear = 0;
     t->reset_n = 0; t->pause = 0; t->buttons = 0; t->cart_import = batt;
     for (int i = 0; i < 64; i++) step();
+    // NES_GG="AAAA:VV[:CC],...": Game Genie codes (CPU address, replacement, optional compare),
+    // loaded while the core is in reset the way gg_cheat_loader does: a clear pulse, then one
+    // load pulse (bit 128) per code on the free-running clock.
+    t->gg_clear = 1; step(); t->gg_clear = 0; step();
+    if (getenv("NES_GG")) {
+        std::string s = getenv("NES_GG"); size_t i = 0;
+        while (i < s.size()) {
+            size_t e = s.find(',', i); if (e == std::string::npos) e = s.size();
+            unsigned a = 0, v = 0, cmp = 0; int n = sscanf(s.substr(i, e - i).c_str(), "%x:%x:%x", &a, &v, &cmp);
+            for (int w = 0; w < 5; w++) t->gg_code[w] = 0;
+            t->gg_code[0] = v & 0xFF; t->gg_code[1] = cmp & 0xFF; t->gg_code[2] = a & 0xFFFF;
+            t->gg_code[3] = n >= 3 ? 1 : 0; t->gg_code[4] = 1;
+            step(); t->gg_code[4] = 0; step(); step();
+            printf("game genie %04x=%02x", a, v); if (n >= 3) printf(" if %02x", cmp); printf("\n");
+            i = e + 1;
+        }
+    }
     t->reset_n = 1;
     bool blargg = getenv("NES_BLARGG") != nullptr;
     bool f8mode = getenv("NES_F8") != nullptr;   // 2005-era blargg tests: result byte at $F8 (1 = pass)
