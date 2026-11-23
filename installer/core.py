@@ -3,11 +3,11 @@ import hashlib, json, os, re, struct, subprocess, sys, threading, time
 from pathlib import Path
 import fpga
 
-RELEASE = '1.0.0-beta.10'          # firmware this installer installs
-INSTALLER_VERSION = '1.0.0-beta.15'
+RELEASE = '1.0.0-beta.11'          # firmware this installer installs
+INSTALLER_VERSION = '1.0.0-beta.16'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
-    'mcu': ('magic-trick-1.0.0-beta.10-mcu.bin', 'bec4fad495088b7cd3074cda550882fd7ec4771c5c8869aae475b268a4c6413c'),
+    'mcu': ('magic-trick-1.0.0-beta.11-mcu.bin', '5045a8857744f15553633cd2814e802f10f8a6e8e83caae1d731f9ac655399fa'),
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '6d3bf3dabc947fc4865ce8e749426afea3888d18040bc772ff284a4b62ff33bc'),
