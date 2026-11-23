@@ -47,6 +47,12 @@ static bool RecentView;
  * "Cartridge" folder at the library root. */
 static bool CartView;
 static const char kCartFolder[] = "Cartridge";
+/* A folder with more games than fit in memory (~95 KB free while browsing, about
+ * 50 bytes a game) lists letter ranges instead ("A-F", "G-L", ...), each holding at
+ * most kRangeTarget games where the letters allow; opening one reads only its games.
+ * Buckets: 0 = titles starting below 'A' (digits, symbols), 1-26 = A-Z, 27 = later. */
+enum { kListLimit = 600, kRangeTarget = 400, kBuckets = 28 };
+static struct { bool Active; unsigned char Lo, Hi; } Range;
 
 typedef struct {
     char *pName;
@@ -55,6 +61,8 @@ typedef struct {
     bool Recent;
     bool Cart;
     bool Pinned; /* the cartridge's own game: first in the Cartridge list */
+    bool Range;  /* a letter range of a big folder; Lo/Hi are buckets */
+    unsigned char Lo, Hi;
 } RomEntry_t;
 
 typedef struct RomCatalog {
@@ -65,7 +73,7 @@ typedef struct RomCatalog {
 
 static RomCatalog_t Catalog;
 /* Bounded session-only location cache: no flash writes while browsing. */
-static struct { char Directory[kPathSize], Name[kPathSize]; bool Recent; } Locations[8];
+static struct { char Directory[kPathSize], Name[kPathSize]; bool Recent; int Range; } Locations[8];
 static unsigned NextLocation;
 
 static bool IsRomName(const char *pName)
@@ -92,6 +100,7 @@ static int CompareNames(const void *pLeft, const void *pRight)
     const RomEntry_t *Left = pLeft, *Right = pRight;
     if (Left->Pinned != Right->Pinned) return Left->Pinned ? -1 : 1;
     if (Left->Recent != Right->Recent) return Left->Recent ? -1 : 1;
+    if (Left->Range != Right->Range) return Left->Range ? -1 : 1;   /* ranges keep letter order, then folders */
     if (Left->Directory != Right->Directory) return Left->Directory ? -1 : 1;
     return RomTitle_Compare(Left->pName, Right->pName, Left->Directory);
 }
@@ -130,7 +139,56 @@ static esp_err_t AppendName(const char *pName, bool Directory)
 
 static bool AtRoot(void)
 {
-    return !CartView && strcmp(CurrentDirectory, RomDirectory) == 0;
+    return !CartView && !Range.Active && strcmp(CurrentDirectory, RomDirectory) == 0;
+}
+
+static unsigned Bucket(const char *pName)
+{
+    char First[2];
+    RomTitle_Make(pName, false, First, sizeof(First));   /* sort order is by this title */
+    const unsigned char C = (unsigned char)First[0];
+    return C < 'A' ? 0 : C <= 'Z' ? C - 'A' + 1 : kBuckets - 1;
+}
+
+static char BucketLetter(unsigned B)
+{
+    return B == 0 ? '0' : B < kBuckets - 1 ? (char)('A' + B - 1) : '#';
+}
+
+/* Over the limit: free the games read so far, keep the folders. */
+static void DropGames(void)
+{
+    size_t Kept = 0;
+    for (size_t I = 0; I < Catalog.Count; ++I) {
+        if (Catalog.pEntries[I].Directory) { Catalog.pEntries[Kept++] = Catalog.pEntries[I]; continue; }
+        free(Catalog.pEntries[I].pName);
+        free(Catalog.pEntries[I].pPath);
+    }
+    Catalog.Count = Kept;
+}
+
+/* Consecutive letters merged up to kRangeTarget games; a single letter may hold more. */
+static esp_err_t AppendRanges(const size_t Counts[kBuckets])
+{
+    esp_err_t Result = ESP_OK;
+    for (unsigned B = 0; B < kBuckets && Result == ESP_OK;) {
+        if (!Counts[B]) { ++B; continue; }
+        const unsigned Lo = B;
+        size_t Games = Counts[B++];
+        while (B < kBuckets && (!Counts[B] || Games + Counts[B] <= kRangeTarget)) Games += Counts[B++];
+        unsigned Hi = B - 1;
+        while (Hi > Lo && !Counts[Hi]) --Hi;
+        char Label[8];
+        if (Lo == 0 && Hi == 0) strcpy(Label, "0-9");
+        else if (Lo == Hi) snprintf(Label, sizeof(Label), "%c", BucketLetter(Lo));
+        else snprintf(Label, sizeof(Label), "%c-%c", BucketLetter(Lo), BucketLetter(Hi));
+        Result = AppendName(Label, true);
+        if (Result == ESP_OK) {
+            RomEntry_t *pEntry = &Catalog.pEntries[Catalog.Count - 1];
+            pEntry->Range = true; pEntry->Lo = (unsigned char)Lo; pEntry->Hi = (unsigned char)Hi;
+        }
+    }
+    return Result;
 }
 
 static RecentSystem_t CurrentSystem(void)
@@ -230,6 +288,7 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
         (errno == ENOENT || errno == ENOTDIR))
     {
         strcpy(CurrentDirectory, RomDirectory);
+        Range.Active = false;
         pDirectory = opendir(CurrentDirectory);
     }
     if (pDirectory == NULL)
@@ -238,6 +297,9 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
         goto Cleanup;
     }
 
+    size_t Counts[kBuckets] = {0};
+    size_t Games = 0;
+    bool Over = false;
     for (;;)
     {
         errno = 0;
@@ -274,17 +336,30 @@ static esp_err_t ReadCatalog(size_t *pCount, bool ResumeLocation)
         }
         if (!Directory && (!Regular || !IsRomName(pEntry->d_name) ||
                            Length + kSavePathReserve >= kPathSize)) continue;
-        Result = AppendName(pEntry->d_name, Directory);
-        if (Result != ESP_OK)
-        {
-            break;
+        if (Directory) {
+            if (Range.Active) continue;   /* folders are listed beside the ranges */
+            Result = AppendName(pEntry->d_name, true);
+            if (Result != ESP_OK) break;
+            continue;
         }
+        const unsigned B = Bucket(pEntry->d_name);
+        if (Range.Active && (B < Range.Lo || B > Range.Hi)) continue;
+        ++Counts[B];
+        if (Over) continue;
+        if (!Range.Active && ++Games > kListLimit) { Over = true; DropGames(); continue; }
+        Result = AppendName(pEntry->d_name, false);
+        if (Result == ESP_ERR_NO_MEM && !Range.Active) {
+            /* Out of memory below the limit (little free heap): fall back to ranges. */
+            Over = true; DropGames(); Result = ESP_OK; continue;
+        }
+        if (Result != ESP_OK) break;
     }
+    if (Result == ESP_OK && Over) Result = AppendRanges(Counts);
     if (closedir(pDirectory) != 0 && Result == ESP_OK)
     {
         Result = ESP_FAIL;
     }
-    if (Result==ESP_OK) Result=AppendRecent();
+    if (Result==ESP_OK && !Range.Active) Result=AppendRecent();
     /* The cartridge folder, when the inserted cart carries Magic Trick games
      * or a game of its own. */
     char OwnPath[kPathSize];
@@ -346,6 +421,10 @@ static esp_err_t EnterDirectory(size_t Index, size_t *pCount)
         (void)CartStore_Refresh(true);
         return ReadCatalog(pCount,false);
     }
+    if (Catalog.pEntries[Index].Range) {
+        Range.Active=true; Range.Lo=Catalog.pEntries[Index].Lo; Range.Hi=Catalog.pEntries[Index].Hi;
+        return ReadCatalog(pCount,false);
+    }
     char Path[kPathSize];
     const int Length = snprintf(Path, sizeof(Path), "%s/%s", CurrentDirectory,
                                 NameAt(Index));
@@ -368,6 +447,14 @@ static esp_err_t ParentDirectory(size_t *pCount, size_t *pSelected)
         RecentView=false;
         *pSelected=0;
         return ReadCatalog(pCount,false);
+    }
+    if (Range.Active) {
+        const unsigned char Lo=Range.Lo;
+        Range.Active=false;
+        const esp_err_t Result=ReadCatalog(pCount,false);
+        *pSelected=0;
+        for (size_t I=0; Result==ESP_OK && I<Catalog.Count; ++I) if (Catalog.pEntries[I].Range && Catalog.pEntries[I].Lo<=Lo && Lo<=Catalog.pEntries[I].Hi) *pSelected=I;
+        return Result;
     }
     char *pSlash = strrchr(CurrentDirectory, '/');
     char Previous[kPathSize];
@@ -403,22 +490,26 @@ esp_err_t RomBrowser_CloseMenu(void)
         ? FPGA_Tx_PulseButtons(kButtonBits_MenuEnAlt) : ESP_OK;
 }
 
+/* Remembered locations tell a range view apart from its folder's top level. */
+static int RangeKey(void) { return Range.Active ? Range.Lo : -1; }
+
 static void Remember(size_t Index)
 {
     if (Index >= Catalog.Count) return;
     unsigned Slot;
     for (Slot = 0; Slot < 8; ++Slot)
-        if (Locations[Slot].Recent==RecentView && !strcmp(Locations[Slot].Directory, CurrentDirectory)) break;
+        if (Locations[Slot].Recent==RecentView && Locations[Slot].Range==RangeKey() && !strcmp(Locations[Slot].Directory, CurrentDirectory)) break;
     if (Slot == 8) Slot = NextLocation++ % 8;
     snprintf(Locations[Slot].Directory, kPathSize, "%s", CurrentDirectory);
     Locations[Slot].Recent=RecentView;
+    Locations[Slot].Range=RangeKey();
     snprintf(Locations[Slot].Name, sizeof(Locations[Slot].Name), "%s", Catalog.pEntries[Index].pPath ? Catalog.pEntries[Index].pPath : NameAt(Index));
 }
 
 static size_t Restore(void)
 {
     for (unsigned Slot = 0; Slot < 8; ++Slot)
-        if (Locations[Slot].Recent==RecentView && !strcmp(Locations[Slot].Directory, CurrentDirectory))
+        if (Locations[Slot].Recent==RecentView && Locations[Slot].Range==RangeKey() && !strcmp(Locations[Slot].Directory, CurrentDirectory))
             for (size_t I = 0; I < Catalog.Count; ++I)
                 if (!strcmp(Locations[Slot].Name, Catalog.pEntries[I].pPath ? Catalog.pEntries[I].pPath : NameAt(I))) return I;
     return 0;

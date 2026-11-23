@@ -211,7 +211,8 @@ static void SetCatalog(esp_err_t Error, size_t Count, size_t Selected) {
     C.State = Error != ESP_OK ? kError : Count ? kSelecting : kEmpty;
     if (Error != ESP_OK) snprintf(C.Error, sizeof(C.Error), "%s",
         Error == ESP_ERR_NOT_FOUND ? "NO SD CARD INSTALLED" :
-        Error == ESP_ERR_TIMEOUT ? "SD CARD NOT RESPONDING" : "COULD NOT READ SD CARD");
+        Error == ESP_ERR_TIMEOUT ? "SD CARD NOT RESPONDING" :
+        Error == ESP_ERR_NO_MEM ? "TOO MANY GAMES HERE:\nSPLIT THIS FOLDER" : "COULD NOT READ SD CARD");
     ResetScroll(); C.SystemFocus = true; SelectionChanged();
 }
 static void CheatResult(esp_err_t Error, const CheatView_t *View) {
