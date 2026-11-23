@@ -371,7 +371,7 @@ class UsbTarget(Target):
     def _ok(self):
         rec = self._record()
         if rec != 'OK seq=%d' % self.seq:
-            raise UsbError('expected OK seq=%d, got %r' % (self.seq, rec))
+            raise UsbError('expected OK seq=%d, got %r' % (self.seq, rec if len(rec) <= 60 else rec[:60] + '…'))
         self.seq += 1
 
     def _exchange(self, payload, seconds=60):

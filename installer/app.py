@@ -1048,8 +1048,9 @@ class App:
                 library.emit('step', key='cart_read')
                 image = cart.read(lambda done, total: library.progress(done // 1024, total // 1024, 'KB read'))
                 save = cart.read_save() if cart.save_size else b''
-            finally:
-                cart.close(); finish()
+            except BaseException:
+                self.cart_done(cart, finish, failed=True); raise
+            self.cart_done(cart, finish)
             info = cartridge.parse(image)
             CART_BACKUPS.mkdir(parents=True, exist_ok=True)
             stem = re.sub(r'[^0-9A-Za-z.-]+', '-', info.own_title or ('Magic-Trick-cart' if info.dedicated else 'cart'))
@@ -1064,6 +1065,18 @@ class App:
         self.cart_loaded = None
         self.cart_result = ''
         self.run('cart_read', work, None)
+
+    @staticmethod
+    def cart_done(cart, finish, failed=False):
+        """End the cart session and the connection. After a failure, an error while closing must not
+        replace the error that explains what went wrong."""
+        try:
+            return cart.close()
+        except Exception:
+            if not failed:
+                raise
+        finally:
+            finish()
 
     @staticmethod
     def cart_mode_of(info):
@@ -1593,8 +1606,9 @@ class App:
                 if save is not None and cart.save_size:
                     print('Writing %d KB of save memory' % (cart.save_size // 1024))
                     cart.write_save(bytes(save[:cart.save_size]).ljust(cart.save_size, b'\xff'))
-            finally:
-                games = cart.close(); finish()
+            except BaseException:
+                self.cart_done(cart, finish, failed=True); raise
+            games = self.cart_done(cart, finish)
             info = cartridge.parse(target)
             self.cart_result = self.cart_summary(info, operation, len(touched), save is not None and cart.save_size)
             if self.cart:

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 BLOCK = 1024
+READ_TRIES = 8                   # USB read requests in a row that bring nothing before giving up
 ERASE_BLOCK = 64 * 1024
 DEDICATED_DIR = 0x4000
 NAME_SIZE = 72
@@ -741,32 +742,82 @@ class CartUsb(CartAccess):
             raise CartError('The Chromatic did not open the cart (%r).' % rec)
         fields = dict(f.split('=', 1) for f in rec.split()[1:])
         self.capacity, self.save_size = int(fields['capacity']), int(fields.get('save', 0))
-        usb._ok()
+        self._end_request()
+
+    def _end_request(self):
+        """The request's OK. If that line arrives damaged or not at all, the Chromatic has still finished
+        the request and waits for the next one, so the sequence moves on."""
+        usb = self.usb
+        usb._timeout(10)
+        while True:
+            try:
+                rec = usb._record()
+            except TimeoutError:
+                break
+            if rec == 'OK seq=%d' % usb.seq or not rec.startswith(('OK seq=', 'CDATA ', 'CDIR ', 'CCRC ', 'CART ')):
+                break   # (a line damaged beyond recognition ends it too)
+        usb.seq += 1
 
     def read(self, progress=None):
-        import base64
-        out = bytearray(self.capacity)
-        step = 64 * BLOCK
-        for o in range(0, self.capacity, step):
-            n = min(step, self.capacity - o) // BLOCK
-            self.usb._timeout(60)
-            self.usb._send(b'\x21' + struct.pack('<II', o, n))
-            got = 0
-            while got < n:
-                rec = self.usb._record()
-                if not rec.startswith('CDATA '):
-                    raise CartError('unexpected cart reply %r' % rec[:40])
-                at, data = rec[6:].split(' ', 1)
-                block = base64.b64decode(data)
-                at = int(at, 16)
-                if len(block) != BLOCK or not o <= at < o + n * BLOCK:
-                    raise CartError('bad cart block at 0x%x' % at)
-                out[at:at + BLOCK] = block
-                got += 1
-            self.usb._ok()
+        return self._read(0x21, self.capacity, 64, progress)
+
+    def _read(self, op, total, per, progress=None):
+        """Read total bytes, per 1 KiB blocks to a request. Some USB serial links (seen on a Windows PC) drop
+        a byte now and then: a block whose line arrives damaged, or not at all, is asked for again."""
+        out = bytearray(total)
+        for o in range(0, total, per * BLOCK):
+            want, stuck = set(range(o, min(o + per * BLOCK, total), BLOCK)), 0
+            while want:
+                lo, hi = min(want), max(want) + BLOCK
+                got = self._request(op, lo, (hi - lo) // BLOCK, want, out)
+                want -= got
+                stuck = 0 if got else stuck + 1
+                if stuck >= READ_TRIES:
+                    raise CartError('The USB connection kept losing data, so the cart couldn\'t be read. Nothing '
+                                    'was changed. Try another USB port (not a hub) or cable, or use Wi-Fi.')
+                if want:
+                    print('USB: %d KB arrived damaged near 0x%x; reading it again' % (len(want), lo), flush=True)
             if progress:
-                progress(o + n * BLOCK, self.capacity)
+                progress(min(o + per * BLOCK, total), total)
         return bytes(out)
+
+    def _request(self, op, offset, n, want, out):
+        """One read request: store the good blocks among want in out and return their offsets. Damaged lines
+        and lines left over from an earlier request are skipped. The device always ends a request with its OK;
+        if that line is lost, it is waiting for the next request, so the sequence moves on anyway."""
+        import base64
+        import binascii
+        usb, got = self.usb, set()
+        usb._timeout(60)
+        usb._send(bytes([op]) + struct.pack('<II', offset, n))
+        while True:
+            try:
+                rec = usb._record()
+            except TimeoutError:
+                if not got:
+                    raise   # nothing came back: the Chromatic isn't answering
+                usb.seq += 1
+                return got
+            usb._timeout(20)   # the next line comes quickly once data flows
+            if rec.startswith('OK seq='):
+                try:
+                    seq = int(rec[7:])
+                except ValueError:
+                    continue
+                if seq == usb.seq:
+                    usb.seq += 1
+                    return got
+                continue   # a stale or damaged OK
+            if not rec.startswith('CDATA '):
+                continue
+            try:
+                at, data = rec[6:].split(' ', 1)
+                at, block = int(at, 16), base64.b64decode(data, validate=True)
+            except (ValueError, binascii.Error):
+                continue
+            if at in want and len(block) == BLOCK:
+                out[at:at + BLOCK] = block
+                got.add(at)
 
     def crc(self, offset, length):
         self.usb._timeout(120)
@@ -785,31 +836,23 @@ class CartUsb(CartAccess):
             self.usb._exchange(b'\x23' + struct.pack('<I', offset + at) + data[at:at + BLOCK], seconds=30)
 
     def read_save(self):
-        import base64
-        out = bytearray(self.save_size)
-        for o in range(0, self.save_size, 32 * BLOCK):
-            n = min(32 * BLOCK, self.save_size - o) // BLOCK
-            self.usb._timeout(60)
-            self.usb._send(b'\x26' + struct.pack('<II', o, n))
-            for _ in range(n):
-                rec = self.usb._record()
-                if not rec.startswith('CDATA '):
-                    raise CartError('unexpected cart reply %r' % rec[:40])
-                at, data = rec[6:].split(' ', 1)
-                out[int(at, 16):int(at, 16) + BLOCK] = base64.b64decode(data)
-            self.usb._ok()
-        return bytes(out)
+        return self._read(0x26, self.save_size, 32)
 
     def write_save(self, data):
         for at in range(0, len(data), BLOCK):
             self.usb._exchange(b'\x27' + struct.pack('<I', at) + data[at:at + BLOCK], seconds=30)
 
     def close(self):
-        self.usb._timeout(60)
-        self.usb._send(b'\x25')
-        rec = self.usb._record()
-        self.usb._ok()
-        return int(rec.split('=', 1)[1]) if rec.startswith('CDIR games=') else None
+        usb, games = self.usb, None
+        usb._timeout(60)
+        usb._send(b'\x25')
+        while True:   # skips lines left over from a read that stopped early
+            rec = usb._record()
+            if rec.startswith('CDIR games='):
+                games = int(rec.split('=', 1)[1])
+            elif rec == 'OK seq=%d' % usb.seq:
+                usb.seq += 1
+                return games
 
 
 class CartWifi(CartAccess):

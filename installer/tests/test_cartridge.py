@@ -223,5 +223,73 @@ class WifiCartTest(unittest.TestCase):
         self.assertFalse([x for x in fake.calls if x[1] in ('cart/write', 'cart/erase')])
 
 
+class LossyChromatic:
+    """The Chromatic's USB console for cart reads, over a link that drops a byte now and then
+    (seen on a Windows PC: about 1 byte in 4 KiB)."""
+
+    def __init__(self, image, save, drop, seed):
+        import random
+        self.image, self.save, self.drop, self.rng = image, save, drop, random.Random(seed)
+        self.inbuf, self.out, self.seq = b'', bytearray(), 0
+
+    def emit(self, text):
+        self.out += bytes(b for b in text.encode() if self.rng.random() >= self.drop)
+
+    def write(self, data):
+        import base64
+        self.inbuf += data
+        while len(self.inbuf) >= 16:
+            size = int.from_bytes(self.inbuf[8:12], 'little')
+            if len(self.inbuf) < 16 + size:
+                return
+            seq, payload = int.from_bytes(self.inbuf[4:8], 'little'), self.inbuf[16:16 + size]
+            self.inbuf = self.inbuf[16 + size:]
+            if seq != self.seq:
+                self.emit('PCSD FAIL error=ESP_ERR_INVALID_ARG\n')
+                return
+            if payload[0] == 0x20:
+                self.emit('PCSD CART capacity=%d save=%d\n' % (len(self.image), len(self.save)))
+            elif payload[0] in (0x21, 0x26):
+                offset, n = struct.unpack('<II', payload[1:9])
+                src = self.image if payload[0] == 0x21 else self.save
+                for a in range(offset, offset + n * c.BLOCK, c.BLOCK):
+                    self.emit('PCSD CDATA %x %s\n' % (a, base64.b64encode(src[a:a + c.BLOCK]).decode()))
+            elif payload[0] == 0x25:
+                self.emit('PCSD CDIR games=2\n')
+            self.emit('PCSD OK seq=%d\n' % self.seq)
+            self.seq += 1
+
+    def flush(self):
+        pass
+
+    def read(self, n):
+        data = bytes(self.out[:min(n, 4096)])
+        del self.out[:len(data)]
+        return data
+
+
+class CartUsbReadTest(unittest.TestCase):
+    def read(self, drop, seed):
+        import random, time, library
+        rng = random.Random(seed)
+        image, save = rng.randbytes(256 << 10), rng.randbytes(8 << 10)
+        usb = object.__new__(library.UsbTarget)
+        library.Target.__init__(usb)
+        usb.port, usb.seq, usb._buf, usb.deadline = LossyChromatic(image, save, drop, seed), 0, b'', 0
+        usb._timeout = lambda seconds: setattr(usb, 'deadline', time.time() + 0.05)
+        cart = c.CartUsb(usb)
+        got = cart.read(), cart.read_save(), cart.close()
+        return got, (image, save, 2)
+
+    def test_clean_link(self):
+        got, want = self.read(0, 1)
+        self.assertEqual(got, want)
+
+    def test_damaged_lines_are_read_again(self):
+        for seed in (2, 3, 4):
+            got, want = self.read(1 / 4000, seed)
+            self.assertEqual(got, want)
+
+
 if __name__ == '__main__':
     unittest.main()
