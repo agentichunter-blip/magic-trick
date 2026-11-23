@@ -1756,6 +1756,13 @@ class App:
             pass
 
     def poll(self):
+        # Always come back: an error while handling one event must not leave the screen frozen for good.
+        try:
+            self.poll_events()
+        finally:
+            self.root.after(100, self.poll)
+
+    def poll_events(self):
         changed = False
         while not self.events.empty():
             kind, payload = self.events.get()
@@ -1788,7 +1795,6 @@ class App:
                     self.rechecked(payload)
         if changed and self.mode == 'running':
             self.draw_steps(); self.draw_progress()
-        self.root.after(100, self.poll)
 
     def animate(self):
         """The little bits of life: blinking step marker, spinner, filling bar, end-screen sparkles."""

@@ -4,7 +4,7 @@ from pathlib import Path
 import fpga
 
 RELEASE = '1.0.0-beta.10'          # firmware this installer installs
-INSTALLER_VERSION = '1.0.0-beta.13'
+INSTALLER_VERSION = '1.0.0-beta.14'
 FIRMWARE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'firmware'
 IMAGES = {
     'mcu': ('magic-trick-1.0.0-beta.10-mcu.bin', '2c66778f62c0ff8bd43687fbbfefbec921d776c56a7bcd899b05e96b674c4b4f'),
