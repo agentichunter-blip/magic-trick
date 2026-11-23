@@ -1,4 +1,4 @@
-import struct, unittest
+import struct, time, unittest
 import cartridge as c
 
 CAP = 2 << 20
@@ -223,14 +223,18 @@ class WifiCartTest(unittest.TestCase):
         self.assertFalse([x for x in fake.calls if x[1] in ('cart/write', 'cart/erase')])
 
 
+SCALE = 0.1   # test time per second of real time
+
+
 class LossyChromatic:
     """The Chromatic's USB console for cart reads, over a link that drops a byte now and then
     (seen on a Windows PC: about 1 byte in 4 KiB)."""
 
-    def __init__(self, image, save, drop, seed):
+    def __init__(self, image, save, drop, seed, lose_ok=()):
         import random
         self.image, self.save, self.drop, self.rng = image, save, drop, random.Random(seed)
-        self.inbuf, self.out, self.seq = b'', bytearray(), 0
+        self.lose_ok = set(lose_ok)   # requests whose OK line goes missing
+        self.inbuf, self.out, self.seq, self.waiting = b'', bytearray(), 0, None
 
     def emit(self, text):
         self.out += bytes(b for b in text.encode() if self.rng.random() >= self.drop)
@@ -244,6 +248,9 @@ class LossyChromatic:
                 return
             seq, payload = int.from_bytes(self.inbuf[4:8], 'little'), self.inbuf[16:16 + size]
             self.inbuf = self.inbuf[16 + size:]
+            if self.waiting and time.time() - self.waiting > 5 * SCALE:
+                self.emit('PCSD FAIL error=ESP_ERR_TIMEOUT\n')   # it waits 5 s for the next request
+                return
             if seq != self.seq:
                 self.emit('PCSD FAIL error=ESP_ERR_INVALID_ARG\n')
                 return
@@ -256,8 +263,10 @@ class LossyChromatic:
                     self.emit('PCSD CDATA %x %s\n' % (a, base64.b64encode(src[a:a + c.BLOCK]).decode()))
             elif payload[0] == 0x25:
                 self.emit('PCSD CDIR games=2\n')
-            self.emit('PCSD OK seq=%d\n' % self.seq)
+            if self.seq not in self.lose_ok:
+                self.emit('PCSD OK seq=%d\n' % self.seq)
             self.seq += 1
+            self.waiting = time.time()
 
     def flush(self):
         pass
@@ -269,20 +278,25 @@ class LossyChromatic:
 
 
 class CartUsbReadTest(unittest.TestCase):
-    def read(self, drop, seed):
+    def read(self, drop, seed, lose_ok=()):
         import random, time, library
         rng = random.Random(seed)
         image, save = rng.randbytes(256 << 10), rng.randbytes(8 << 10)
         usb = object.__new__(library.UsbTarget)
         library.Target.__init__(usb)
-        usb.port, usb.seq, usb._buf, usb.deadline = LossyChromatic(image, save, drop, seed), 0, b'', 0
-        usb._timeout = lambda seconds: setattr(usb, 'deadline', time.time() + 0.5)   # (slow CI runners)
+        usb.port, usb.seq, usb._buf, usb.deadline = LossyChromatic(image, save, drop, seed, lose_ok), 0, b'', 0
+        usb._timeout = lambda seconds: setattr(usb, 'deadline', time.time() + seconds * SCALE)
         cart = c.CartUsb(usb)
         got = cart.read(), cart.read_save(), cart.close()
         return got, (image, save, 2)
 
     def test_clean_link(self):
         got, want = self.read(0, 1)
+        self.assertEqual(got, want)
+
+    def test_lost_ok_moves_on_in_time(self):
+        # The Chromatic waits only 5 s for the next request after its OK.
+        got, want = self.read(0, 1, lose_ok=(0, 2, 5))
         self.assertEqual(got, want)
 
     def test_damaged_lines_are_read_again(self):

@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 BLOCK = 1024
+LINE_GAP = 2                     # s of silence that ends a USB read request: the Chromatic waits only 5 s
+                                 # for the next request (PCBackup_ReadUpload), so a lost OK must not be waited out
 READ_TRIES = 8                   # USB read requests in a row that bring nothing before giving up
 ERASE_BLOCK = 64 * 1024
 DEDICATED_DIR = 0x4000
@@ -748,7 +750,7 @@ class CartUsb(CartAccess):
         """The request's OK. If that line arrives damaged or not at all, the Chromatic has still finished
         the request and waits for the next one, so the sequence moves on."""
         usb = self.usb
-        usb._timeout(10)
+        usb._timeout(LINE_GAP)
         while True:
             try:
                 rec = usb._record()
@@ -799,7 +801,7 @@ class CartUsb(CartAccess):
                 usb.seq += 1
                 return got
             heard = True
-            usb._timeout(20)   # the next line comes quickly once data flows
+            usb._timeout(LINE_GAP)   # the next line comes quickly once data flows
             if rec.startswith('OK seq='):
                 try:
                     seq = int(rec[7:])
