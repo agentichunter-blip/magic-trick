@@ -3,5 +3,6 @@
   "fpga": "de55c977666f16ba2f894ac09cc27c6e29420105",
   "fpga/esp32t/src/Gameboy_MiSTer": "e2711f74ffcd4815fb077747e999764cfbd4ec41",
   "fpga/cores/game-gear/vendor/SMS_MiSTer": "66f16d5c656fd8906d62570da4d258875bcee684",
-  "fpga/cores/lynx/vendor/AtariLynx_MiSTer": "3708e457e413aa7a33f8bec8fcd79eba45ce4702"
+  "fpga/cores/lynx/vendor/AtariLynx_MiSTer": "3708e457e413aa7a33f8bec8fcd79eba45ce4702",
+  "fpga/cores/nes/core (NES_MiSTer)": "cf7fe6c394b9568896b903c62b38aa4ee58491f2"
 }
