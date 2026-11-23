@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.12">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.16">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Support my work</a>
@@ -18,7 +18,7 @@
 
 > **Standing on the shoulders of ChroMagic.** Magic Trick wouldn't exist without CursedToast's ChroMagic and ChroMagician, ModRetro's decision to open-source the Chromatic firmware and FPGA design, and the MiSTer Game Boy and SMS cores. Full credits are [below](#credits-and-licenses) and in [CREDITS.md](CREDITS.md).
 
-**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.10`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear and Master System), `50.3` (Atari Lynx) and `50.4` (NES). Status reports "Magic Trick 1.0 beta".
+**Version:** Magic Trick **1.0 beta**: MCU `v1.0.0-beta.11`, FPGA `50.1` (Game Boy / Game Boy Color), `50.2` (Game Gear and Master System), `50.3` (Atari Lynx) and `50.4` (NES). Status reports "Magic Trick 1.0 beta".
 
 This is an independent community project with no guaranteed support or release schedule. It isn't affiliated with ModRetro, Nintendo, Sega or Atari. No game ROMs, personal saves, cover packs or gameplay video packs are included. Supply your own games and media.
 
@@ -33,7 +33,7 @@ This is an independent community project with no guaranteed support or release s
 - **Support for revised Chromatic boards**, ported from ModRetro's FPGA 18.9–18.14: the firmware detects the board, configures the charger as ModRetro does (charge current, watchdog off, slower charging when a revised board's battery is cold), sequences cartridge power, and uses board-specific battery levels. Switched off on USB power, the Chromatic stays dark.
 - **In-game saves for Game Gear:** battery and EEPROM saves are kept on the SD card as `<game>.SAV` and loaded before the game starts, including games with 32 KiB of cartridge RAM such as Shining Force – The Sword of Hajya.
 - **Game carts:** the installer's **CARTRIDGE** section backs up a rewritable Game Boy cart (a ModRetro cart, most flash carts) and puts Game Gear, Master System, NES, Atari Lynx and Game Boy games on it, with box art. The Chromatic lists them under **Games > Cartridge** and plays them **without an SD card**, keeping their saves and save states in its internal memory (on the card when one is in). The cart's own game can be swapped for a Game Boy or Game Boy Color game of your choice, so an original Game Boy plays it too (untested on original hardware so far); on the Chromatic it gets save states, and its save stays on the cart. See [Game carts](installer/README.md#game-carts).
-- **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles.
+- **Game library:** cover art followed by an optional silent, looping gameplay preview, a five-row selector when holding Up/Down, accelerated navigation and scrolling titles. A folder with more than 600 games opens as letter ranges (such as 0-C, D-K, L-R, S-Z), so a full set can sit in one folder.
 - **Game Genie cheats** for Game Boy, Game Boy Color and Game Gear SD games. See [cheats](docs/cheats.md).
 - **Recent games** and **last-game startup** (hold B at power-on to skip, or set System → **START-UP** to GAMES MENU). A physical cartridge boots once, after the boot animation.
 - **Wi-Fi file transfers** to and from the SD card in a web browser. Files already on the card are skipped, so you can drop a whole folder again after an interruption.
@@ -48,14 +48,14 @@ ChroMagic's cartridge backup and save features remain available. The game librar
 
 Download **[Magic Trick Installer 1.0.0-beta.16](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.16)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
-- **Updates take 5 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.12 changes only the MCU firmware and takes about 5 minutes; from 1.0.0-beta.11 it also rewrites the Game Boy and Game Gear cores and takes 15 to 20 minutes. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
+- **Updates take 5 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.13, 1.0.0-beta.14 or 1.0.0-beta.15 writes the MCU firmware, the Game Gear core (now with Master System) and the new NES core, and rewrites the Game Boy core along the way; it takes about 20 minutes. The NES core goes in the flash slot at `0x300000`. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
 - **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching, Atari Lynx games, the SD card library over a card reader, Wi-Fi and USB, and game carts on a ModRetro MR.TETRIS cart over USB and Wi-Fi). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
 
 ### Build from source
 
 - **MCU:** with ESP-IDF v5.3 activated, run `mcu/tools/build_wifi.sh`. It builds the app (`mcu_fw.bin`) for the Wi-Fi partition table in `mcu/partitions.wifi.csv` (application at `0x260000`) and runs the host tests. More in [docs/building.md](docs/building.md).
-- **FPGA:** see [fpga/cores/README.md](fpga/cores/README.md). Both cores rebuild bit-for-bit from this repository with Gowin EDA V1.9.12.04.
+- **FPGA:** see [fpga/cores/README.md](fpga/cores/README.md). The cores rebuild from this repository with Gowin EDA V1.9.12.04.
 - **Installing your own build:** the MCU app, the FPGA cores and the partition table have to go on together. Use the installer's code in [`installer/`](installer) as the reference sequence. Never run the multi-region `idf.py flash` command printed by the build: it would overwrite the bootloader.
 
 ## Game Genie cheats
