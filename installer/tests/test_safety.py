@@ -231,6 +231,9 @@ class Flows(unittest.TestCase):
             self.assertEqual(self.records, [BOTH_CORES])
             self.assertEqual(events[:3], ['read_flash', ('verify', 0), ('write', 0x260000, core.IMAGES['mcu'][0])])
             self.assertIn(('verify', 0x8000), events); self.assertEqual(events[-1], 'reset')
+            # issue #11: the FPGA is restarted after the cores are written, before the MCU is written again
+            last_fpga = max(i for i, e in enumerate(events) if isinstance(e, tuple) and e[0] == 'fpga')
+            self.assertEqual(events[last_fpga + 1], 'reset')
 
     def test_upgrade_keeps_table_and_never_writes_slot1_behind_multiboot(self):
         for running in [MB1, None]:
@@ -359,6 +362,7 @@ class Flows(unittest.TestCase):
         self.assertIsNone(error); self.assertEqual(stage, 'complete')
         self.assertEqual(writes, [('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
                                   ('write', 0x8000, core.IMAGES['table_stock'][0])])
+        self.assertEqual(events[events.index(writes[0]) + 1], 'reset')
 
     def test_uninstall_unconfirmed_is_not_a_stop(self):
         _, writes, error, stage = self.perform('uninstall', layout='three-systems', app='1.0.0-beta', running=core.TARGET,
@@ -405,7 +409,7 @@ class Restore(unittest.TestCase):
                     patch.object(core, 'version', side_effect=version), patch.object(core, 'run_tool', side_effect=tool), \
                     patch.object(core, 'read_flash', side_effect=lambda port, off, size, path, log: tool(port, ['read_flash', hex(off), hex(size), str(path)])), \
                     patch.object(fpga, 'preflight'), patch.object(fpga, 'flash', side_effect=flash), \
-                    patch.object(fpga, 'reset'):
+                    patch.object(fpga, 'reset', side_effect=lambda log: events.append('reset')):
                 error = None
                 try: core.restore(saved, folder, lambda s: None, sleep=lambda s: None)
                 except ValueError as exc: error = exc
@@ -416,8 +420,10 @@ class Restore(unittest.TestCase):
     def test_restores_fpga_then_mcu_from_0x8000(self):
         events, error, stage, left = self.perform(after={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'v4.6'})
         self.assertIsNone(error); self.assertEqual(stage, 'complete')
-        self.assertEqual(events, ['read_flash', ('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
-                                  ('write', 0x8000, 0x400000 - 0x8000), ('verify', 0x8000)])
+        self.assertEqual([e for e in events if e != 'reset'][:4],
+                         ['read_flash', ('fpga', core.SLOT_GB, core.IMAGES['fpga_chromagic'][0]),
+                          ('write', 0x8000, 0x400000 - 0x8000), ('verify', 0x8000)])
+        self.assertEqual(events[2], 'reset')   # issue #11: restart the FPGA before writing the MCU
         self.assertNotIn('restore-0x8000.bin', left)
 
     def test_works_without_serial_port(self):
@@ -579,6 +585,11 @@ class Reconnect(unittest.TestCase):
                 patch.object(core.time, 'monotonic', side_effect=[0, 0, 100, 0, 0, 100]):
             with self.assertRaises(ValueError): core.wait_for_device(lambda s: None, lambda s: None)
             reset.assert_called_once()
+
+    def test_restart_failure_still_reconnects(self):
+        with patch.object(core, 'device_ports', return_value=['/dev/new']), \
+                patch.object(fpga, 'reset', side_effect=fpga.ProgrammerError('no cable')):
+            self.assertEqual(core.reconnect_after_fpga(lambda s: None, lambda s: None), '/dev/new')
 
 class LinuxPortAccess(unittest.TestCase):
     def test_unreadable_port_gets_a_clear_message_on_linux(self):

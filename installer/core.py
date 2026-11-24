@@ -451,6 +451,20 @@ def wait_for_device(log, sleep, timeout=45):
                      'then run the installer again.')
 
 
+def reconnect_after_fpga(log, sleep):
+    """Restart the FPGA from flash (this also restarts the MCU), then find the Chromatic again.
+    openFPGALoader leaves the FPGA running without a clean restart, and on some boards the MCU's
+    USB serial link then drops data: every esptool attempt failed with "Serial data stream
+    stopped" until the FPGA was restarted (issue #11, a Chromatic that came with FPGA 18.14)."""
+    log('Restarting the FPGA before writing to the MCU again.')
+    try:
+        fpga.reset(log)
+    except (fpga.ProgrammerError, subprocess.TimeoutExpired) as exc:
+        log(f'The FPGA restart did not complete ({exc}); waiting for the Chromatic anyway.')
+    sleep(8)   # let the old USB port go away before looking for the new one
+    return wait_for_device(log, sleep)
+
+
 BACKUP_ROUNDS = 3
 BACKUP_SETTLE = 60   # seconds
 NOT_PROGRAMMABLE = ('The Chromatic did not enter its programming mode, so the backup could not be read. Nothing was '
@@ -639,7 +653,7 @@ def install(port, backup_dir, log, sleep=time.sleep):
         raise ValueError('The FPGA write did not finish. The device can still be reached over USB: run the installer again. ' + str(exc)) from exc
 
     if steps:
-        port = wait_for_device(log, sleep)
+        port = reconnect_after_fpga(log, sleep)
         write_record(port, s.folder, {SLOT_GB: IMAGES['fpga_gb'][1], SLOT_GG: IMAGES['fpga_gg'][1],
                                       SLOT_LYNX: IMAGES['fpga_lynx'][1]}, log)
         s.checkpoint('core_record_written')
@@ -680,7 +694,7 @@ def uninstall(port, backup_dir, log, sleep=time.sleep):
         s.checkpoint('partial_uninstall_fpga_failed')
         raise ValueError('The FPGA write did not finish. Run the uninstaller again. ' + str(exc)) from exc
     s.checkpoint('fpga_verified', fpga_attempts=attempts)
-    port = wait_for_device(log, sleep)
+    port = reconnect_after_fpga(log, sleep)
     emit('step', key='table')
     log('Restoring the standard partition layout (application ' + previous[1] + ').')
     write_and_verify(port, TABLE_OFFSET, files['table_stock'], log)
@@ -785,7 +799,7 @@ def restore(backup_file, backup_dir, log, sleep=time.sleep):
         checkpoint('fpga_failed')
         raise ValueError('The FPGA write did not finish. Run Restore again. ' + str(exc)) from exc
     checkpoint('fpga_verified', fpga_attempts=attempts)
-    port = wait_for_device(log, sleep)
+    port = reconnect_after_fpga(log, sleep)
 
     # The bootloader (below 0x8000) is never changed by this installer, so leave it alone.
     image_path = folder / 'restore-0x8000.bin'
