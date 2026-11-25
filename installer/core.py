@@ -453,9 +453,9 @@ def wait_for_device(log, sleep, timeout=45):
 
 def reconnect_after_fpga(log, sleep):
     """Restart the FPGA from flash (this also restarts the MCU), then find the Chromatic again.
-    openFPGALoader leaves the FPGA running without a clean restart, and on some boards the MCU's
-    USB serial link then drops data: every esptool attempt failed with "Serial data stream
-    stopped" until the FPGA was restarted (issue #11, a Chromatic that came with FPGA 18.14)."""
+    Issue #11: on one Chromatic every esptool attempt after the FPGA writes failed with "Serial
+    data stream stopped" until the FPGA was restarted. The cause isn't known: our own
+    installs from stock 4.6 (FPGA 18.14) never needed the restart."""
     log('Restarting the FPGA before writing to the MCU again.')
     try:
         fpga.reset(log)
