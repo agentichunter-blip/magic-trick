@@ -23,6 +23,7 @@
 #include "cart_bulk.h"
 #include "cart_store.h"
 #include "box_art.h"
+#include "video_preview.h"
 #include "core_switch.h"
 #include "rom_title.h"
 #include <string.h>
@@ -296,12 +297,16 @@ static uint8_t *LoadCardArt(const char *pRom)
     if (Length < 0 || (size_t)Length >= sizeof(Path)) return NULL;
     sdmmc_card_t *pCard = NULL;
     if (SDCard_MountArt(&pCard) != ESP_OK) return NULL;
-    uint8_t *pArt = malloc(BOX_ART_BYTES);
+    /* The menu's 128x92 cover (CMAR v2); older 72x80 covers come back centred in it. */
+    uint8_t *pArt = malloc(PREVIEW_BYTES);
     FILE *pFile = pArt ? fopen(Path, "rb") : NULL;
-    const bool Ok = pFile && BoxArt_Read(pFile, pArt);
+    const bool Ok = pFile && PanelArt_Read(pFile, pArt);
     if (pFile) fclose(pFile);
     (void)SDCard_Unmount(pCard);
     if (!Ok) { free(pArt); return NULL; }
+    /* Magenta (0xF81F) is the overlay's see-through colour: nudge it, as the menu does. */
+    for (unsigned I = 0; I < PREVIEW_BYTES; I += 2)
+        if (pArt[I] == 0x1f && pArt[I + 1] == 0xf8) pArt[I] = 0x1e;
     return pArt;
 }
 

@@ -1,5 +1,5 @@
 #include "gfx.h"
-#include "box_art_format.h"
+#include "preview_format.h"
 #include <stdlib.h>
 
 #include "osd.h"
@@ -93,29 +93,32 @@ void Gfx_ShowCard(const char *pTitle, uint8_t *pArt)
     lv_obj_set_style_text_color(pHeading, lv_color_white(), 0);
     lv_obj_set_style_text_align(pHeading, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text_static(pHeading, "LOADING GAME");
-    /* With box art (72x80, RGB565): the cover on top, the words below it. */
-    const lv_coord_t Top = pArt ? 94 : 52;
+    /* With box art (the menu's 128x92 cover, RGB565): the cover on top, the
+     * words below it. The banner font is 10 px a letter (9 with the tighter
+     * spacing), so the name gets the full width and three lines. */
+    const lv_coord_t Top = pArt ? 100 : 56;
     lv_obj_set_pos(pHeading, 0, Top);
     if (pArt)
     {
         pCardArt = pArt;
-        CardArt = (lv_img_dsc_t){.header = {.cf = LV_IMG_CF_TRUE_COLOR, .w = BOX_ART_WIDTH, .h = BOX_ART_HEIGHT},
-                                 .data_size = BOX_ART_BYTES, .data = pCardArt};
+        CardArt = (lv_img_dsc_t){.header = {.cf = LV_IMG_CF_TRUE_COLOR, .w = PREVIEW_WIDTH, .h = PREVIEW_HEIGHT},
+                                 .data_size = PREVIEW_BYTES, .data = pCardArt};
         lv_obj_t *pImage = lv_img_create(pCard);
         lv_img_set_src(pImage, &CardArt);
-        lv_obj_set_pos(pImage, (160 - BOX_ART_WIDTH) / 2, 8);
+        lv_obj_set_pos(pImage, (160 - PREVIEW_WIDTH) / 2, 4);
     }
 
     lv_obj_t *pName = lv_label_create(pCard);
-    /* Up to two lines of the 8 px banner font, then "...". */
-    lv_obj_set_size(pName, 144, 20);
-    lv_obj_set_style_text_line_space(pName, 4, 0);
+    /* Up to three lines (17 letters each), then "...". */
+    lv_obj_set_size(pName, 156, 30);
+    lv_obj_set_style_text_line_space(pName, 3, 0);
+    lv_obj_set_style_text_letter_space(pName, -1, 0);
     lv_obj_set_style_text_font(pName, &chromatic_banner, 0);
     lv_obj_set_style_text_color(pName, lv_color_hex(0xffcd48), 0);
     lv_obj_set_style_text_align(pName, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(pName, LV_LABEL_LONG_DOT);
     lv_label_set_text(pName, pTitle ? pTitle : "");
-    lv_obj_set_pos(pName, 8, Top + 18);
+    lv_obj_set_pos(pName, 2, Top + 13);
 
     lv_scr_load(pCard);
     lv_refr_now(lv_obj_get_disp(pCard));
