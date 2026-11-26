@@ -19,6 +19,7 @@ module nes_sim_top (
 	output        frame_strobe,
 	output [15:0] audio_sample,
 	output        audio_strobe,
+	output     [15:0] audio_out,        // steady-rate output (what the shell plays)
 	output        running, paused_now, bad_image, rom_fault,
 	input         freeze_t, release_t, load_t, block_t,
 	input   [6:0] block_n,
@@ -36,7 +37,7 @@ module nes_sim_top (
 	// debug
 	input  [12:0] dbg_addr,
 	output  [7:0] dbg_prgram, dbg_cpuram, dbg_ciram, dbg_chrram,
-	output        dbg_ce, dbg_stall,
+	output        dbg_ce, dbg_stall, dbg_audio_tick,
 	output [8:0] dbg_cyc, dbg_sl, dbg_cycp, dbg_slp, output dbg_cpaused, output [4:0] dbg_divcpu, output [2:0] dbg_divppu, output [1:0] dbg_ppu_tick, output dbg_odd,
 	output [15:0] dbg_cpu_addr, output dbg_cpu_rnw, output dbg_cpu_ce, output [7:0] dbg_cpu_data
 );
@@ -46,7 +47,7 @@ module nes_sim_top (
 		.x_write_data(x_write_data), .x_write_next(x_write_next), .x_done(x_done),
 		.x_read_valid(x_read_valid), .x_read_data(x_read_data), .x_idle(x_idle),
 		.pix_strobe(pix_strobe), .pix_x(pix_x), .pix_y(pix_y), .pix_rgb(pix_rgb), .frame_strobe(frame_strobe),
-		.audio_sample(audio_sample), .audio_strobe(audio_strobe),
+		.audio_sample(audio_sample), .audio_strobe(audio_strobe), .audio_out(audio_out),
 		.running(running), .paused_now(paused_now), .bad_image(bad_image), .rom_fault(rom_fault),
 		.mapper_flags_o(),
 		.freeze_toggle(freeze_t), .release_toggle(release_t), .load_toggle(load_t), .block_toggle(block_t),
@@ -57,11 +58,20 @@ module nes_sim_top (
 		.cart_import(cart_import), .cart_imported(cart_imported), .cart_dirty(cart_dirty),
 		.cart_dirty_clear(cart_dirty_clear), .cart_written(cart_written), .cart_snapshot(cart_snapshot),
 		.gg_code(gg_code), .gg_clear(gg_clear));
+	// ROM strobes whose address changed on the NES edge that raised them (slow path of the cache)
+	reg [21:0] pa_q, ca_q; reg [31:0] n_prg = 0, n_prg_new = 0, n_chr = 0, n_chr_new = 0;
+	always @(posedge clk) if (dut.nes_edge) begin
+		pa_q <= dut.prg_rom_addr; ca_q <= dut.chr_rom_addr;
+		if (dut.cpu_need_rom) begin n_prg <= n_prg + 1; if (pa_q != dut.prg_rom_addr) n_prg_new <= n_prg_new + 1; end
+		if (dut.ppu_need_rom) begin n_chr <= n_chr + 1; if (ca_q != dut.chr_rom_addr) n_chr_new <= n_chr_new + 1; end
+	end
+	final $display("rom strobes: prg %0d (address new %0d) chr %0d (address new %0d)", n_prg, n_prg_new, n_chr, n_chr_new);
 	assign dbg_prgram = dut.prgram[dbg_addr];
 	assign dbg_cpuram = dut.cpuram[dbg_addr[10:0]];
 	assign dbg_ciram = dut.ciram[dbg_addr[10:0]];
 	assign dbg_chrram = dut.chrram[dbg_addr[12:0]];
 	assign dbg_ce = dut.ce_reg;
+	assign dbg_audio_tick = dut.smooth.tick;
 	assign dbg_stall = dut.stall;
 	assign dbg_cyc = dut.nes.ppu_cycle; assign dbg_sl = dut.nes.scanline_ppu;
 	assign dbg_cycp = dut.nes.cycle_paused; assign dbg_slp = dut.nes.scanline_paused;

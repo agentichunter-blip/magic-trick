@@ -61,6 +61,10 @@ static void bus_inputs() {
 static uint64_t frame_no = 0;
 static const char *dump_next = nullptr;
 static FILE *audio_log = nullptr;
+// NES_RTAUDIO: the shell's view of the audio, sampled every 128 xclk (524,288 Hz) in real time
+static FILE *rt_log = nullptr;
+// NES_ATIME: xclk cycle of every 16th APU sample (atime.u64) and of every played value (aplay.u64)
+static FILE *atime_log = nullptr, *aplay_log = nullptr; static int atime_n = 0;
 static void dump(const std::string &name);
 static uint16_t img[240][256];
 static std::vector<uint64_t> frame_hashes;
@@ -127,6 +131,9 @@ static void step() {
         bus.done_late = (rng() & 1);
         bus_bursts++;
     } else if (t->x_request) { printf("FAIL: request while PSRAM busy at %llu\n", (unsigned long long)cycle); exit(1); }
+    if (atime_log && t->audio_strobe && ++atime_n % 16 == 0) fwrite(&cycle, 8, 1, atime_log);
+    if (aplay_log && t->dbg_audio_tick) fwrite(&cycle, 8, 1, aplay_log);
+    if (rt_log && (cycle & 127) == 0) fwrite(&t->audio_out, 2, 1, rt_log);
     t->clk = 0;
     t->eval();
     bus_inputs();
@@ -223,6 +230,8 @@ int main(int argc, char **argv) {
     if (getenv("NES_TRACE")) { trace = fopen((outdir + "/trace.txt").c_str(), "w"); trace_left = strtoull(getenv("NES_TRACE"), 0, 10); }
     pause_test = getenv("NES_PAUSETEST") != nullptr;
     if (getenv("NES_ALOGALL")) audio_log = fopen((outdir + "/audio_all.raw").c_str(), "wb");
+    if (getenv("NES_ATIME")) { atime_log = fopen((outdir + "/atime.u64").c_str(), "wb"); aplay_log = fopen((outdir + "/aplay.u64").c_str(), "wb"); }
+    if (getenv("NES_RTAUDIO")) rt_log = fopen((outdir + "/audio_rt.raw").c_str(), "wb");
     t->video_resume_ok = 1; t->cart_dirty_clear = 0;
     t->reset_n = 0; t->pause = 0; t->buttons = 0; t->cart_import = batt;
     for (int i = 0; i < 64; i++) step();
@@ -401,5 +410,6 @@ int main(int argc, char **argv) {
         FILE *sf = fopen((outdir + "/battery.sav").c_str(), "wb"); fwrite(live.data(), 1, live.size(), sf); fclose(sf);
         printf("battery: after cart_dirty_clear dirty=%d snapshot=%02x\n", t->cart_dirty, t->cart_snapshot);
     }
+    t->final();
     return 0;
 }

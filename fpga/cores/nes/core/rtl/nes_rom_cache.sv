@@ -2,10 +2,12 @@
 // Direct-mapped, 64-byte lines, 2^LINE_BITS lines (LINE_BITS=7: 8 KiB of data = 4 BSRAM;
 // {valid, tag} words in one more BSRAM). Address = byte offset in the 4 MiB ROM window.
 //
-// Lookup pipeline (xclk): the address is sampled every cycle; data, tag and the sampled
-// address are registered together; `hit` (combinational) says that `data` is the byte at
-// the CURRENT address. So a hit is known one cycle after the address settles, and a miss
-// starts a fill (fill_req) in that cycle. A line is marked invalid when its fill starts and
+// Lookup pipeline (xclk): the address is registered (addr_r) on every edge except the one
+// after a NES edge (`unsettled`), where NES-driven addresses may still be settling; the RAMs
+// and rd_addr only ever sample addr_r. Data, tag and rd_addr are registered together; `hit`
+// (combinational) says that `data` is the byte at the CURRENT address. An address that did
+// not change on the last NES edge was captured on that edge, so its hit is known one cycle
+// later; one that did change takes two more cycles. A miss starts a fill (fill_req). A line is marked invalid when its fill starts and
 // valid when the fill completes; the cycle after any tag write, hits are masked (the tag
 // read in that cycle may be the old one). `invalidate` sweeps all tags to invalid (one per
 // cycle, 2^LINE_BITS cycles; the cache misses meanwhile and starts no fill); a fill in
@@ -15,6 +17,7 @@ module nes_rom_cache #(parameter integer LINE_BITS = 7) (
 	input             invalidate,       // drop all lines
 	input             lookup,           // address is a cartridge ROM address worth caching
 	input      [21:0] addr,
+	input             unsettled,        // addr and lookup may still be settling on the next edge
 	output            hit,
 	output      [7:0] data,
 	output            idle,
@@ -38,12 +41,13 @@ module nes_rom_cache #(parameter integer LINE_BITS = 7) (
 	reg [5:0] words = 6'd0;
 
 	reg [15:0] rd_word = 16'd0;
-	reg [21:0] rd_addr = 22'h3FFFFF;
+	reg [21:0] rd_addr = 22'h3FFFFF, addr_r = 22'h3FFFFF;
 	reg [TB:0] rd_tag = 0;
 	always @(posedge clk) begin
-		rd_word <= cmem[addr[LINE_BITS+5:1]];
-		rd_tag  <= tags[addr[LINE_BITS+5:6]];
-		rd_addr <= addr;
+		if (!unsettled) addr_r <= addr;
+		rd_word <= cmem[addr_r[LINE_BITS+5:1]];
+		rd_tag  <= tags[addr_r[LINE_BITS+5:6]];
+		rd_addr <= addr_r;
 	end
 	wire rd_current = rd_addr == addr;
 	wire [LINE_BITS-1:0] rd_index = rd_addr[LINE_BITS+5:6];
@@ -53,7 +57,7 @@ module nes_rom_cache #(parameter integer LINE_BITS = 7) (
 	assign idle = !busy && !fill_req;
 
 	wire last_word = fill_done && (words + (fill_valid ? 6'd1 : 6'd0)) == 6'd32;
-	wire start_fill = !busy && !fill_req && !invalidate && !sweeping && lookup && rd_current && !tag_ok && !tag_written;
+	wire start_fill = !unsettled && !busy && !fill_req && !invalidate && !sweeping && lookup && rd_current && !tag_ok && !tag_written;
 	wire finish_fill = busy && fill_done && last_word && !discard && !invalidate;
 	// one tag write port: sweep, line invalidation at fill start, new tag at fill end
 	wire tag_we = sweeping || start_fill || finish_fill;

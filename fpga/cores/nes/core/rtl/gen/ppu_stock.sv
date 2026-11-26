@@ -1884,7 +1884,7 @@ PaletteRam palette_ram(
 
 wire write_2001 = (write && ppu_ain == 1);
 wire pal_mask = ~|scanline || cycle < 3 || cycle > 254;
-wire auto_mask = (mask == 2'b11) && ~object_clip && ~playfield_clip;
+wire auto_mask = (mask == 2'b11) && rendering_regs && ~object_clip && ~playfield_clip;
 wire mask_left = ~out_of_clip && ((|mask && ~&mask) || auto_mask);
 wire mask_right = cycle > 248 && mask == 2'b10;
 

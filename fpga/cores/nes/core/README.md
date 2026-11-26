@@ -11,6 +11,7 @@ save states use MiSTer's engine with a 21 KiB image staged in PSRAM. Nothing her
 |---|---|
 | `rtl/nes_board_core.sv` | **the module to instantiate** (top of this work) |
 | `rtl/nes_rom_cache.sv` | PSRAM line cache (used twice: PRG, CHR) |
+| `rtl/nes_audio_smooth.sv` | steady-rate audio output queue |
 | `rtl/nes_state_engine.sv` | MCU save-state / battery transfer engine (lynx_state_engine command set) |
 | `rtl/nes_savestates.sv` | MiSTer `savestates.vhd` ported to SV, region table reduced |
 | `rtl/nes_ss_support.sv` | SV `eReg_SavestateV` and `statemanager` (no rewind) |
@@ -27,7 +28,7 @@ save states use MiSTer's engine with a 21 KiB image staged in PSRAM. Nothing her
 Gowin file list for the integration (order matters only for the package):
 `rtl/gen/regs_savestates.sv, rtl/nes_ss_support.sv, rtl/nes_savestates.sv, rtl/gen/t65_nes_netlist.v,
 rtl/t65_wrap.sv, rtl/gen/{nes,ppu,apu,cart,mappers,cheatcodes,nes_palette_rom}.sv, rtl/nes_clock_gate.sv,
-rtl/nes_rom_cache.sv, rtl/nes_state_engine.sv, rtl/nes_board_core.sv` (see `syn/board/build.tcl`).
+rtl/nes_rom_cache.sv, rtl/nes_audio_smooth.sv, rtl/nes_state_engine.sv, rtl/nes_board_core.sv` (see `syn/board/build.tcl`).
 T65 goes in as the GHDL netlist (like the Lynx core), not through Gowin's VHDL front end.
 `rtl/gen/ppu_stock.sv` (upstream OAMEval, ~16k logic) is for sim A/B only.
 
@@ -49,6 +50,8 @@ T65 goes in as the GHDL netlist (like the Lynx core), not through Gowin's VHDL f
   "not selected" initialisation with the real header flags (MiSTer does this with flags = 0 during
   the download, which leaves MMC3 in horizontal mirroring; with no initialisation at all the MMC3
   fixed $C000 bank was 0).
+* Left 8 pixels: the PPU's `mask` is 3 (auto): drawn black while a game hides both background and sprites
+  there and rendering is on (gen_rtl.py adds the rendering condition), instead of in the backdrop colour.
 * Game Genie: `CODES` (rtl/gen/cheatcodes.sv, 16 codes) with its table on the free-running clock (`gg_clk`), loaded by the shell's
   `gg_cheat_loader` (NES=1: $8000-$FFFF). Sim check: `sim/gg_test_rom.py` and `NES_GG=9000:55,9001:66:23,9002:77:33 NES_ZP=10,11,12`
   (expect 55 22 77; without codes 11 22 33).
@@ -67,6 +70,7 @@ T65 goes in as the GHDL netlist (like the Lynx core), not through Gowin's VHDL f
 | `pix_strobe`, `pix_x[7:0]`, `pix_y[7:0]`, `pix_rgb[14:0]` | out | one strobe per visible pixel, x 0–255, y 0–239, all 240 lines; BGR555 with R in bits 4:0. Strobes are ≥ 12 xclk apart. None while the core is paused for a save state. |
 | `frame_strobe` | out | start of vblank (after line 239) |
 | `audio_sample[15:0]`, `audio_strobe` | out | APU output (MiSTer mixer, unsigned), new value each strobe = every CPU cycle (≈1.79 MHz nominal, 21.44196 MHz/12 here) |
+| `audio_out[15:0]` | out | the same audio for playing: 16 samples averaged, read from a 64-entry queue at exactly 111.7 kHz (`nes_audio_smooth.sv`), so the NES clock's stalls and catch-up are not heard (they were: −8 to +3 % speed within each frame). Clocks the NES loses for good are repaid by repeating values at a rate proportional to the debt, so a NES that falls behind is followed at a steady pitch. |
 | `running` | out | info block accepted, NES out of reset |
 | `paused_now` | out | `pause` is in effect (NES clock stopped) |
 | `bad_image` | out | info block magic/sizes rejected (core held in reset) |
@@ -87,7 +91,10 @@ The NES runs on `nclk` = DCE(xclk, `ce_reg`). `ce_reg` is a flip-flop; an xclk e
 clocks × 60.000 Hz (frames measured at 60.000 Hz in sim). NES edges are ≥ 3 xclk apart; the enable
 is held low while a ROM byte the next edge consumes is missing, while `pause`, before the info block
 is decoded and during the battery import. Missed edges are made up later at up to 1/3 xclk
-(credit capped at 2047), so the average rate stays 60 Hz.
+(credit capped at 2047), so the average rate stays 60 Hz. A ROM read that hits the cache costs no
+extra xclk: the cache RAMs see the address registered on the previous NES edge, where the NES already
+presents it (in SMB and Kirby: all 53 million ROM strobes). Until 2026-11-25 every ROM edge took 4 xclk
+and games ran at 59.2–59.8 Hz.
 Constraints for the integration: nclk→nclk paths (the whole MiSTer core) are multicycle 3; paths
 from nclk registers (the NES address buses) into the xclk memories/caches are also multicycle 3
 (addresses settle ≥ 3 xclk before their data is consumed); xclk→nclk single cycle. The probe's

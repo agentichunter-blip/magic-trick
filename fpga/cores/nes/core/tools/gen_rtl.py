@@ -58,7 +58,10 @@ for src_name, dst_name in [('ppu.sv', 'ppu_stock.sv'), ('ppu_oam.sv', 'ppu.sv')]
   for m in ['ppu_video_phase', 'ppu_video_color', 'ppu_video_dac']:
       t = sub1(t, r'\nmodule ' + m + r'\b.*?\nendmodule[^\n]*', '\n', regex=True)
   t = sub1(t, 'inout   [1:0] sys_type', 'input   [1:0] sys_type')
-  if dst_name == 'ppu.sv':
+  # auto left-column mask (mask 3): only while the picture is drawn, so a blanked screen in a
+  # plain backdrop colour keeps its left column
+  t = sub1(t, "(mask == 2'b11) && ~object_clip", "(mask == 2'b11) && rendering_regs && ~object_clip")
+  if dst_name == 'ppu.sv' and '\tif (oam_we) oam[oam_ra] <= oam_wd;' in t:   # (newer prep.py already does this)
       t = sub1(t, '\tif (oam_we) oam[oam_ra] <= oam_wd;\n\toam_q <= oam[oam_ra];',
                '\t// write-through (GW5A BSRAM has no read-before-write mode); oam_q settles within a dot\n'
                '\tif (oam_we) begin oam[oam_ra] <= oam_wd; oam_q <= oam_wd; end\n'

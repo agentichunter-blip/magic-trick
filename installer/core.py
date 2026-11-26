@@ -11,8 +11,8 @@ IMAGES = {
     'table_three_systems': ('partition-table-three-systems.bin', '20e934b5a603f40f0851baf5e5037dd36f9f1c4c2f413f6ca47757de986203a6'),
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '6d3bf3dabc947fc4865ce8e749426afea3888d18040bc772ff284a4b62ff33bc'),
-    'fpga_gg': ('magic-trick-game-gear.fs', '6c689c26acd895a2ab70fe13769d492ffd6a3bb612aae27a04a6ee16fb64973d'),
-    'fpga_nes': ('magic-trick-nes.fs', 'b51cf4824fd221c7e4ae14e5d8fc40ce31e257b94452f7af61016eb7be279179'),
+    'fpga_gg': ('magic-trick-game-gear.fs', '34be3ff9835e924cb363de105b21cbaeb8929a48bef297378321b01c6e94e87b'),
+    'fpga_nes': ('magic-trick-nes.fs', '5b6aab601354e844f1df4257d5f992414c3e297c1f1354283d6a3ae6092cedf7'),
     'fpga_lynx': ('magic-trick-lynx.fs', '9dc68edd11b90f21625764439e84c81f8eee1f69485b16faabbaf0b3653d9518'),
     'fpga_chromagic': ('chromagic-1.0.1-fpga.fs', '79791d915060a9898c9be6adc7ab22f298cbea9619c6bb765b8667db62c337a2'),
 }

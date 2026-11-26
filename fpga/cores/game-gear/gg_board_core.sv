@@ -212,7 +212,7 @@ system core(
  .color(color),
  .palettemode('0),
  .mask_column(mask_column),
- .black_column('0),
+ .black_column(sms),   // a masked left column (8 pixels of backdrop colour) is drawn black
  .smode_M1(smode_M1),
  .smode_M2(smode_M2),
  .smode_M3(smode_M3),

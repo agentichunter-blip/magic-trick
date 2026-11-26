@@ -5,7 +5,7 @@ S="$(cd "$(dirname "$0")" && pwd)"; W="$(cd "$S/.." && pwd)"
 V=${VERILATOR:-$(cd "$W/.." && pwd)/toolchains/oss-cad-suite/bin/verilator}
 B="${NES_BUILD:-$S/build}"
 mkdir -p "$B"
-SRCS=("$S/nes_sim_top.sv" "$W/rtl/nes_board_core.sv" "$W/rtl/nes_rom_cache.sv" "$W/rtl/nes_state_engine.sv"
+SRCS=("$S/nes_sim_top.sv" "$W/rtl/nes_board_core.sv" "$W/rtl/nes_rom_cache.sv" "$W/rtl/nes_audio_smooth.sv" "$W/rtl/nes_state_engine.sv"
   "$S/nes_clock_gate_model.sv" "$W/rtl/nes_savestates.sv" "$W/rtl/nes_ss_support.sv" "$W/rtl/t65_wrap.sv" "$W/rtl/gowin_dpb_snapshot_model.sv"
   "$W/rtl/gen/regs_savestates.sv" "$W/rtl/gen/nes.sv" "$W/rtl/gen/${NES_PPU:-ppu}.sv" "$W/rtl/gen/apu.sv" "$W/rtl/gen/cart.sv"
   "$W/rtl/gen/mappers.sv" "$W/rtl/gen/cheatcodes.sv" "$W/rtl/gen/nes_palette_rom.sv" "$W/rtl/gen/t65_nes_netlist.v")

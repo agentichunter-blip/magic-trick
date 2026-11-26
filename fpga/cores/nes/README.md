@@ -26,9 +26,10 @@ on the DCE output (it would lose the PLL-to-DCE delay); STA traces xclk through
 it. Every path from a NES register is a two-cycle path (`nes_board.sdc`; Gowin's
 `*` does not cross hierarchy levels, so each level is listed, and a multicycle
 needs `-to`). The enable logic in `nes_board_core.sv` guarantees it: NES edges at
-least 3 xclk apart, 4 before an edge that consumes a ROM byte, and NES outputs
-sampled from the second xclk edge after a NES edge. Games whose CHR comes from
-ROM through MMC3/CNROM run at 59.85-59.99 Hz in simulation; the rest at 60.000.
+least 3 xclk apart (a ROM byte from the cache included), and NES outputs
+sampled from the second xclk edge after a NES edge. Games run at 60.000 Hz in
+simulation, and the audio leaves through a steady-rate queue (`nes_audio_smooth.sv`),
+so clock stalls are not heard.
 
 Place and route takes longer than 30 minutes at 89% logic.
 

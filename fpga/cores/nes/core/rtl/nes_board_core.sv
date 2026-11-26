@@ -4,8 +4,7 @@
 // clock. It runs on nclk = xclk gated by nes_clock_gate (Gowin DCE). ce_reg is the gate's
 // enable: high in the xclk cycle BEFORE an xclk edge that is also a NES edge. A 26-bit
 // accumulator adds 21,441,960 per xclk (2^26 = 67,108,864), i.e. exactly 357,366 master
-// clocks x 60 frames per second. NES edges are at least 3 xclk apart (4 before an edge that
-// consumes a ROM byte), and every path from a NES register has two xclk periods (multicycle
+// clocks x 60 frames per second. NES edges are at least 3 xclk apart, and every path from a NES register has two xclk periods (multicycle
 // 2, to nclk and to xclk logic alike; see TIMING below and README). The enable is held
 // low (the whole NES - CPU, PPU, APU, mappers - stops between two edges) while a ROM read
 // the next edge would consume misses the cache, while `pause` is high, before the info block
@@ -69,6 +68,7 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	// audio: APU output, unsigned 16-bit, new value with each audio_strobe (1.789773 MHz nominal)
 	output     [15:0] audio_sample,
 	output reg        audio_strobe = 1'b0,
+	output     [15:0] audio_out,        // the same, averaged and at a steady rate: what to play
 	// status
 	output            running,          // loaded, out of reset
 	output            paused_now,       // pause is in effect: the NES clock is stopped
@@ -156,7 +156,7 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 		.joypad_clock(joypad_clock), .joypad_out(joypad_out),
 		.joypad1_data(joypad1_data), .joypad2_data(joypad2_data),
 		.fds_busy(1'b0), .fds_eject(1'b0), .fds_auto_eject(1'b0), .max_diskside(2'd0), .fds_fast(1'b0),
-		.diskside(), .audio_channels(5'b11111), .ex_sprites(1'b0), .mask(2'b00), .dejitter_timing(1'b0),
+		.diskside(), .audio_channels(5'b11111), .ex_sprites(1'b0), .mask(2'b11), .dejitter_timing(1'b0),
 		.cpumem_addr(cpumem_addr), .cpumem_read(cpumem_read), .cpumem_write(cpumem_write),
 		.cpumem_dout(cpumem_dout), .cpumem_din(cpu_din),
 		.ppumem_addr(ppumem_addr), .ppumem_read(ppumem_read), .ppumem_write(ppumem_write),
@@ -259,8 +259,14 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	// ------------------------------------------------------------------ ROM caches + PSRAM arbiter
 	wire eng_owns_rom, eng_rom_read, eng_invalidate; wire [21:0] eng_rom_address;
 	wire ld_owns = ld_state == 4'd0;
-	wire [21:0] prg_lookup_addr = eng_owns_rom ? eng_rom_address : ld_owns ? {18'd0, ld_index} : prg_rom_addr;
-	wire prg_lookup = eng_owns_rom ? eng_rom_read : ld_owns ? ld_read :
+	// The PRG cache follows the state engine one cycle after it takes the port (timing: the engine
+	// state no longer reaches the address compare). The engine only accepts hits from then on, and
+	// the NES none while either says the engine owns it; their addresses never overlap anyway
+	// (staging area / import area vs. PRG ROM).
+	reg eng_owns_q = 1'b0;
+	always @(posedge clk) eng_owns_q <= eng_owns_rom;
+	wire [21:0] prg_lookup_addr = eng_owns_q ? eng_rom_address : ld_owns ? {18'd0, ld_index} : prg_rom_addr;
+	wire prg_lookup = eng_owns_q ? eng_rom_read : ld_owns ? ld_read :
 	                  cpu_is_rom && (cpu_rom_hint || cpumem_read);
 	wire chr_lookup = ld_state == 4'd1 && ppu_is_chrrom;
 	wire prg_hit, chr_hit, prg_idle, chr_idle; wire [7:0] prg_data, chr_data;
@@ -273,11 +279,11 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	wire cache_invalidate = !reset_n || eng_invalidate;
 	wire eng_owns_bus, eng_x_request; wire [21:0] eng_x_address; wire [15:0] eng_x_write_data;
 	nes_rom_cache #(.LINE_BITS(7)) prg_cache(.clk(clk), .invalidate(cache_invalidate),
-		.lookup(prg_lookup), .addr(prg_lookup_addr), .hit(prg_hit), .data(prg_data), .idle(prg_idle),
+		.lookup(prg_lookup), .addr(prg_lookup_addr), .unsettled(since == 2'd0), .hit(prg_hit), .data(prg_data), .idle(prg_idle),
 		.fill_req(prg_fill_req), .fill_addr(prg_fill_addr), .fill_start(prg_fill_start),
 		.fill_valid(x_read_valid && owner == 2'd1), .fill_data(x_read_data), .fill_done(x_done && owner == 2'd1));
 	nes_rom_cache #(.LINE_BITS(7)) chr_cache(.clk(clk), .invalidate(cache_invalidate),
-		.lookup(chr_lookup), .addr(chr_rom_addr), .hit(chr_hit), .data(chr_data), .idle(chr_idle),
+		.lookup(chr_lookup), .addr(chr_rom_addr), .unsettled(since == 2'd0), .hit(chr_hit), .data(chr_data), .idle(chr_idle),
 		.fill_req(chr_fill_req), .fill_addr(chr_fill_addr), .fill_start(chr_fill_start),
 		.fill_valid(x_read_valid && owner == 2'd2), .fill_data(x_read_data), .fill_done(x_done && owner == 2'd2));
 	assign x_request = req_q;
@@ -314,7 +320,7 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	// The next NES edge would consume a ROM byte that is not in the cache: hold the clock.
 	wire cpu_need_rom = cpu_rd_rise && cpu_is_rom;
 	wire ppu_need_rom = ppu_rd_rise && ppu_is_chrrom;
-	wire stall = (cpu_need_rom && (!prg_hit || eng_owns_rom)) || (ppu_need_rom && !chr_hit) || boot_hold ||
+	wire stall = (cpu_need_rom && (!prg_hit || eng_owns_rom || eng_owns_q)) || (ppu_need_rom && !chr_hit) || boot_hold ||
 	             ld_state != 4'd1;   // no NES clock before the info block is decoded
 	wire acc_carry;
 	wire [26:0] acc_next = {1'b0, acc} + 27'd21441960;
@@ -322,12 +328,14 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	// TIMING. Everything the NES drives (addresses, strobes) is a two-cycle path into xclk logic
 	// (README): it is settled at the second xclk edge after a NES edge, not the first. A
 	// non-ROM edge may come three xclk after the last one (enable decided in the cycle before
-	// the second edge, registered on it). A ROM byte comes through a cache whose RAMs sample the
-	// address on every edge, so its hit is trusted only from the second edge's sample: such an
-	// edge comes at least four xclk after the last (since >= 2 when deciding). Credit is spent
-	// one cycle later, from the registered enable, so it never depends on a settling path.
-	wire rom_wait = cpu_need_rom || ppu_need_rom;
-	assign go = (credit != 11'd0) && !stall && !pause && (since >= 2'd2 || !rom_wait);
+	// the second edge, registered on it). A ROM byte comes through a cache whose RAMs only see
+	// the registered address: captured on the NES edge itself (settled value before the edge)
+	// and from the second edge on, never in between. A hit also compares with the current
+	// address, so a ROM edge may come three xclk after the last one too when the address was
+	// already there on that edge (the NES presents ROM addresses long before the strobe), and
+	// five when it was not. Credit is spent one cycle later, from the registered enable, so it
+	// never depends on a settling path.
+	assign go = (credit != 11'd0) && !stall && !pause;
 	always @(posedge clk) begin
 		acc <= acc_next[25:0];
 		case ({acc_carry && credit != 11'h7FF, ce_reg})
@@ -460,6 +468,12 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 	reg audio_take = 1'b0;
 	always @(posedge clk) begin audio_take <= nes_edge && apu_ce && running; audio_strobe <= audio_take; end
 
+	// The APU runs on the stalled-and-caught-up NES clock; audio_out does not (nes_audio_smooth).
+	reg nominal_q = 1'b0, lost_q = 1'b0;
+	always @(posedge clk) begin nominal_q <= acc_carry; lost_q <= acc_carry && credit == 11'h7FF; end
+	nes_audio_smooth smooth(.clk(clk), .reset(!reset_n), .strobe(audio_strobe), .sample(sample),
+		.nominal_clk(nominal_q), .lost_clk(lost_q), .out(audio_out), .tick());
+
 	// ------------------------------------------------------------------ save states
 	wire eng_busy, eng_frozen, eng_loaded, eng_fault;
 	assign state_busy = eng_busy; assign state_frozen = eng_frozen; assign state_loaded = eng_loaded;
@@ -475,7 +489,7 @@ module nes_board_core #(parameter [22:0] ROM_BASE = 23'h020000) (
 		.ss_din(save_din), .ss_dout(save_dout), .ss_adr(save_adr), .ss_rnw(save_rnw), .ss_ena(save_ena),
 		.ss_done(save_done),
 		.owns_rom(eng_owns_rom), .cache_invalidate(eng_invalidate), .rom_read(eng_rom_read),
-		.rom_address(eng_rom_address), .rom_data(prg_data), .rom_hit(prg_hit), .rom_fault(fault_q),
+		.rom_address(eng_rom_address), .rom_data(prg_data), .rom_hit(prg_hit && eng_owns_q), .rom_fault(fault_q),
 		.rom_idle(rom_idle),
 		.owns_bus(eng_owns_bus), .x_request(eng_x_request), .x_address(eng_x_address), .x_grant(eng_grant),
 		.x_write_data(eng_x_write_data), .x_write_next(x_write_next && owner == 2'd3), .x_done(x_done && owner == 2'd3),

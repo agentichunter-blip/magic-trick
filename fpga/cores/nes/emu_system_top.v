@@ -142,7 +142,7 @@ module emu_system_top
         else reset_h_sync<={reset_h_sync[0],1'b0};
     end
     wire pix_strobe; wire [7:0] pix_x,pix_y; wire [14:0] pix_rgb;
-    wire [15:0] audio_sample; wire audio_strobe,frame_strobe;
+    wire [15:0] audio_sample; wire frame_strobe;
     wire state_busy,state_fault,state_frozen,state_loaded,cart_imported,cart_dirty;
     wire [7:0] cart_written8,cart_snapshot8;
     // A battery copy starts with live block 64 (PRG RAM $6000): move the
@@ -160,7 +160,7 @@ module emu_system_top
         .x_done(virtual_xdone),.x_read_valid(virtual_xread_valid),.x_read_data(virtual_xreaddata),
         .x_idle(x_idle),
         .pix_strobe(pix_strobe),.pix_x(pix_x),.pix_y(pix_y),.pix_rgb(pix_rgb),.frame_strobe(frame_strobe),
-        .audio_sample(audio_sample),.audio_strobe(audio_strobe),
+        .audio_sample(),.audio_strobe(),.audio_out(audio_sample),
         .running(running),.paused_now(core_paused),.bad_image(bad_image),.rom_fault(rom_fault),.mapper_flags_o(),
         .video_resume_ok(video_resume_ok),
         .freeze_toggle(virtual_state_freeze_toggle),.release_toggle(virtual_state_release_toggle),
@@ -185,7 +185,7 @@ module emu_system_top
         .lcd_mode(gb_lcd_mode),.lcd_on(gb_lcd_on),.lcd_vsync(gb_lcd_vsync));
     // APU output is unsigned: centre it (the low-pass filter also blocks DC).
     reg [15:0] audio_x=0;
-    always @(posedge xclk) if(audio_strobe) audio_x<={~audio_sample[15],audio_sample[14:0]};
+    always @(posedge xclk) audio_x<={~audio_sample[15],audio_sample[14:0]};
     wire [15:0] nes_left_raw,nes_right_raw;
     gg_audio_bridge audio_cdc(.xclk(xclk),.xreset(core_reset_x),
         .stereo({audio_x,audio_x}),.hclk(hclk),.hreset(reset_h_sync[1]),
