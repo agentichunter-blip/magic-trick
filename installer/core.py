@@ -12,7 +12,7 @@ IMAGES = {
     'table_stock': ('partition-table-stock.bin', '7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820'),
     'fpga_gb': ('magic-trick-gb-gbc.fs', '6d3bf3dabc947fc4865ce8e749426afea3888d18040bc772ff284a4b62ff33bc'),
     'fpga_gg': ('magic-trick-game-gear.fs', '34be3ff9835e924cb363de105b21cbaeb8929a48bef297378321b01c6e94e87b'),
-    'fpga_nes': ('magic-trick-nes.fs', 'd1caee36c20924a804799a67620dce2ed70d98f7148b6411b05a0c4e93c59f80'),
+    'fpga_nes': ('magic-trick-nes.fs', 'b0c1f7bd04f20f522f81000347292a543a0c3ca92d99679b9e6dfee8d83dbc1a'),
     'fpga_lynx': ('magic-trick-lynx.fs', '9dc68edd11b90f21625764439e84c81f8eee1f69485b16faabbaf0b3653d9518'),
     'fpga_chromagic': ('chromagic-1.0.1-fpga.fs', '79791d915060a9898c9be6adc7ab22f298cbea9619c6bb765b8667db62c337a2'),
 }
