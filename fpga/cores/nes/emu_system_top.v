@@ -183,14 +183,16 @@ module emu_system_top
         .overflow(video_overflow),.lcd_pixel(gb_lcd_clkena),.lcd_data(gb_lcd_data),
         .lcd_repeat(gb_lcd_repeat),
         .lcd_mode(gb_lcd_mode),.lcd_on(gb_lcd_on),.lcd_vsync(gb_lcd_vsync));
-    // APU output is unsigned: centre it (the low-pass filter also blocks DC).
+    // APU output is unsigned: centre it and halve it. MiSTer's mixer uses nearly the whole
+    // 16-bit range (Kirby peaks at 26.6k after filtering, Game Boy and Game Gear at about
+    // 16k), which overdrove the speaker; the high-pass below removes the rest.
     reg [15:0] audio_x=0;
-    always @(posedge xclk) audio_x<={~audio_sample[15],audio_sample[14:0]};
+    always @(posedge xclk) audio_x<={~audio_sample[15],~audio_sample[15],audio_sample[14:1]};
     wire [15:0] nes_left_raw,nes_right_raw;
     gg_audio_bridge audio_cdc(.xclk(xclk),.xreset(core_reset_x),
         .stereo({audio_x,audio_x}),.hclk(hclk),.hreset(reset_h_sync[1]),
         .sample({nes_left_raw,nes_right_raw}));
-    gg_audio_lpf u_audio_lpf(
+    gg_audio_lpf #(.DC_SHIFT(10)) u_audio_lpf(
         .clk(hclk),.reset(reset_h_sync[1]),
         .in_l(nes_left_raw),.in_r(nes_right_raw),
         .out_l(left),.out_r(right));

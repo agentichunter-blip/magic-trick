@@ -1,8 +1,11 @@
-// Multiplier-free Game Gear audio conditioning on hclk (16.777 MHz).
+// Multiplier-free audio conditioning on hclk (16.777 MHz), NES copy.
 // Two cascaded one-pole low-pass stages (alpha = 1/8 at hclk/32 = 524 kHz,
 // ~11 kHz each, ~7 kHz combined -3 dB, close to the GB/GBC core's 7.056 kHz
-// filter) followed by a ~2.5 Hz DC blocker. Input/output: signed 16-bit.
-module gg_audio_lpf(
+// filter) followed by a high-pass: DC_SHIFT 14 is a ~5 Hz DC blocker (Game Gear);
+// the NES uses 10 (~81 Hz), like the NES's own 90 Hz output high-pass. The NES
+// APU output only swings one way, so without it every note change pushes a
+// low-frequency step into the speaker. Input/output: signed 16-bit.
+module gg_audio_lpf #(parameter integer DC_SHIFT = 14) (
     input  wire        clk,
     input  wire        reset,
     input  wire [15:0] in_l,
@@ -15,11 +18,11 @@ module gg_audio_lpf(
     always @(posedge clk or posedge reset)
         if (reset) div <= 5'd0; else div <= div + 1'd1;
 
-    gg_audio_lpf_ch u_l(.clk(clk), .reset(reset), .ce(ce), .din(in_l), .dout(out_l));
-    gg_audio_lpf_ch u_r(.clk(clk), .reset(reset), .ce(ce), .din(in_r), .dout(out_r));
+    gg_audio_lpf_ch #(.DC_SHIFT(DC_SHIFT)) u_l(.clk(clk), .reset(reset), .ce(ce), .din(in_l), .dout(out_l));
+    gg_audio_lpf_ch #(.DC_SHIFT(DC_SHIFT)) u_r(.clk(clk), .reset(reset), .ce(ce), .din(in_r), .dout(out_r));
 endmodule
 
-module gg_audio_lpf_ch(
+module gg_audio_lpf_ch #(parameter integer DC_SHIFT = 14) (
     input  wire        clk,
     input  wire        reset,
     input  wire        ce,
@@ -40,7 +43,7 @@ module gg_audio_lpf_ch(
         end else if (ce) begin
             a1 <= a1 + (d1 >>> 3);
             a2 <= a2 + (d2 >>> 3);
-            dc <= dc + (d3 >>> 14);
+            dc <= dc + (d3 >>> DC_SHIFT);
             dout <= (y16 >  18'sd32767) ? 16'h7fff :
                     (y16 < -18'sd32768) ? 16'h8000 : y16[15:0];
         end

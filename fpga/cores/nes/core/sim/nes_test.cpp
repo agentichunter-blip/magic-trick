@@ -344,6 +344,15 @@ int main(int argc, char **argv) {
         pstate("frozen1");
         std::vector<uint8_t> st = read_blocks(0, STATE_BLOCKS);
         { FILE *sf = fopen((outdir + "/state.bin").c_str(), "wb"); fwrite(st.data(), 1, st.size(), sf); fclose(sf); }
+        // NES_LOADIMG=file: load this image (a .state file from the card, 64-byte header skipped) instead
+        if (getenv("NES_LOADIMG")) {
+            FILE *lf = fopen(getenv("NES_LOADIMG"), "rb"); std::vector<uint8_t> f(40000);
+            size_t n = lf ? fread(f.data(), 1, f.size(), lf) : 0; if (lf) fclose(lf);
+            size_t off = n == STATE_BLOCKS * 1024 + 64 ? 64 : 0;
+            if (n - off != STATE_BLOCKS * 1024) { printf("FAIL image size %zu\n", n); return 1; }
+            memcpy(st.data(), f.data() + off, STATE_BLOCKS * 1024);
+            printf("loading image %s\n", getenv("NES_LOADIMG"));
+        }
         uint32_t sizeword = st[4] | st[5] << 8 | st[6] << 16 | st[7] << 24;
         uint64_t cpu = 0; for (int i = 7; i >= 0; i--) cpu = cpu << 8 | st[8 + i];
         printf("state: size word %08x, regs[0] %016llx\n", sizeword, (unsigned long long)cpu);
