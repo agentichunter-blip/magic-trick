@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <random>
+#include <algorithm>
 
 static Vnes_sim_top *t;
 static uint64_t cycle = 0;
@@ -36,6 +37,7 @@ struct Bus {
     bool done_late = false;
 } bus;
 static uint64_t bus_bursts = 0, bus_busy_cycles = 0;
+static bool resume_window = false;
 static bool pause_test = false; static uint64_t pause_len = 0, pauses = 0;
 
 static void bus_inputs() {
@@ -102,6 +104,7 @@ static void step() {
     if (trace && trace_left && t->dbg_cpu_ce) {
         fprintf(trace, "%04x %c %02x  %d/%d\n", t->dbg_cpu_addr, t->dbg_cpu_rnw ? 'r' : 'W', t->dbg_cpu_data, t->dbg_sl, t->dbg_cyc); trace_left--;
     }
+    if (resume_window) t->video_resume_ok = (cycle % 223571) < 17920; else t->video_resume_ok = 1;
     t->clk = 1;
     t->eval();
     // outputs registered on this edge
@@ -386,7 +389,35 @@ int main(int argc, char **argv) {
         t->release_t = !t->release_t;
         dump_next = "ss_b_first.ppm";
         if (audio_log) { fclose(audio_log); audio_log = fopen((outdir + "/audio_b.raw").c_str(), "wb"); }
-        run_frames(ss_k);
+        // NES_SAVESTRESS=N: during run B, a save (freeze, read the image, release) every N frames
+        // at a random point in the frame; release waits for a video_resume_ok window as on the
+        // board (the bridge's stand-in vertical blank, ~21 of 262 lines, at its own phase).
+        if (getenv("NES_SAVESTRESS")) {
+            int every = atoi(getenv("NES_SAVESTRESS")); if (every < 1) every = 1;
+            uint64_t end = frame_no + ss_k; int saves = 0; uint64_t worst_freeze = 0, worst_release = 0;
+            resume_window = true;
+            while (frame_no < end) {
+                apply_buttons();
+                uint64_t before = frame_no;
+                run_frames(1);
+                if (frame_no == before) { printf("FAIL no frame in stress (frozen=%d busy=%d)\n", t->st_frozen, t->st_busy); pstate("stuck"); dump("stuck.ppm"); return 1; }
+                if ((frame_no % every) != 0 || frame_no >= end) continue;
+                for (uint64_t w = rng() % 220000; w; w--) step();
+                uint64_t c0 = cycle;
+                t->freeze_t = !t->freeze_t;
+                if (!wait_cond(frozen, 80000000)) { printf("FAIL stress freeze %d (busy=%d fault=%d)\n", saves, t->st_busy, t->st_fault); pstate("stuck"); return 1; }
+                worst_freeze = std::max(worst_freeze, cycle - c0);
+                (void)read_blocks(0, STATE_BLOCKS);
+                c0 = cycle;
+                t->release_t = !t->release_t;
+                if (!wait_cond(released, 80000000)) { printf("FAIL stress release %d (frozen=%d busy=%d paused=%d)\n", saves, t->st_frozen, t->st_busy, t->paused_now); pstate("stuck"); return 1; }
+                worst_release = std::max(worst_release, cycle - c0);
+                saves++;
+            }
+            resume_window = false;
+            printf("save stress: %d saves, worst freeze %llu xclk, worst release %llu xclk\n", saves,
+                   (unsigned long long)worst_freeze, (unsigned long long)worst_release);
+        } else run_frames(ss_k);
         if (audio_log) { fclose(audio_log); audio_log = nullptr; }
         std::vector<uint64_t> fb(frame_hashes.begin() + f1, frame_hashes.end());
         std::vector<uint64_t> ab(audio_hashes.begin() + f1, audio_hashes.end());
