@@ -58,6 +58,9 @@ struct Sim {
             px = d.x; py = d.y;
         }
         d.clk = 1; d.eval(); cycles++;
+        // GG_AUDIO_OUT=file: audioL, audioR (int16) every 1523 cycles (~44.1 kHz at 67.16 MHz)
+        static FILE *alog = std::getenv("GG_AUDIO_OUT") ? std::fopen(std::getenv("GG_AUDIO_OUT"), "wb") : nullptr;
+        if (alog && cycles % (std::getenv("GG_AUDIO_DIV") ? std::atoi(std::getenv("GG_AUDIO_DIV")) : 1523) == 0) { int16_t s2[2] = {(int16_t)d.audioL, (int16_t)d.audioR}; std::fwrite(s2, 2, 2, alog); }
         if (d.lcd_mode == 3 && last_mode != 3) {
             if (d.lcd_vsync) {
                 if (prow >= 0) { if (frame_rows == 144) good_frames++; else bad_frames++; }
