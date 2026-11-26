@@ -14,6 +14,7 @@ module emu_system_top
     input               virtual_attempt_reset_h,
     input               virtual_quiesce_h,
     output              virtual_quiesced_h,
+    output reg          video_cut_toggle = 1'b0, // flips when a quiesce hand-back cut a frame short (xclk)
     output              virtual_core_reset_h,
     
     input               customPaletteEna,
@@ -153,7 +154,8 @@ module emu_system_top
         block_t_x<={block_t_x[1:0],virtual_snapshot_request_toggle};
         cart_dirty_clear<=(block_t_x[2]!=block_t_x[1]) && virtual_snapshot_block==7'd64 && !state_frozen;
     end
-    wire video_resume_ok;
+    wire video_resume_ok,video_cut;
+    always @(posedge xclk) if(video_cut) video_cut_toggle<=!video_cut_toggle;
     nes_board_core core(.gg_code(gg_code_x),.gg_clear(gg_clear_x),.clk(xclk),.reset_n(!core_reset_x),.pause(quiet_x[1]),.buttons(buttons_x),
         .x_request(virtual_xrequest),.x_read(virtual_xread),.x_address(virtual_xaddress),
         .x_length(virtual_xlength),.x_write_data(virtual_xwritedata),.x_write_next(virtual_xwrite_next),
@@ -179,6 +181,8 @@ module emu_system_top
     nes_video_bridge video_cdc(.xclk(xclk),.xreset(core_reset_x),
         .hclk(hclk),.hreset(reset_h_sync[1]),.enable(!core_reset_x),
         .hold(state_frozen),.resume_ok(video_resume_ok),   // as Game Gear: hold while a state freeze holds the game
+        // The quiesce pause stops the NES mid-frame: stand-in frames carry on (see the bridge).
+        .qhold(quiet_x[1]),.cut(video_cut),
         .pixel(pix_strobe),.x({1'b0,pix_x}),.y({1'b0,pix_y}),.rgb(pix_rgb),
         .overflow(video_overflow),.lcd_pixel(gb_lcd_clkena),.lcd_data(gb_lcd_data),
         .lcd_repeat(gb_lcd_repeat),

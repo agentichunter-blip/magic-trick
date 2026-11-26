@@ -18,21 +18,44 @@
 // the same 144 rows coming with every pixel flagged repeat, so the panel shows
 // the previous frame; resume_ok marks its vertical blank (lines 240-260).
 //
+// The shell's quiesce (qhold) stops the NES at once, mid-frame. The panel
+// needs whole frames (it scans a 70-row ring of its own; a stream that stops
+// part-way shows a torn, shifted picture), so the same stand-in takes over
+// where the NES stopped: it follows the NES's dot position while the game runs,
+// finishes the row in progress to 160 pixels, and carries on with repeat rows.
+// After qhold drops it hands back on the NES's next frame start; if that cuts
+// a stand-in frame before its vertical blank, `cut` pulses (the shell then keeps
+// the backlight off for a few frames).
+//
 // Input: one xclk-cycle pixel strobe per visible dot (x 0-255, y 0-239; more
 // are ignored), at least 9 xclk apart, with its colour as {blue[4:0], green[4:0], red[4:0]} (the panel's
 // format), all valid in the strobe cycle.
 module nes_video_bridge(
  input wire xclk,xreset,input wire hclk,hreset,input wire enable,
- input wire hold,output wire resume_ok,
+ input wire hold,input wire qhold,output wire resume_ok,output reg cut,
  input wire pixel,input wire [8:0] x,y,input wire [14:0] rgb,
  output wire overflow,output reg lcd_pixel,output reg [14:0] lcd_data,
  output reg lcd_repeat,
  output reg [1:0] lcd_mode,output reg lcd_on,output reg lcd_vsync);
  // Stand-in timing: 341 dots x 262 lines at the NES dot rate (12.5 xclk).
  reg [3:0] tick; reg odd; reg [8:0] sx,sy; reg spixel;
+ // Quiesce hold: on with qhold (pixels still in the filter pipeline count
+ // toward the row's 160), off at the NES's first dot of a frame once qhold has
+ // dropped.
+ reg qheld;
+ wire release_now=qheld && !qhold && pixel && x==0 && y==0;
+ wire held=hold || qhold || (qheld && !release_now);
+ always @(posedge xclk or posedge xreset) begin
+  if(xreset) begin qheld<=0;cut<=0;end
+  else begin
+   cut<=release_now && (sy<242);
+   if(qhold) qheld<=1; else if(release_now) qheld<=0;
+  end
+ end
  always @(posedge xclk or posedge xreset) begin
   if(xreset) begin tick<=0;odd<=0;sx<=0;sy<=241;spixel<=0;end
-  else if(!hold) begin tick<=0;odd<=0;sx<=0;sy<=241;spixel<=0;end
+  // While the NES drives the picture, follow its dot position.
+  else if(!held && pixel) begin tick<=0;odd<=0;sx<=x;sy<=y;spixel<=0;end
   else begin
    spixel<=0;
    if(tick==(odd ? 4'd12 : 4'd11)) begin
@@ -42,8 +65,8 @@ module nes_video_bridge(
   end
  end
  assign resume_ok=hold && sy>=240 && sy<=260;
- wire src_pixel=hold ? spixel : pixel;
- wire [8:0] px=hold ? sx : x, py=hold ? sy : y;
+ wire src_pixel=held ? spixel : pixel;
+ wire [8:0] px=held ? sx : x, py=held ? sy : y;
  wire [4:0] c2=rgb[14:10],c1=rgb[9:5],c0=rgb[4:0];
 
  // Row filter weights for picture line py (phase (py-8) mod 8 = py[2:0]):
@@ -98,15 +121,20 @@ module nes_video_bridge(
  wire [10:0] r2=n2+11'd32, r1=n1+11'd32, r0=n0+11'd32;   // 0..1984 -> 0..31
  reg event_valid; reg [19:0] event_data;
  reg [2:0] end_delay;  // row end: 6 cycles after dot 255, after its pixel event
+ reg [7:0] row_px;     // pixel events sent in this row (a held row is filled to 160)
  always @(posedge xclk or posedge xreset) begin
   if(xreset) begin
    event_valid<=0;event_data<=0;
    ha2<=0;ha1<=0;ha0<=0;hv<=0;hcol<=0;hout<=0;h2<=0;h1<=0;h0<=0;hwc<=0;hwn<=0;hemit<=0;
    s1<=0;s2<=0;s1col<=0;s2col<=0;s1h2<=0;s1h1<=0;s1h0<=0;s2h2<=0;s2h1<=0;s2h0<=0;
    s1wc<=0;s1wn<=0;s2wc<=0;s2wn<=0;s1emit<=0;s2emit<=0;
-   acc_ra<=0;we<=0;wa<=0;wd<=0;end_delay<=0;
+   acc_ra<=0;we<=0;wa<=0;wd<=0;end_delay<=0;row_px<=0;
   end else begin
    event_valid<=0;hv<=0;we<=0;
+   if(event_valid) begin
+    if(event_data[19:18]==2'b01) row_px<=0;
+    else if(event_data[19:18]==2'b00 && row_px!=8'd255) row_px<=row_px+1'b1;
+   end
    if(end_delay!=0) end_delay<=end_delay-1'b1;
    if(end_delay==1) begin event_valid<=1;event_data<={2'b10,18'd0};end
    s1<=hv;s2<=s1;
@@ -121,7 +149,7 @@ module nes_video_bridge(
     end
    end
    if(src_pixel) begin
-    if(!hold && picture_line && px<256) begin
+    if(!held && picture_line && px<256) begin
      if(out_here) begin
       h2<=ha2+wh(cw,c2);h1<=ha1+wh(cw,c1);h0<=ha0+wh(cw,c0);
       hv<=1;hout<=hcol;hcol<=hcol+1'b1;hwc<=wc;hwn<=wn;hemit<=emit;
@@ -135,10 +163,11 @@ module nes_video_bridge(
     end
     // Row framing on the dot strobe: start at dot 0 (bit 15 = first row),
     // end after dot 255. Black rows, and every row while held, get their 160
-    // pixels from dots 1-160 (black, or repeat the framebuffer's pixel).
+    // pixels from dots 1-160 (black, or repeat the framebuffer's pixel); a row
+    // the NES left part-way is filled up to 160 the same way.
     if(enable && row_line) begin
      if(px==0) begin event_valid<=1;event_data<={2'b01,2'b0,py==0,15'd0};end
-     else if((black_line || hold) && px<=160) begin event_valid<=1;event_data<={3'b0,hold && !black_line,16'd0};end
+     else if((black_line || held) && px<255 && row_px<8'd160) begin event_valid<=1;event_data<={3'b0,held && !black_line,16'd0};end
      else if(px==255) end_delay<=3'd6;
     end
    end

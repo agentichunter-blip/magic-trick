@@ -7,7 +7,7 @@
 static void check(bool c,const char*s){if(!c){printf("FAIL %s\n",s);exit(1);}}
 static unsigned colour(int x,int y,int f){int r=(x*7+y*3+f)&31,g=((x^y)*5)&31,b=(y*11+x/3)&31;return (b<<10)|(g<<5)|r;}
 int main(){
- Vnes_video_bridge d; d.xclk=d.hclk=0;d.xreset=d.hreset=1;d.enable=1;d.hold=0;d.pixel=0;d.x=d.y=0;d.rgb=0;
+ Vnes_video_bridge d; d.xclk=d.hclk=0;d.xreset=d.hreset=1;d.enable=1;d.hold=0;d.qhold=0;d.pixel=0;d.x=d.y=0;d.rgb=0;
  auto tick=[&]{d.xclk=d.hclk=0;d.eval();d.xclk=d.hclk=1;d.eval();};
  for(int i=0;i<10;i++)tick(); d.xreset=d.hreset=0;
  std::vector<unsigned> panel(160*144,0); int row=-1,col=0,rows=0,last=0,frames=0,good=0; bool repeat_all=true; int repeat_pixels=0;
@@ -46,4 +46,30 @@ int main(){
  int rp=repeat_pixels; for(int f=0;f<2;f++) run_frame(f,true);
  printf("held repeat pixels=%d (140x160 per frame expected)\n",repeat_pixels-rp);
  check(repeat_pixels-rp>=140*160,"held frames repeat");
+ // Quiesce: the NES stops at once mid-frame (here at line Y0, dot X0) for about
+ // two frames, then carries on from the same dot. Every frame the panel gets
+ // must still be 144 rows of exactly 160 pixels, except a stand-in frame the
+ // hand-back cuts short, which is flagged by `cut` (the shell darkens it).
+ for(int Y0: {100,9,236,0}) for(int X0: {0,120,250}) {
+  for(int f=0;f<2;f++) run_frame(f,false);
+  int nrows=-1,npx=0,bad=0,fr=0,cuts=0; std::vector<int> rowsz; int lastm=d.lcd_mode;
+  auto obs=[&]{
+   if(d.lcd_mode==3&&lastm!=3){
+    if(nrows>=0) rowsz.push_back(npx);
+    if(d.lcd_vsync){ if(nrows>=0){ fr++; if(rowsz.size()!=144) bad++; else for(int v:rowsz) if(v!=160) {bad++;break;} } rowsz.clear(); nrows=0; }
+    npx=0;
+   }
+   lastm=d.lcd_mode; if(d.lcd_pixel) npx++; if(d.cut) cuts++;
+   check(!d.overflow,"overflow (quiesce)");
+  };
+  int y=0,x=0; long frozen=0; bool paused=false,done=false; int k=0;
+  for(long t=0;t<6L*262*341*13;t++){
+   if(!paused && !done && y==Y0 && x==X0 && k==0 && fr>=1) { paused=true; d.qhold=1; frozen=0; }
+   if(paused && ++frozen>2L*262*341*13+77777) { paused=false; done=true; d.qhold=0; }
+   d.pixel=!paused && k==0 && x<256 && y<240; d.x=x; d.y=y; d.rgb=colour(x,y,5); tick(); obs();
+   if(!paused){ if(++k>=12+((x+y)&1)){k=0; if(++x==341){x=0; if(++y==262)y=0;}} }
+  }
+  printf("quiesce at line %d dot %d: frames=%d bad=%d cuts=%d\n",Y0,X0,fr,bad,cuts);
+  check(fr>=4 && bad<=cuts && cuts<=1,"quiesce frames whole");
+ }
  printf("PASS nes_video_bridge\n"); return 0;}

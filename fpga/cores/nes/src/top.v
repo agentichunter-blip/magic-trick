@@ -269,6 +269,7 @@ module top #(parameter ISSIMU=0)
         else begin core_reload_hold_meta <= core_reload_hold_g; core_reload_hold_h <= core_reload_hold_meta; end
 
     wire cart_video_selected;
+    wire video_cut_toggle_x;   // NES picture bridge: frame cut short (xclk toggle)
     wire virtual_attempt_reset_h;
     wire virtual_quiesce_h;
     wire virtual_quiesced_h;
@@ -1287,6 +1288,7 @@ module top #(parameter ISSIMU=0)
         .virtual_attempt_reset_h(virtual_attempt_reset_h),
         .virtual_quiesce_h(virtual_quiesce_h),
         .virtual_quiesced_h(virtual_quiesced_h),
+        .video_cut_toggle(video_cut_toggle_x),
         .virtual_core_reset_h(virtual_core_reset_h),
 
         .customPaletteEna(paletteBGIn[63]),
@@ -1567,11 +1569,16 @@ module top #(parameter ISSIMU=0)
     // frame; each swap cuts a frame short and tears the panel the same way, so
     // it gets the same three dark frames.
     reg panelSource_r = 1'b0;
+    // Also after the NES picture bridge cuts a stand-in frame short (the hand-back
+    // after a quiesce pause, e.g. a save state).
+    (* ASYNC_REG = "TRUE" *) reg [2:0] panelCut_g = 3'd0;
     always @(posedge gClk)
     begin
         panelVsync_r <= LCD_VSYNC;
         panelSource_r <= cart_video_selected_g_sync;
-        if (!LCD_INIT_DONE || panelSource_r != cart_video_selected_g_sync)
+        panelCut_g <= {panelCut_g[1:0], video_cut_toggle_x};
+        if (!LCD_INIT_DONE || panelSource_r != cart_video_selected_g_sync ||
+            panelCut_g[2] != panelCut_g[1])
         begin
             panelFrames <= 2'd0;
             panelWait <= 23'd0;
