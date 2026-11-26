@@ -101,7 +101,10 @@ module vid_system_top #(parameter ISSIMU=0)
            hGBAddress        <= 23'h10000;
         end
         else
-            if(hGBNewLine&~hVsync)
+            // Never past the 144th row (0x10000 + 143*320): a stream that misses
+            // its VSYNC must not write into PSRAM beyond the framebuffer (the
+            // game ROM starts at 0x20000).
+            if(hGBNewLine&~hVsync && hGBAddress < 23'h1B2C0)
                 hGBAddress <= hGBAddress + 'd320;
     end
 

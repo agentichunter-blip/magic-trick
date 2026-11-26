@@ -37,7 +37,7 @@ struct Bus {
     bool done_late = false;
 } bus;
 static uint64_t bus_bursts = 0, bus_busy_cycles = 0;
-static bool resume_window = false;
+static bool resume_window = false; static bool standin_model = false;
 static bool pause_test = false; static uint64_t pause_len = 0, pauses = 0;
 
 static void bus_inputs() {
@@ -104,7 +104,17 @@ static void step() {
     if (trace && trace_left && t->dbg_cpu_ce) {
         fprintf(trace, "%04x %c %02x  %d/%d\n", t->dbg_cpu_addr, t->dbg_cpu_rnw ? 'r' : 'W', t->dbg_cpu_data, t->dbg_sl, t->dbg_cyc); trace_left--;
     }
-    if (resume_window) t->video_resume_ok = (cycle % 223571) < 17920; else t->video_resume_ok = 1;
+    if (standin_model) {
+        // the board's stand-in (nes_video_bridge.sv, fixed version): starts on the NES's last dot
+        // (239,255) when the state engine freezes, runs at the NES dot rate (12/13 xclk per dot);
+        // resume_ok = frozen && stand-in line 240..260
+        static int sline = 239, sdot = 255, stick = 0; static bool sodd = false; static bool was = false;
+        bool fz = t->st_frozen;
+        if (fz && !was) { sline = getenv("NES_STANDIN_LINE") ? atoi(getenv("NES_STANDIN_LINE")) : 239; sdot = getenv("NES_STANDIN_DOT") ? atoi(getenv("NES_STANDIN_DOT")) : 255; stick = 0; sodd = false; }
+        if (fz) { if (++stick >= (sodd ? 13 : 12)) { stick = 0; sodd = !sodd; if (++sdot == 341) { sdot = 0; if (++sline == 262) sline = 0; } } }
+        was = fz;
+        t->video_resume_ok = fz && sline >= 240 && sline <= 260;
+    } else if (resume_window) t->video_resume_ok = (cycle % 223571) < 17920; else t->video_resume_ok = 1;
     t->clk = 1;
     t->eval();
     // outputs registered on this edge
@@ -232,6 +242,7 @@ int main(int argc, char **argv) {
 
     if (getenv("NES_TRACE")) { trace = fopen((outdir + "/trace.txt").c_str(), "w"); trace_left = strtoull(getenv("NES_TRACE"), 0, 10); }
     pause_test = getenv("NES_PAUSETEST") != nullptr;
+    standin_model = getenv("NES_STANDIN") != nullptr;
     if (getenv("NES_ALOGALL")) audio_log = fopen((outdir + "/audio_all.raw").c_str(), "wb");
     if (getenv("NES_ATIME")) { atime_log = fopen((outdir + "/atime.u64").c_str(), "wb"); aplay_log = fopen((outdir + "/aplay.u64").c_str(), "wb"); }
     if (getenv("NES_RTAUDIO")) rt_log = fopen((outdir + "/audio_rt.raw").c_str(), "wb");
@@ -400,6 +411,9 @@ int main(int argc, char **argv) {
                 apply_buttons();
                 uint64_t before = frame_no;
                 run_frames(1);
+                if (getenv("NES_TRACE_FROM") && frame_no == strtoull(getenv("NES_TRACE_FROM"), 0, 10)) {
+                    trace = fopen((outdir + "/trace_from.txt").c_str(), "w"); trace_left = getenv("NES_TRACE_N") ? strtoull(getenv("NES_TRACE_N"), 0, 10) : 200000; }
+                if (shot && frame_no % shot == 0) { char n[64]; snprintf(n, 64, "b_%04llu.ppm", (unsigned long long)frame_no); dump(n); }
                 if (frame_no == before) { printf("FAIL no frame in stress (frozen=%d busy=%d)\n", t->st_frozen, t->st_busy); pstate("stuck"); dump("stuck.ppm"); return 1; }
                 if ((frame_no % every) != 0 || frame_no >= end) continue;
                 for (uint64_t w = rng() % 220000; w; w--) step();
@@ -407,7 +421,9 @@ int main(int argc, char **argv) {
                 t->freeze_t = !t->freeze_t;
                 if (!wait_cond(frozen, 80000000)) { printf("FAIL stress freeze %d (busy=%d fault=%d)\n", saves, t->st_busy, t->st_fault); pstate("stuck"); return 1; }
                 worst_freeze = std::max(worst_freeze, cycle - c0);
-                (void)read_blocks(0, STATE_BLOCKS);
+                { std::vector<uint8_t> img = read_blocks(0, STATE_BLOCKS);
+                  if (getenv("NES_SAVEDIR")) { char n[512]; snprintf(n, 512, "%s/f%04llu.bin", getenv("NES_SAVEDIR"), (unsigned long long)frame_no);
+                    FILE *o = fopen(n, "wb"); if (o) { fwrite(img.data(), 1, img.size(), o); fclose(o); } } }
                 c0 = cycle;
                 t->release_t = !t->release_t;
                 if (!wait_cond(released, 80000000)) { printf("FAIL stress release %d (frozen=%d busy=%d paused=%d)\n", saves, t->st_frozen, t->st_busy, t->paused_now); pstate("stuck"); return 1; }
@@ -426,6 +442,7 @@ int main(int argc, char **argv) {
         t->freeze_t = !t->freeze_t;
         if (!wait_cond(frozen, 40000000)) { printf("FAIL freeze3\n"); return 1; }
         std::vector<uint8_t> st_b2 = read_blocks(0, STATE_BLOCKS);
+        if (getenv("NES_FINALSTATE")) { FILE *o = fopen(getenv("NES_FINALSTATE"), "wb"); fwrite(st_b2.data(), 1, st_b2.size(), o); fclose(o); }
         { int nd = 0; for (int i = 8; i < STATE_BLOCKS * 1024; i++) if (st_a2[i] != st_b2[i]) {
             if (nd++ < 24) printf("state diff at 0x%04x (%s %d): %02x vs %02x\n", i, i < 0x208 ? "reg" : "mem", i < 0x208 ? (i - 8) / 8 : i, st_a2[i], st_b2[i]); }
           printf("state images after K frames: %d bytes differ\n", nd); }
