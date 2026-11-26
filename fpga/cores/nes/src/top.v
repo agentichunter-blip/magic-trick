@@ -1562,10 +1562,16 @@ module top #(parameter ISSIMU=0)
     reg [1:0] panelFrames = 2'd0;
     reg [22:0] panelWait = 23'd0;
     reg panelVsync_r = 1'b1;
+    // Loading a game on this core swaps the picture to the stand-in source
+    // (maintenance_video_mux) as the core resets, and back on the game's first
+    // frame; each swap cuts a frame short and tears the panel the same way, so
+    // it gets the same three dark frames.
+    reg panelSource_r = 1'b0;
     always @(posedge gClk)
     begin
         panelVsync_r <= LCD_VSYNC;
-        if (!LCD_INIT_DONE)
+        panelSource_r <= cart_video_selected_g_sync;
+        if (!LCD_INIT_DONE || panelSource_r != cart_video_selected_g_sync)
         begin
             panelFrames <= 2'd0;
             panelWait <= 23'd0;
