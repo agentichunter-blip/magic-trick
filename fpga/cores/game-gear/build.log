@@ -182,8 +182,8 @@ Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-ge
 Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_tone.v'
 Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/jt89/jt89_vol.v'
 Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv'
-WARN  (EX2478) : Non-net output port 'code_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":8)
-WARN  (EX2478) : Non-net output port 'clear_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":9)
+WARN  (EX2478) : Non-net output port 'code_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":9)
+WARN  (EX2478) : Non-net output port 'clear_x' cannot be initialized at declaration in SystemVerilog mode("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":10)
 Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv'
 Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/MC8123.v'
 Analyzing Verilog file '/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/vendor/SMS_MiSTer/rtl/SEGASYS1_PRGDEC.v'
@@ -287,7 +287,7 @@ Compiling module 'top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-ge
 Compiling module 'Gowin_PLL'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/gowin_pll_preevt/gowin_pll.v":10)
 WARN  (EX3791) : Expression size 15 truncated to fit in target size 14("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":189)
 WARN  (EX3791) : Expression size 32 truncated to fit in target size 14("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":194)
-Compiling module 'gg_cheat_loader'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":4)
+Compiling module 'gg_cheat_loader'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":5)
 Compiling module 'maintenance_video_mux'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/maintenance_video_mux.sv":4)
 Compiling module 'maintenance_video_source'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/maintenance_video_source.sv":4)
 Compiling module 'vid_system_top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":3)
@@ -295,34 +295,34 @@ Compiling module 'ST7785_init'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32
 Extracting RAM for identifier 'sets'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":57)
 Compiling module 'clock_div(DIV_2N=6)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":168)
 WARN  (EX3791) : Expression size 32 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/ST7785_init.v":201)
-WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":111)
-Switching to VHDL mode to elaborate design unit 'overlayBatteryFront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":200)
+WARN  (EX3791) : Expression size 24 truncated to fit in target size 23("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":114)
+Switching to VHDL mode to elaborate design unit 'overlayBatteryFront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":203)
 Processing 'overlayBatteryFront(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryFront.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":200)
-Switching to VHDL mode to elaborate design unit 'overlayBatteryBack'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":207)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":203)
+Switching to VHDL mode to elaborate design unit 'overlayBatteryBack'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":210)
 Processing 'overlayBatteryBack(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayBatteryBack.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":207)
-Switching to VHDL mode to elaborate design unit 'overlayTimerFront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":214)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":210)
+Switching to VHDL mode to elaborate design unit 'overlayTimerFront'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":217)
 Processing 'overlayTimerFront(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerFront.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":214)
-Switching to VHDL mode to elaborate design unit 'overlayTimerBack'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":221)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":217)
+Switching to VHDL mode to elaborate design unit 'overlayTimerBack'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":224)
 Processing 'overlayTimerBack(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerBack.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":221)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":326)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":338)
-Switching to VHDL mode to elaborate design unit 'overlayTimerNumber'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":359)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":224)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":329)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":341)
+Switching to VHDL mode to elaborate design unit 'overlayTimerNumber'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":362)
 Processing 'overlayTimerNumber(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayTimerNumber.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":359)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":363)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":373)
-Switching to VHDL mode to elaborate design unit 'overlayDebug'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":392)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":362)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 2("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":366)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 3("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":376)
+Switching to VHDL mode to elaborate design unit 'overlayDebug'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":395)
 Processing 'overlayDebug(arch)'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/overlayDebug.vhd":5)
-Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":392)
-Compiling module 'color_correction'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":477)
-WARN  (EX3791) : Expression size 12 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":499)
-WARN  (EX3791) : Expression size 9 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":500)
-WARN  (EX3791) : Expression size 11 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":501)
-WARN  (EX3791) : Expression size 32 truncated to fit in target size 16("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":505)
+Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":395)
+Compiling module 'color_correction'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":480)
+WARN  (EX3791) : Expression size 12 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":502)
+WARN  (EX3791) : Expression size 9 truncated to fit in target size 8("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":503)
+WARN  (EX3791) : Expression size 11 truncated to fit in target size 10("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":504)
+WARN  (EX3791) : Expression size 32 truncated to fit in target size 16("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":508)
 Compiling module 'ST7785_panel_master'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":1)
 Compiling module 'panel_line_bank'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":287)
 Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/BSP/ST7785_panel_master.v":289)
@@ -425,8 +425,8 @@ Extracting RAM for identifier 'acc'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/
 Compiling module 'gg_async_fifo'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv":6)
 Extracting RAM for identifier 'mem'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_async_fifo.sv":10)
 Compiling module 'gg_audio_bridge'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/board-rtl/gg_audio_bridge.sv":2)
-Compiling module 'gg_audio_lpf'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv":5)
-Compiling module 'gg_audio_lpf_ch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv":22)
+Compiling module 'gg_audio_lpf'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv":9)
+Compiling module 'gg_audio_lpf_ch'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_audio_lpf.sv":27)
 Compiling module 'usbuvcuart_top'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":11)
 Compiling module 'Gowin_PLL_UVC'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/Gowin_PLL_UVC/Gowin_PLL_UVC.v":10)
 Compiling module 'usbuac_ep'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":1364)
@@ -493,7 +493,7 @@ Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODR
 Switching to VHDL mode to elaborate design unit 'UART_RX'("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":139)
 Returning to Verilog mode to proceed with elaboration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart/uart.v":139)
 WARN  (EX1998) : Net 'voltageSim[0]' does not have a driver("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":155)
-WARN  (EX2565) : Input 'UART_CTS' on this instance is undriven. Assigning to 0, simulation mismatch possible. Please assign the input or remove the declaration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":1529)
+WARN  (EX2565) : Input 'UART_CTS' on this instance is undriven. Assigning to 0, simulation mismatch possible. Please assign the input or remove the declaration("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":1530)
 NOTE  (EX0101) : Current top module is "top"
 WARN  (EX0211) : The output port "slideOutActive" of module "vid_system_top" has no driver, assigning undriven bits to Z, simulation mismatch possible("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":12)
 WARN  (EX0211) : The output port "hValid" of module "vid_system_top" has no driver, assigning undriven bits to Z, simulation mismatch possible("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":52)
@@ -512,7 +512,7 @@ WARN  (CV0016) : Input DISPLAY_ID is unused("/Volumes/ExternalSSD/MODRETRO/nes-s
 Running device independent optimization ...
 WARN  (DI0002) : Initial value found on instance "cart_uart_idle_count[4]" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":30)
 WARN  (DI0002) : Initial value found on instance "cart_uart_idle_count[6]" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/uart_packet_wrapper_tx.sv":30)
-WARN  (DI0002) : Initial value found on instance "clear_x" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":51)
+WARN  (DI0002) : Initial value found on instance "clear_x" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/gg_cheat_loader.sv":52)
 WARN  (DI0002) : Initial value found on instance "memrst" will be ignored("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/top.v":497)
 [10%] Optimizing Phase 0 completed
 [15%] Optimizing Phase 1 completed
@@ -586,12 +586,12 @@ WARN  (NL0002) : The module "fifo_video" instantiated to "uvc_fifo" is swept in 
 WARN  (NL0002) : The module "~fifo.fifo_video" instantiated to "fifo_inst" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/USB/USBUVCUART/fifo_video/fifo_video.v":1052)
 WARN  (NL0002) : The module "ctrl_uvc" instantiated to "uvc_if_ctrl" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":610)
 WARN  (NL0002) : The module "interface_alt_select" instantiated to "uvc_interface" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/src/rtl/USB/USBUVCUART/usbuvcuart_top.v":334)
-WARN  (NL0002) : The module "overlayBatteryBack" instantiated to "u_overlayBatteryBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":202)
-WARN  (NL0002) : The module "overlayBatteryFront" instantiated to "u_overlayBatteryFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":195)
-WARN  (NL0002) : The module "overlayDebug" instantiated to "u_overlayDebug" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":386)
-WARN  (NL0002) : The module "overlayTimerBack" instantiated to "u_overlayTimerBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":216)
-WARN  (NL0002) : The module "overlayTimerFront" instantiated to "u_overlayTimerFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":209)
-WARN  (NL0002) : The module "overlayTimerNumber" instantiated to "u_overlayTimerNumber" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":353)
+WARN  (NL0002) : The module "overlayBatteryBack" instantiated to "u_overlayBatteryBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":205)
+WARN  (NL0002) : The module "overlayBatteryFront" instantiated to "u_overlayBatteryFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":198)
+WARN  (NL0002) : The module "overlayDebug" instantiated to "u_overlayDebug" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":389)
+WARN  (NL0002) : The module "overlayTimerBack" instantiated to "u_overlayTimerBack" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":219)
+WARN  (NL0002) : The module "overlayTimerFront" instantiated to "u_overlayTimerFront" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":212)
+WARN  (NL0002) : The module "overlayTimerNumber" instantiated to "u_overlayTimerNumber" is swept in optimizing("/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/esp32t/src/rtl/BSP/vid_system_top.v":356)
 [95%] Generate netlist file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/gwsynthesis/magic_trick_game_gear.vg" completed
 WARN  (CK3000) : Can't calculate clocks' relationship between: "u_Gowin_PLL/PLLA_inst/CLKOUT4.default_gen_clk" and "QSPI_CLK"
 WARN  (CK3000) : Can't calculate clocks' relationship between: "QSPI_CLK" and "u_Gowin_PLL/PLLA_inst/CLKOUT4.default_gen_clk"
@@ -630,5 +630,5 @@ Generate file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/p
 Generate file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.rpt.txt" completed
 Generate file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr.html" completed
 Generate file "/Volumes/ExternalSSD/MODRETRO/nes-sms/fpga/cores/game-gear/impl/pnr/magic_trick_game_gear.tr" completed
-Sun Nov 22 11:20:21 2026
+Thu Nov 26 13:34:46 2026
 

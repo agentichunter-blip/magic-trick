@@ -1,40 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Module name="top" Register="378" Alu="78" Lut="235" T_Register="11187(378)" T_Alu="2614(78)" T_Lut="17577(235)" T_MULT12X12="4(0)" T_MULTADDALU12X12="3(0)" T_Bsram="55(0)" T_ROM16="109(0)">
+<Module name="top" Register="378" Alu="78" Lut="232" T_Register="11220(378)" T_Alu="2581(78)" T_Lut="17578(232)" T_MULT12X12="4(0)" T_MULTADDALU12X12="3(0)" T_Bsram="55(0)" T_ROM16="109(0)">
  <SubModule name="u_Gowin_PLL"/>
- <SubModule name="u_gg_cheat_loader" Register="110" Alu="7" Lut="83" T_Register="110(110)" T_Alu="7(7)" T_Lut="83(83)"/>
+ <SubModule name="u_gg_cheat_loader" Register="110" Alu="7" Lut="76" T_Register="110(110)" T_Alu="7(7)" T_Lut="76(76)"/>
  <SubModule name="u_maintenance_video_mux" Register="18" Lut="48" T_Register="37(18)" T_Lut="81(48)">
   <SubModule name="u_maintenance_video_source" Register="19" Lut="33" T_Register="19(19)" T_Lut="33(33)"/>
  </SubModule>
- <SubModule name="u_vid_system_top" Register="55" Alu="78" Lut="116" T_Register="292(55)" T_Alu="218(78)" T_Lut="519(116)" T_MULT12X12="3(0)" T_MULTADDALU12X12="3(0)" T_Bsram="11(0)" T_ROM16="54(0)">
-  <SubModule name="u_ST7785_init" Register="80" Alu="50" Lut="90" ROM16="54" T_Register="90(80)" T_Alu="50(50)" T_Lut="104(90)" T_ROM16="54(54)">
+ <SubModule name="u_vid_system_top" Register="55" Alu="78" Lut="123" T_Register="292(55)" T_Alu="218(78)" T_Lut="526(123)" T_MULT12X12="3(0)" T_MULTADDALU12X12="3(0)" T_Bsram="11(0)" T_ROM16="54(0)">
+  <SubModule name="u_ST7785_init" Register="80" Alu="50" Lut="88" ROM16="54" T_Register="90(80)" T_Alu="50(50)" T_Lut="102(88)" T_ROM16="54(54)">
    <SubModule name="c1" Register="10" Lut="14" T_Register="10(10)" T_Lut="14(14)"/>
   </SubModule>
   <SubModule name="u_color_correction" Register="19" Alu="48" Lut="28" MULT12X12="3" MULTADDALU12X12="3" T_Register="19(19)" T_Alu="48(48)" T_Lut="28(28)" T_MULT12X12="3(3)" T_MULTADDALU12X12="3(3)"/>
-  <SubModule name="u_ST7785_panel_master" Register="128" Alu="42" Lut="256" T_Register="128(128)" T_Alu="42(42)" T_Lut="271(256)" T_Bsram="11(0)">
+  <SubModule name="u_ST7785_panel_master" Register="128" Alu="42" Lut="258" T_Register="128(128)" T_Alu="42(42)" T_Lut="273(258)" T_Bsram="11(0)">
    <SubModule name="g_bank[0].u_bank" Lut="2" Bsram="1" T_Lut="2(2)" T_Bsram="1(1)"/>
    <SubModule name="g_bank[1].u_bank" Lut="2" Bsram="1" T_Lut="2(2)" T_Bsram="1(1)"/>
-   <SubModule name="g_bank[2].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
+   <SubModule name="g_bank[2].u_bank" Lut="2" Bsram="1" T_Lut="2(2)" T_Bsram="1(1)"/>
    <SubModule name="g_bank[3].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
-   <SubModule name="g_bank[4].u_bank" Lut="2" Bsram="1" T_Lut="2(2)" T_Bsram="1(1)"/>
+   <SubModule name="g_bank[4].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
    <SubModule name="g_bank[5].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
    <SubModule name="g_bank[6].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
    <SubModule name="g_bank[7].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
    <SubModule name="g_bank[8].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
-   <SubModule name="g_bank[9].u_bank" Lut="2" Bsram="1" T_Lut="2(2)" T_Bsram="1(1)"/>
-   <SubModule name="g_bank[10].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
+   <SubModule name="g_bank[9].u_bank" Lut="1" Bsram="1" T_Lut="1(1)" T_Bsram="1(1)"/>
+   <SubModule name="g_bank[10].u_bank" Lut="2" Bsram="1" T_Lut="2(2)" T_Bsram="1(1)"/>
   </SubModule>
  </SubModule>
- <SubModule name="u_aud_system_top" Register="43" Alu="17" Lut="131" T_Register="289(43)" T_Alu="83(17)" T_Lut="438(131)" T_ROM16="55(0)">
+ <SubModule name="u_aud_system_top" Register="43" Alu="17" Lut="131" T_Register="289(43)" T_Alu="83(17)" T_Lut="431(131)" T_ROM16="55(0)">
   <SubModule name="u_tlv320_init" Register="43" Alu="7" Lut="42" ROM16="55" T_Register="43(43)" T_Alu="7(7)" T_Lut="42(42)" T_ROM16="55(55)"/>
-  <SubModule name="u_pol_master" Register="90" Alu="24" Lut="94" T_Register="90(90)" T_Alu="24(24)" T_Lut="94(94)"/>
-  <SubModule name="i2c_master_inst" Register="113" Alu="35" Lut="171" T_Register="113(113)" T_Alu="35(35)" T_Lut="171(171)"/>
+  <SubModule name="u_pol_master" Register="90" Alu="24" Lut="91" T_Register="90(90)" T_Alu="24(24)" T_Lut="91(91)"/>
+  <SubModule name="i2c_master_inst" Register="113" Alu="35" Lut="167" T_Register="113(113)" T_Alu="35(35)" T_Lut="167(167)"/>
  </SubModule>
- <SubModule name="u_mem_system_top" Lut="2" T_Register="768(0)" T_Alu="105(0)" T_Lut="1298(2)" T_Bsram="4(0)">
-  <SubModule name="iMultiPortRamCtrl" Register="42" Lut="144" T_Register="211(42)" T_Alu="12(0)" T_Lut="586(144)">
+ <SubModule name="u_mem_system_top" Lut="2" T_Register="768(0)" T_Alu="105(0)" T_Lut="1293(2)" T_Bsram="4(0)">
+  <SubModule name="iMultiPortRamCtrl" Register="42" Lut="142" T_Register="211(42)" T_Alu="12(0)" T_Lut="584(142)">
    <SubModule name="iPsramController" Register="169" Alu="12" Lut="442" T_Register="169(169)" T_Alu="12(12)" T_Lut="442(442)"/>
   </SubModule>
-  <SubModule name="iPSRAMBIST_Burst" Register="69" Alu="15" Lut="231" T_Register="69(69)" T_Alu="15(15)" T_Lut="231(231)"/>
-  <SubModule name="u_QSPI_Slave" Register="129" Alu="18" Lut="200" T_Register="129(129)" T_Alu="18(18)" T_Lut="200(200)"/>
+  <SubModule name="iPSRAMBIST_Burst" Register="69" Alu="15" Lut="229" T_Register="69(69)" T_Alu="15(15)" T_Lut="229(229)"/>
+  <SubModule name="u_QSPI_Slave" Register="129" Alu="18" Lut="199" T_Register="129(129)" T_Alu="18(18)" T_Lut="199(199)"/>
   <SubModule name="u_mm_burst_write" Register="45" Lut="8" T_Register="125(45)" T_Alu="9(0)" T_Lut="73(8)" T_Bsram="1(0)">
    <SubModule name="u_fifo1k" Register="80" Alu="9" Lut="65" Bsram="1" T_Register="80(80)" T_Alu="9(9)" T_Lut="65(65)" T_Bsram="1(1)"/>
   </SubModule>
@@ -52,98 +52,98 @@
  <SubModule name="debouncer_DPAD_UP" Register="19" Lut="25" T_Register="19(19)" T_Lut="25(25)"/>
  <SubModule name="debouncer_SEL" Register="19" Lut="25" T_Register="19(19)" T_Lut="25(25)"/>
  <SubModule name="debouncer_START" Register="19" Lut="25" T_Register="19(19)" T_Lut="25(25)"/>
- <SubModule name="u_virtual_cart_session_cdc" Register="22" Lut="20" T_Register="22(22)" T_Lut="20(20)"/>
+ <SubModule name="u_virtual_cart_session_cdc" Register="22" Lut="22" T_Register="22(22)" T_Lut="22(22)"/>
  <SubModule name="u_gg_launch_status" Register="6" Lut="3" T_Register="6(6)" T_Lut="3(3)"/>
- <SubModule name="u_cartridge_interface" Register="43" Lut="99" T_Register="43(43)" T_Lut="99(99)"/>
- <SubModule name="u_cart_maintenance_engine" Register="303" Alu="70" Lut="797" T_Register="303(303)" T_Alu="70(70)" T_Lut="797(797)"/>
- <SubModule name="u_cart_usb_streamer" Register="18" Lut="34" T_Register="18(18)" T_Lut="34(34)"/>
+ <SubModule name="u_cartridge_interface" Register="43" Lut="100" T_Register="43(43)" T_Lut="100(100)"/>
+ <SubModule name="u_cart_maintenance_engine" Register="303" Alu="69" Lut="851" T_Register="303(303)" T_Alu="69(69)" T_Lut="851(851)"/>
+ <SubModule name="u_cart_usb_streamer" Register="18" Lut="35" T_Register="18(18)" T_Lut="35(35)"/>
  <SubModule name="u_cart_maintenance_cdc" Register="4" T_Register="4(4)"/>
  <SubModule name="u_cart_block_ram" Bsram="1" T_Bsram="1(1)"/>
- <SubModule name="u_emu_system_top" Register="31" Lut="64" T_Register="5728(31)" T_Alu="1557(0)" T_Lut="8976(64)" T_MULT12X12="1(0)" T_Bsram="31(0)">
-  <SubModule name="rom_bridge" Register="483" Alu="33" Lut="462" Bsram="1" T_Register="483(483)" T_Alu="33(33)" T_Lut="462(462)" T_Bsram="1(1)"/>
-  <SubModule name="core" Register="155" Lut="180" Bsram="20" T_Register="3395(155)" T_Alu="1022(0)" T_Lut="6578(180)" T_MULT12X12="1(0)" T_Bsram="28(20)">
-   <SubModule name="clock_enables" Register="35" Lut="74" T_Register="35(35)" T_Lut="74(74)"/>
-   <SubModule name="core" Register="13" Lut="414" T_Register="3175(13)" T_Alu="1022(0)" T_Lut="6209(414)" T_MULT12X12="1(0)" T_Bsram="8(0)">
+ <SubModule name="u_emu_system_top" Register="33" Lut="65" T_Register="5761(33)" T_Alu="1524(0)" T_Lut="8891(65)" T_MULT12X12="1(0)" T_Bsram="31(0)">
+  <SubModule name="rom_bridge" Register="483" Alu="33" Lut="460" Bsram="1" T_Register="483(483)" T_Alu="33(33)" T_Lut="460(460)" T_Bsram="1(1)"/>
+  <SubModule name="core" Register="154" Lut="187" Bsram="20" T_Register="3426(154)" T_Alu="989(0)" T_Lut="6482(187)" T_MULT12X12="1(0)" T_Bsram="28(20)">
+   <SubModule name="clock_enables" Register="35" Lut="79" T_Register="35(35)" T_Lut="79(79)"/>
+   <SubModule name="core" Register="13" Lut="288" T_Register="3207(13)" T_Alu="989(0)" T_Lut="6104(288)" T_MULT12X12="1(0)" T_Bsram="8(0)">
     <SubModule name="mapper_detect_inst" Register="22" Lut="39" T_Register="22(22)" T_Lut="39(39)"/>
-    <SubModule name="gamegenie" Register="1095" Alu="773" Lut="39" T_Register="1095(1095)" T_Alu="773(773)" T_Lut="39(39)"/>
-    <SubModule name="z80_inst" Register="12" Lut="34" T_Register="356(12)" T_Alu="85(0)" T_Lut="2772(34)">
-     <SubModule name="u0" Register="216" Alu="78" Lut="1923" T_Register="344(216)" T_Alu="85(78)" T_Lut="2738(1923)">
-      <SubModule name="mcode" Lut="145" T_Lut="145(145)"/>
+    <SubModule name="gamegenie" Register="1127" Alu="741" Lut="103" T_Register="1127(1127)" T_Alu="741(741)" T_Lut="103(103)"/>
+    <SubModule name="z80_inst" Register="12" Lut="30" T_Register="356(12)" T_Alu="85(0)" T_Lut="2751(30)">
+     <SubModule name="u0" Register="216" Alu="78" Lut="1927" T_Register="344(216)" T_Alu="85(78)" T_Lut="2721(1927)">
+      <SubModule name="mcode" Lut="142" T_Lut="142(142)"/>
       <SubModule name="alu" Alu="7" Lut="8" T_Alu="7(7)" T_Lut="8(8)"/>
-      <SubModule name="regs" Register="128" Lut="662" T_Register="128(128)" T_Lut="662(662)"/>
+      <SubModule name="regs" Register="128" Lut="644" T_Register="128(128)" T_Lut="644(644)"/>
      </SubModule>
     </SubModule>
-    <SubModule name="vdp_inst" Register="173" Lut="319" T_Register="1345(173)" T_Alu="90(0)" T_Lut="2214(319)" T_MULT12X12="1(0)" T_Bsram="8(0)">
-     <SubModule name="vdp_main_inst" Alu="8" Lut="57" T_Register="776(0)" T_Alu="90(8)" T_Lut="1413(57)" T_MULT12X12="1(0)">
-      <SubModule name="vdp_bg_inst" Register="140" Alu="9" Lut="357" MULT12X12="1" T_Register="140(140)" T_Alu="9(9)" T_Lut="357(357)" T_MULT12X12="1(1)"/>
-      <SubModule name="vdp_spr_inst" Register="372" Alu="9" Lut="631" T_Register="636(372)" T_Alu="73(9)" T_Lut="999(631)">
-       <SubModule name="shifters[0]_shifter" Register="33" Alu="8" Lut="53" T_Register="33(33)" T_Alu="8(8)" T_Lut="53(53)"/>
-       <SubModule name="shifters[1]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
-       <SubModule name="shifters[2]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
-       <SubModule name="shifters[3]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
-       <SubModule name="shifters[4]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
-       <SubModule name="shifters[5]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
-       <SubModule name="shifters[6]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
-       <SubModule name="shifters[7]_shifter" Register="33" Alu="8" Lut="45" T_Register="33(33)" T_Alu="8(8)" T_Lut="45(45)"/>
+    <SubModule name="vdp_inst" Register="173" Lut="318" T_Register="1345(173)" T_Alu="89(0)" T_Lut="2193(318)" T_MULT12X12="1(0)" T_Bsram="8(0)">
+     <SubModule name="vdp_main_inst" Alu="8" Lut="59" T_Register="776(0)" T_Alu="89(8)" T_Lut="1402(59)" T_MULT12X12="1(0)">
+      <SubModule name="vdp_bg_inst" Register="140" Alu="9" Lut="362" MULT12X12="1" T_Register="140(140)" T_Alu="9(9)" T_Lut="362(362)" T_MULT12X12="1(1)"/>
+      <SubModule name="vdp_spr_inst" Register="372" Alu="8" Lut="629" T_Register="636(372)" T_Alu="72(8)" T_Lut="981(629)">
+       <SubModule name="shifters[0]_shifter" Register="33" Alu="8" Lut="51" T_Register="33(33)" T_Alu="8(8)" T_Lut="51(51)"/>
+       <SubModule name="shifters[1]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
+       <SubModule name="shifters[2]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
+       <SubModule name="shifters[3]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
+       <SubModule name="shifters[4]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
+       <SubModule name="shifters[5]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
+       <SubModule name="shifters[6]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
+       <SubModule name="shifters[7]_shifter" Register="33" Alu="8" Lut="43" T_Register="33(33)" T_Alu="8(8)" T_Lut="43(43)"/>
       </SubModule>
      </SubModule>
      <SubModule name="vdp_vram_inst" Bsram="8" T_Bsram="8(8)"/>
-     <SubModule name="vdp_cram_inst" Register="396" Lut="482" T_Register="396(396)" T_Lut="482(482)"/>
+     <SubModule name="vdp_cram_inst" Register="396" Lut="473" T_Register="396(396)" T_Lut="473(473)"/>
     </SubModule>
     <SubModule name="vdp2_inst" Lut="1" T_Lut="1(1)"/>
-    <SubModule name="psg_inst" Register="59" Lut="84" T_Register="177(59)" T_Alu="66(0)" T_Lut="471(84)">
+    <SubModule name="psg_inst" Register="59" Lut="84" T_Register="177(59)" T_Alu="66(0)" T_Lut="475(84)">
      <SubModule name="mix" Register="22" Alu="66" Lut="72" T_Register="22(22)" T_Alu="66(66)" T_Lut="72(72)"/>
      <SubModule name="u_tone0" Register="11" Lut="39" T_Register="20(11)" T_Lut="75(39)">
       <SubModule name="u_vol" Register="9" Lut="36" T_Register="9(9)" T_Lut="36(36)"/>
      </SubModule>
-     <SubModule name="u_tone1" Register="11" Lut="38" T_Register="20(11)" T_Lut="71(38)">
-      <SubModule name="u_vol" Register="9" Lut="33" T_Register="9(9)" T_Lut="33(33)"/>
+     <SubModule name="u_tone1" Register="11" Lut="38" T_Register="20(11)" T_Lut="73(38)">
+      <SubModule name="u_vol" Register="9" Lut="35" T_Register="9(9)" T_Lut="35(35)"/>
      </SubModule>
      <SubModule name="u_tone2" Register="11" Lut="38" T_Register="20(11)" T_Lut="73(38)">
       <SubModule name="u_vol" Register="9" Lut="35" T_Register="9(9)" T_Lut="35(35)"/>
      </SubModule>
-     <SubModule name="u_noise" Register="27" Lut="63" T_Register="36(27)" T_Lut="96(63)">
-      <SubModule name="u_vol" Register="9" Lut="33" T_Register="9(9)" T_Lut="33(33)"/>
+     <SubModule name="u_noise" Register="27" Lut="63" T_Register="36(27)" T_Lut="98(63)">
+      <SubModule name="u_vol" Register="9" Lut="35" T_Register="9(9)" T_Lut="35(35)"/>
      </SubModule>
     </SubModule>
     <SubModule name="mix" Register="23" Lut="13" T_Register="23(23)" T_Lut="13(13)"/>
-    <SubModule name="io_inst" Register="65" Lut="71" T_Register="65(65)" T_Lut="71(71)"/>
+    <SubModule name="io_inst" Register="65" Lut="69" T_Register="65(65)" T_Lut="69(69)"/>
     <SubModule name="cart_eeprom_inst" T_Register="2(0)" T_Lut="3(0)">
      <SubModule name="eeprom_inst" Register="2" Lut="3" T_Register="2(2)" T_Lut="3(3)"/>
     </SubModule>
-    <SubModule name="mapper_banking" Register="77" Alu="8" Lut="172" T_Register="77(77)" T_Alu="8(8)" T_Lut="172(172)"/>
+    <SubModule name="mapper_banking" Register="77" Alu="8" Lut="169" T_Register="77(77)" T_Alu="8(8)" T_Lut="169(169)"/>
    </SubModule>
-   <SubModule name="timing" Register="30" Lut="115" T_Register="30(30)" T_Lut="115(115)"/>
+   <SubModule name="timing" Register="30" Lut="112" T_Register="30(30)" T_Lut="112(112)"/>
   </SubModule>
-  <SubModule name="state_engine" Register="953" Lut="1173" T_Register="953(953)" T_Lut="1173(1173)" T_Bsram="1(0)">
+  <SubModule name="state_engine" Register="953" Lut="1158" T_Register="953(953)" T_Lut="1158(1158)" T_Bsram="1(0)">
    <SubModule name="buffer" Bsram="1" T_Bsram="1(1)"/>
   </SubModule>
-  <SubModule name="video_cdc" Register="260" Alu="183" Lut="461" Bsram="1" T_Register="623(260)" T_Alu="188(183)" T_Lut="661(461)" T_Bsram="1(1)">
-   <SubModule name="fifo" Register="363" Alu="5" Lut="200" T_Register="363(363)" T_Alu="5(5)" T_Lut="200(200)"/>
+  <SubModule name="video_cdc" Register="260" Alu="183" Lut="455" Bsram="1" T_Register="623(260)" T_Alu="188(183)" T_Lut="656(455)" T_Bsram="1(1)">
+   <SubModule name="fifo" Register="363" Alu="5" Lut="201" T_Register="363(363)" T_Alu="5(5)" T_Lut="201(201)"/>
   </SubModule>
   <SubModule name="audio_cdc" Register="50" Lut="3" T_Register="50(50)" T_Lut="3(3)"/>
-  <SubModule name="u_audio_lpf" Register="5" Alu="4" Lut="3" T_Register="193(5)" T_Alu="314(4)" T_Lut="35(3)">
-   <SubModule name="u_l" Register="94" Alu="155" Lut="16" T_Register="94(94)" T_Alu="155(155)" T_Lut="16(16)"/>
-   <SubModule name="u_r" Register="94" Alu="155" Lut="16" T_Register="94(94)" T_Alu="155(155)" T_Lut="16(16)"/>
+  <SubModule name="u_audio_lpf" Register="5" Alu="4" Lut="3" T_Register="193(5)" T_Alu="314(4)" T_Lut="67(3)">
+   <SubModule name="u_l" Register="94" Alu="155" Lut="32" T_Register="94(94)" T_Alu="155(155)" T_Lut="32(32)"/>
+   <SubModule name="u_r" Register="94" Alu="155" Lut="32" T_Register="94(94)" T_Alu="155(155)" T_Lut="32(32)"/>
   </SubModule>
  </SubModule>
- <SubModule name="u_usb_top" Register="79" Alu="7" Lut="87" T_Register="2404(79)" T_Alu="405(7)" T_Lut="3943(87)" T_Bsram="8(0)">
+ <SubModule name="u_usb_top" Register="79" Alu="7" Lut="87" T_Register="2404(79)" T_Alu="406(7)" T_Lut="3980(87)" T_Bsram="8(0)">
   <SubModule name="u_Gowin_PLL_USB"/>
   <SubModule name="uart_interface" Register="8" T_Register="8(8)"/>
   <SubModule name="u_usb_device_controller_top" Register="488" Alu="104" Lut="1473" T_Register="488(488)" T_Alu="104(104)" T_Lut="1473(1473)"/>
-  <SubModule name="u_usb_desc" Register="17" Alu="4" Lut="128" T_Register="17(17)" T_Alu="4(4)" T_Lut="128(128)"/>
-  <SubModule name="u_USB_SoftPHY_Top" Register="436" Alu="14" Lut="1013" Bsram="2" T_Register="436(436)" T_Alu="14(14)" T_Lut="1013(1013)" T_Bsram="2(2)"/>
+  <SubModule name="u_usb_desc" Register="17" Alu="4" Lut="134" T_Register="17(17)" T_Alu="4(4)" T_Lut="134(134)"/>
+  <SubModule name="u_USB_SoftPHY_Top" Register="436" Alu="14" Lut="1035" Bsram="2" T_Register="436(436)" T_Alu="14(14)" T_Lut="1035(1035)" T_Bsram="2(2)"/>
   <SubModule name="uart_if_ctrl" Register="79" Lut="107" T_Register="79(79)" T_Lut="107(107)"/>
-  <SubModule name="u_UART" Register="31" Lut="1" T_Register="366(31)" T_Alu="116(0)" T_Lut="494(1)">
-   <SubModule name="uart_tx_inst" Register="103" Alu="24" Lut="197" T_Register="103(103)" T_Alu="24(24)" T_Lut="197(197)"/>
-   <SubModule name="uart_rx_inst" Register="106" Alu="23" Lut="174" T_Register="106(106)" T_Alu="23(23)" T_Lut="174(174)"/>
+  <SubModule name="u_UART" Register="31" Lut="1" T_Register="366(31)" T_Alu="117(0)" T_Lut="506(1)">
+   <SubModule name="uart_tx_inst" Register="103" Alu="24" Lut="191" T_Register="103(103)" T_Alu="24(24)" T_Lut="191(191)"/>
+   <SubModule name="uart_rx_inst" Register="106" Alu="24" Lut="192" T_Register="106(106)" T_Alu="24(24)" T_Lut="192(192)"/>
    <SubModule name="your_instance_name" Register="126" Alu="69" Lut="122" T_Register="126(126)" T_Alu="69(69)" T_Lut="122(122)"/>
   </SubModule>
   <SubModule name="u_usb_cdc_tx_mux" Register="23" Lut="13" T_Register="23(23)" T_Lut="13(13)"/>
-  <SubModule name="usb_fifo" Register="16" Lut="33" T_Register="908(16)" T_Alu="160(0)" T_Lut="628(33)" T_Bsram="6(0)">
-   <SubModule name="usb_tx_buf_ep3" Register="15" Lut="5" T_Register="257(15)" T_Alu="88(0)" T_Lut="176(5)" T_Bsram="4(0)">
+  <SubModule name="usb_fifo" Register="16" Lut="33" T_Register="908(16)" T_Alu="160(0)" T_Lut="625(33)" T_Bsram="6(0)">
+   <SubModule name="usb_tx_buf_ep3" Register="15" Lut="5" T_Register="257(15)" T_Alu="88(0)" T_Lut="173(5)" T_Bsram="4(0)">
     <SubModule name="clk_cross_fifo" Register="176" Alu="4" Lut="109" T_Register="176(176)" T_Alu="4(4)" T_Lut="109(109)"/>
-    <SubModule name="sync_tx_pkt_fifo" Register="66" Alu="84" Lut="62" Bsram="4" T_Register="66(66)" T_Alu="84(84)" T_Lut="62(62)" T_Bsram="4(4)"/>
+    <SubModule name="sync_tx_pkt_fifo" Register="66" Alu="84" Lut="59" Bsram="4" T_Register="66(66)" T_Alu="84(84)" T_Lut="59(59)" T_Bsram="4(4)"/>
    </SubModule>
    <SubModule name="usb_rx_buf_ep3" Register="15" Lut="8" T_Register="635(15)" T_Alu="72(0)" T_Lut="419(8)" T_Bsram="2(0)">
     <SubModule name="sync_rx_pkt_fifo" Register="43" Alu="60" Lut="30" Bsram="2" T_Register="43(43)" T_Alu="60(60)" T_Lut="30(30)" T_Bsram="2(2)"/>
@@ -154,14 +154,14 @@
  <SubModule name="u_adc_wrap" Register="18" Lut="9" T_Register="18(18)" T_Lut="9(9)">
   <SubModule name="u_Gowin_ADC"/>
  </SubModule>
- <SubModule name="u_system_monitor" Register="268" Alu="67" Lut="185" T_Register="510(268)" T_Alu="91(67)" T_Lut="692(185)">
-  <SubModule name="u_system_monitor_arbiter" Register="28" Lut="62" T_Register="28(28)" T_Lut="62(62)"/>
-  <SubModule name="u_uart_packet_wrapper_tx" Register="51" Lut="281" T_Register="51(51)" T_Lut="281(281)"/>
-  <SubModule name="u_uart_packet_wrapper_rx" Register="119" Alu="8" Lut="54" T_Register="119(119)" T_Alu="8(8)" T_Lut="54(54)"/>
-  <SubModule name="u_core_reload" Register="44" Alu="16" Lut="110" T_Register="44(44)" T_Alu="16(16)" T_Lut="110(110)"/>
+ <SubModule name="u_system_monitor" Register="268" Alu="67" Lut="193" T_Register="510(268)" T_Alu="91(67)" T_Lut="691(193)">
+  <SubModule name="u_system_monitor_arbiter" Register="28" Lut="63" T_Register="28(28)" T_Lut="63(63)"/>
+  <SubModule name="u_uart_packet_wrapper_tx" Register="51" Lut="280" T_Register="51(51)" T_Lut="280(280)"/>
+  <SubModule name="u_uart_packet_wrapper_rx" Register="119" Alu="8" Lut="55" T_Register="119(119)" T_Alu="8(8)" T_Lut="55(55)"/>
+  <SubModule name="u_core_reload" Register="44" Alu="16" Lut="100" T_Register="44(44)" T_Alu="16(16)" T_Lut="100(100)"/>
  </SubModule>
- <SubModule name="u_UART2" Register="5" Lut="1" T_Register="105(5)" T_Lut="150(1)">
+ <SubModule name="u_UART2" Register="5" Lut="1" T_Register="105(5)" T_Lut="157(1)">
   <SubModule name="uart_tx_inst" Register="49" Lut="76" T_Register="49(49)" T_Lut="76(76)"/>
-  <SubModule name="uart_rx_inst" Register="51" Lut="73" T_Register="51(51)" T_Lut="73(73)"/>
+  <SubModule name="uart_rx_inst" Register="51" Lut="80" T_Register="51(51)" T_Lut="80(80)"/>
  </SubModule>
 </Module>

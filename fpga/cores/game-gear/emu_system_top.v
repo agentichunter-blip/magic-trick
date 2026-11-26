@@ -22,6 +22,7 @@ module emu_system_top
     input [63:0]        paletteOBJ1In,
     input               paletteOff,
     input               smsStretch,     // settings bit 15: SMS picture fills 160x144
+    input               hHeadphones,    // hclk: headphones plugged in (speaker otherwise)
     output              gbc_mode,
     output [63:0]       gpd,
     
@@ -210,8 +211,11 @@ module emu_system_top
         .sample({gg_left_raw,gg_right_raw}));
     // Low-pass (~7 kHz, like the GB/GBC core's filter) + DC blocker, no multipliers.
     // Without it the raw PSG square waves reach the 131 kHz I2S output unfiltered.
+    // Master System on the speaker: cut the bass the speaker buzzes on (gg_audio_lpf.sv).
+    (* ASYNC_REG="TRUE" *) reg [1:0] sms_h=0;
+    always @(posedge hclk) sms_h<={sms_h[0],virtual_cart_type==8'h53};
     gg_audio_lpf u_audio_lpf(
-        .clk(hclk),.reset(reset_h_sync[1]),
+        .clk(hclk),.reset(reset_h_sync[1]),.bass_cut(sms_h[1] && !hHeadphones),
         .in_l(gg_left_raw),.in_r(gg_right_raw),
         .out_l(left),.out_r(right));
     (* ASYNC_REG="TRUE" *) reg [1:0] idle_h=0,initialized_h=0,reset_drained_h=0;

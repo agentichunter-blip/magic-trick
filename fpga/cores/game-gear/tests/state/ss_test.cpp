@@ -26,7 +26,7 @@ struct Sim {
     // Panel stream from the video bridge (what the Chromatic shows).
     std::array<uint16_t, 160 * 144> panel{};
     int prow = -1, pcol = 0, frame_rows = 0, bad_frames = 0, good_frames = 0, last_mode = 0;
-    bool sms = false;
+    bool sms = false; uint64_t bushash = 1469598103934665603ull; std::vector<uint32_t> hist;
     unsigned start_button = 64;
     Sim(const char *path) {
         std::ifstream f(path, std::ios::binary);
@@ -37,12 +37,23 @@ struct Sim {
         sms = std::getenv("GG_SMS") != nullptr;
         start_button = sms ? 16 : 64;  // SMS: Start is Pause; use button 1
         d.sms = sms; d.stretch = std::getenv("GG_STRETCH") != nullptr;
-        d.clk = 0; d.reset_n = 0; d.buttons = 0;
+        d.clk = 0; d.reset_n = 0; d.buttons = 0; d.gg_clear = 0;
+        for (int w = 0; w < 5; w++) d.gg_code[w] = 0;
         d.freeze_t = d.release_t = d.load_t = d.block_t = 0; d.cart_import = 0;
         d.block_number = 0; d.block_seq = 0; d.qaddress = 0;
         d.bus_done = d.bus_valid = 0; d.bus_data = 0;
         d.eval();
         for (int i = 0; i < 200; i++) tick();
+        // GG_CHEAT=AAAA:RR[:CC] (hex): one cheat code, loaded as the shell does (clock bit 128)
+        if (const char *c = std::getenv("GG_CHEAT")) {
+            unsigned a = 0, r = 0, k = 0; int n = std::sscanf(c, "%x:%x:%x", &a, &r, &k);
+            d.gg_code[0] = r; d.gg_code[1] = (n > 2) ? k : 0; d.gg_code[2] = a; d.gg_code[3] = (n > 2) ? 1 : 0;
+            d.gg_code[4] = 0; for (int i = 0; i < 4; i++) tick();
+            d.gg_code[4] = 1; for (int i = 0; i < 4; i++) tick();
+            d.gg_code[4] = 0; for (int i = 0; i < 4; i++) tick();
+            std::printf("cheat loaded: %04x -> %02x\n", a, r);
+        }
+        if (std::getenv("GG_ROMHIST")) hist.assign(65536, 0);
         d.reset_n = 1;
     }
     void tick() {
@@ -58,6 +69,7 @@ struct Sim {
             px = d.x; py = d.y;
         }
         d.clk = 1; d.eval(); cycles++;
+        if (d.rom_rd) { bushash = (bushash ^ d.rom_a) * 1099511628211ull; if (hist.size()) hist[d.rom_a & 0xFFFF]++; }
         // GG_AUDIO_OUT=file: audioL, audioR (int16) every 1523 cycles (~44.1 kHz at 67.16 MHz)
         static FILE *alog = std::getenv("GG_AUDIO_OUT") ? std::fopen(std::getenv("GG_AUDIO_OUT"), "wb") : nullptr;
         if (alog && cycles % (std::getenv("GG_AUDIO_DIV") ? std::atoi(std::getenv("GG_AUDIO_DIV")) : 1523) == 0) { int16_t s2[2] = {(int16_t)d.audioL, (int16_t)d.audioR}; std::fwrite(s2, 2, 2, alog); }
@@ -152,6 +164,8 @@ int main(int argc, char **argv) {
         s.buttons = (i > p1 && i < p1 + 4500000) || (i > p2 && i < p2 + 4500000) ? s.start_button : (i > warm * 85 / 100 ? 8 : 0);
         s.tick();
     }
+    std::printf("bus hash after warm-up: %016llx\n", (unsigned long long)s.bushash);
+    if (s.hist.size()) { for (int k = 0; k < 5; k++) { int b = 0; for (int i = 0; i < 0xC000; i++) if (s.hist[i] > s.hist[b]) b = i; std::printf("rom read %04x x%u\n", b, s.hist[b]); s.hist[b] = 0; } }
     s.freeze();
     s.screenshot("captured.ppm");
     s.panelshot("panel-captured.ppm");

@@ -1,6 +1,6 @@
 // Simulation wrapper: board core + save-state engine + the real ROM cache.
 // PSRAM is modelled in C++ behind the cache's bus interface.
-module gg_ss_sim_top(
+module gg_ss_sim_top(input [128:0] gg_code, input gg_clear,
  input clk, reset_n, input [6:0] buttons, input sms, stretch,
  output lcd_pixel, output [14:0] lcd_data, output lcd_repeat, output [1:0] lcd_mode, output lcd_vsync,
  output video_overflow,
@@ -33,7 +33,7 @@ module gg_ss_sim_top(
   .data(rom_byte),.ready(rom_ready),.idle(rom_idle),.fault(rom_fault),
   .request(bus_request),.bus_read(),.bus_address(bus_address),.bus_write_data(),.bus_length(),
   .done(bus_done),.valid(bus_valid),.read_data(bus_data));
- gg_board_core core(.gg_code(129'd0),.gg_clear(1'b0),.clk(clk),.reset_n(reset_n),
+ gg_board_core core(.gg_code(gg_code),.gg_clear(gg_clear),.clk(clk),.reset_n(reset_n),
   .rom_ready(rom_ready),.quiesce(1'b0),.sms(sms),.buttons(buttons),.rom_do(rom_byte),.rom_a(rom_a),.rom_rd(rom_rd),
   .color(color),.x(x),.y(y),.audioL(audioL),.audioR(audioR),.ce_pix(ce_pix),.hblank(),.vblank(),
   .ram_we(ram_we),.ram_a(ram_a),.ram_d(ram_d),

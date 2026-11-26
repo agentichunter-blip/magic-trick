@@ -58,6 +58,19 @@ always_ff @(posedge clk) begin
 	end
 end
 
+// Chromatic: the address compare is registered. On the Game Gear core addr_in is the
+// Z80 address, which only changes on a CPU clock enable (at least 15 xclk apart) and
+// is held through the bus cycle, so the match from the previous xclk is always the
+// match for the address the Z80 reads at; the 16-bit compares leave the read-data path
+// (the Z80 data input missed timing through them). The data compare stays live: ROM
+// data may arrive the xclk before the Z80 takes it.
+reg [MAX_CODES-1:0] addr_hit = '0;
+always_ff @(posedge clk) begin
+	int y;
+	for (y = 0; y < MAX_CODES; y = y + 1)
+		addr_hit[y] <= codes[y][ENA_F_S] && codes[y][ADDR_S-:ADDR_WIDTH] == addr_in;
+end
+
 always_comb begin
 	int x;
 	x = 0;
@@ -65,12 +78,14 @@ always_comb begin
 	genie_data = '0;
 
 	if (enable) begin
+		// Chromatic: the matching codes' bytes are ORed (one AND-OR level) instead of the
+		// last match winning (a 32-deep priority chain on the Z80 data path). Same result
+		// whenever one code matches the read; codes that match the same address AND data at
+		// once contradict each other anyway.
 		for (x = 0; x < MAX_CODES; x = x + 1) begin
-			if (codes[x][ENA_F_S] && codes[x][ADDR_S-:ADDR_WIDTH] == addr_in) begin
-				if (!codes[x][COMP_F_S] || (codes[x][COMP_S-:DATA_WIDTH] == data_in)) begin
-					genie_ovr = 1;
-					genie_data = codes[x][DATA_S-:DATA_WIDTH];
-				end
+			if (addr_hit[x] && (!codes[x][COMP_F_S] || (codes[x][COMP_S-:DATA_WIDTH] == data_in))) begin
+				genie_ovr = 1;
+				genie_data = genie_data | codes[x][DATA_S-:DATA_WIDTH];
 			end
 		end
 	end

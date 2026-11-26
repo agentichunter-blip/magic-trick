@@ -1276,6 +1276,7 @@ module top #(parameter ISSIMU=0)
 
     emu_system_top u_emu_system_top(
         .gg_code_x(gg_code_x), .gg_clear_x(gg_clear_x),
+        .hHeadphones(hHeadphones),
         .hclk(hClk),
         .pclk(pClk),
         .xclk(xClk),
