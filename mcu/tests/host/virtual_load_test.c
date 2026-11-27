@@ -112,6 +112,7 @@ esp_err_t CartLink_VirtualCommand(uint8_t Command, uint16_t Config, uint8_t High
 void RomBrowserUI_SetProgress(uint32_t Value, uint32_t Total) { assert(Value<=Total); }
 bool RomBrowserUI_SetComplete(void) { assert(!Mounted && !Bulk); ++Completed; return true; }
 void RomBrowserUI_SetError(esp_err_t Error) { assert(Error!=ESP_OK && !Mounted && !Bulk); ++Errors; }
+void RomBrowserUI_SetErrorText(const char *Detail) { assert(Detail && Detail[0] && !Mounted && !Bulk); ++Errors; }
 esp_err_t RomBrowser_CloseMenu(void) { assert(Completed && !Mounted && !Bulk); ++Closed; return ESP_OK; }
 
 /* Sideways Lynx games: header byte 58 wins; headerless dumps by the CRC of

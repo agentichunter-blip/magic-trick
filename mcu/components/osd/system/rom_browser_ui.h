@@ -66,5 +66,8 @@ void RomBrowserUI_RegisterDataSource(const RomBrowserDataSource_t *pSource);
 void RomBrowserUI_SetProgress(uint32_t Completed, uint32_t Total);
 bool RomBrowserUI_SetComplete(void);
 void RomBrowserUI_SetError(esp_err_t Error);
+/* Like SetError, with a plain-language reason (up to 3 short lines) in place
+ * of the error name. */
+void RomBrowserUI_SetErrorText(const char *pDetail);
 
 bool RomBrowserUI_HasPickerFocus(void);

@@ -390,6 +390,10 @@ static esp_err_t ResolvePath(const char *pInput, char Output[kPathSize])
     return ESP_OK;
 }
 
+/* Plain-language reason for the last load failure, shown instead of the error
+ * name when set (cleared at the start of each load). */
+static char LoadFailDetail[40];
+
 static esp_err_t DecodeRomSize(uint8_t Code, uint32_t *pSize)
 {
     if (Code <= 8)
@@ -414,8 +418,17 @@ static esp_err_t ResolveGeometry(const CartMapperInfo_t *pMapper,
         0, 2u * 1024u, 8u * 1024u, 32u * 1024u,
         128u * 1024u, 64u * 1024u,
     };
-    if (RamCode >= sizeof(RamSizes) / sizeof(RamSizes[0]) ||
-        RomSize > kMaximumRomSize)
+    if (RomSize > kMaximumRomSize)
+    {
+        /* Bigger than the 4 MiB PSRAM ROM window (8 MiB in all, shared with
+         * saves and states): say so on the error screen. */
+        (void)snprintf(LoadFailDetail, sizeof(LoadFailDetail),
+                       "GAME IS %lu MB\nSD LIMIT IS %u MB",
+                       (unsigned long)(RomSize >> 20),
+                       (unsigned)(kMaximumRomSize >> 20));
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (RamCode >= sizeof(RamSizes) / sizeof(RamSizes[0]))
     {
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -1955,6 +1968,7 @@ static esp_err_t RunLoad(const char *pPath)
     bool VirtualDisturbed = false;
     bool SwitchRequested = false;
     VirtualCartInfo_t Info = {0};
+    LoadFailDetail[0] = '\0';
     char SelectedSavePath[kPathSize] = {0};
     char SelectedRtcPath[kPathSize] = {0};
     uint32_t RtcState = 0;
@@ -2270,7 +2284,8 @@ Cleanup:
         if (Info.Lynx || CoreSwitch_IsCore(kCoreSystem_Lynx)) DiagLog_Append("lynx load FAIL %s %s", esp_err_to_name(Result), pPath);
         else if (CartStore_IsCartPath(pPath)) DiagLog_Append("cart load FAIL %s %s", esp_err_to_name(Result), pPath);
 #endif
-        RomBrowserUI_SetError(Result);
+        if (LoadFailDetail[0] != '\0') RomBrowserUI_SetErrorText(LoadFailDetail);
+        else RomBrowserUI_SetError(Result);
     }
     return Result;
 }

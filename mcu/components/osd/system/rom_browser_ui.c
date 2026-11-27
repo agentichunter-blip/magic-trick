@@ -54,7 +54,7 @@ typedef struct {
     bool ArtRequested, ArtValid, ArtResolved, Fast, Marquee, VideoRequested, VideoPlaying;
     bool SystemFocus, SystemPending, BadgeMargin, ListPinned;
     uint8_t Progress, ListOpacity;
-    char CurrentName[256], Error[40];
+    char CurrentName[256], Error[56];
 } Context_t;
 static Context_t C;
 static portMUX_TYPE ContextLock = portMUX_INITIALIZER_UNLOCKED;
@@ -306,14 +306,15 @@ bool RomBrowserUI_SetComplete(void) {
     portEXIT_CRITICAL(&ContextLock);
     return Close;
 }
-void RomBrowserUI_SetError(esp_err_t Error) {
+void RomBrowserUI_SetErrorText(const char *pDetail) {
     portENTER_CRITICAL(&ContextLock);
     if (C.TrackingLoad) {
-        snprintf(C.Error, sizeof(C.Error), "COULD NOT LOAD\n%s", esp_err_to_name(Error));
+        snprintf(C.Error, sizeof(C.Error), "COULD NOT LOAD\n%s", pDetail ? pDetail : "");
         C.State = kError; C.RenderValid = false;
     }
     portEXIT_CRITICAL(&ContextLock);
 }
+void RomBrowserUI_SetError(esp_err_t Error) { RomBrowserUI_SetErrorText(esp_err_to_name(Error)); }
 static lv_obj_t *Label(lv_obj_t *Parent, int X, int Y, int Width) {
     lv_obj_t *Object = lv_label_create(Parent);
     lv_obj_add_style(Object, OSD_GetStyleTextWhite(), 0);
@@ -572,7 +573,7 @@ OSD_Result_t RomBrowserUI_Draw(void *Arg) {
     const bool Dirty = !C.RenderValid || C.RenderedBlocked != Blocked;
     C.RenderValid = true; C.RenderedBlocked = Blocked;
     const uint8_t Progress = C.Progress;
-    char Error[40]; memcpy(Error, C.Error, sizeof(Error));
+    char Error[56]; memcpy(Error, C.Error, sizeof(Error));
     portEXIT_CRITICAL(&ContextLock);
     if (!Dirty) return kOSD_Result_Ok;
     if(State==kCheats || State==kCheatBusy) {

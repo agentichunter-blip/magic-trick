@@ -656,6 +656,9 @@ int main(void) {
     assert(AsyncAction==kRomActionStart && AsyncIndex==6); /* second A launches the displayed game */
     AsyncError=ESP_FAIL; JobReady=true; DrawScreen(&Menu, Screen);
     assert(Text(Screen,"COULD NOT LOAD\nESP_FAIL"));
+    RomBrowserUI_SetErrorText("GAME IS 8 MB\nSD LIMIT IS 4 MB"); DrawScreen(&Menu, Screen);
+    assert(Text(Screen,"COULD NOT LOAD\nGAME IS 8 MB\nSD LIMIT IS 4 MB"));
+    Snapshot("load-too-big");
     AsyncError=ESP_OK; Menu.fnOnButton(kButton_A,kButtonState_Pressed,NULL);
     JobReady=true; DrawScreen(&Menu, Screen);
     MenuVisible=false; HeldBits=kButtonBits_Down; DrawScreen(&Menu, Screen); assert(AsyncCancels>0);
