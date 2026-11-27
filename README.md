@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://ryansag.com/magic-trick/">Website</a> ·
-  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.17">Download</a> ·
+  <a href="https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.18">Download</a> ·
   <a href="https://x.com/ryansagdotcom">X</a> ·
   <a href="https://www.youtube.com/@RyanSag">YouTube</a> ·
   <a href="https://ko-fi.com/ryansag">Support my work</a>
@@ -46,9 +46,9 @@ ChroMagic's cartridge backup and save features remain available. The game librar
 
 ## Install
 
-Download **[Magic Trick Installer 1.0.0-beta.17](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.17)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
+Download **[Magic Trick Installer 1.0.0-beta.18](https://github.com/agentichunter-blip/magic-trick/releases/tag/v1.0.0-beta.18)** for Mac, Windows or Linux. Firmware is bundled, so no internet connection is needed. It installs from stock 4.2/4.5/4.6, ChroMagic 1.0.1 or art-series firmware, updates an earlier 1.0 install, and can **uninstall** back to ChroMagic. It always makes and verifies a private MCU backup first. Read the [installer guide](installer/README.md) and the [recovery guide](docs/recovery.md) before you start. **Beta firmware, installed at your own risk.**
 
-- **Updates take 5 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.13 to 1.0.0-beta.16 writes the MCU firmware, the Game Gear core (now with Master System) and the new NES core, and rewrites the Game Boy core along the way; it takes about 20 minutes. The NES core goes in the flash slot at `0x300000`. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
+- **Updates take 5 to 20 minutes,** depending on how many FPGA cores change. An update from 1.0.0-beta.17 writes only the MCU firmware and takes about 10 minutes. An update from 1.0.0-beta.13 to 1.0.0-beta.16 writes the MCU firmware, the Game Gear core (now with Master System) and the new NES core, and rewrites the Game Boy core along the way; it takes about 20 minutes. The NES core goes in the flash slot at `0x300000`. FPGA writes often need several attempts; the installer restarts the FPGA, retries and verifies every write on its own.
 - **Going back:** ModRetro's updater and ChroMagician can't reflash the FPGA of a device running Magic Trick 1.0. Use **Uninstall** in the Magic Trick installer first. After that, ModRetro's updater works normally.
 - **Beta:** hardware-tested on one Chromatic with the Mac app (install from stock 4.6 and ChroMagic, updates, uninstall, Restore backup, back to stock with ModRetro's updater, core switching, Atari Lynx games, the SD card library over a card reader, Wi-Fi and USB, and game carts on a ModRetro MR.TETRIS cart over USB and Wi-Fi). The Windows app (install, update, uninstall, Restore backup) and the Linux app (install, uninstall) were also tested on hardware.
 
