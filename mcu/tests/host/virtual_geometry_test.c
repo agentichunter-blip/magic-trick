@@ -92,6 +92,17 @@ int main(int argc, char **argv)
             assert(Uploaded == DecodeSize && Progress == DecodeSize && ProgressTotal == DecodeSize);
             fclose(file);
         }
+        /* 8 MiB MBC5 game: over the 4 MiB ROM window, with a plain reason. */
+        FILE *big = MakeImage(0x1b, 8, 3, 8u * 1024u * 1024u);
+        VirtualCartInfo_t big_info = {0}; LoadFailDetail[0] = 0;
+        assert(DecodeHeader(big, &big_info) == ESP_ERR_NOT_SUPPORTED);
+        assert(!strcmp(LoadFailDetail, "GAME IS 8 MB\nSD LIMIT IS 4 MB"));
+        fclose(big);
+        /* Other unsupported carts keep the error name (no detail). */
+        big = MakeImage(0xfc, 0, 0, 32768); LoadFailDetail[0] = 0;
+        assert(DecodeHeader(big, &big_info) == ESP_ERR_NOT_SUPPORTED && !LoadFailDetail[0]);
+        fclose(big);
+
         FILE *file = MakeImage(0x19, 2, 0, 131072);
         ExpectedImage[0x2345] ^= 1;
         assert(fseek(file, 0x2345, SEEK_SET) == 0);
