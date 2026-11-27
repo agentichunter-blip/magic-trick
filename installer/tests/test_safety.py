@@ -362,6 +362,25 @@ class Flows(unittest.TestCase):
         _, _, error, stage = self.perform(after={'mcu': 'v0.13.4-art31', 'fpga': '18.38', 'chromatic': 'x'})
         self.assertIsNotNone(error); self.assertEqual(stage, 'all_images_verified')
 
+    def test_install_without_version_answer_is_almost_done(self):
+        # Reddit, beta.17 on Windows: everything verified, then no answer after the restart.
+        with patch.object(core, 'confirm', side_effect=core.NoVersionAnswer('no answer')):
+            _, _, error, stage = self.perform()
+        self.assertIsNone(error); self.assertEqual(stage, 'complete_unconfirmed')
+
+    def test_no_answer_and_wrong_answer_are_told_apart(self):
+        with patch.object(core, 'device_ports', return_value=['COM4']), \
+                patch.object(core, 'version', side_effect=ValueError('No firmware version response.')), \
+                patch.object(fpga, 'reset'):
+            with self.assertRaises(core.NoVersionAnswer):
+                core.confirm(core.INSTALLED, lambda s: None, lambda s: None, window=20)
+        with patch.object(core, 'device_ports', return_value=['COM4']), \
+                patch.object(core, 'version', return_value={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'x'}), \
+                patch.object(fpga, 'reset'):
+            with self.assertRaises(ValueError) as caught:
+                core.confirm(core.INSTALLED, lambda s: None, lambda s: None, window=20)
+            self.assertNotIsInstance(caught.exception, core.NoVersionAnswer)
+
     def test_uninstall_restores_chromagic(self):
         events, writes, error, stage = self.perform('uninstall', layout='three-systems', app='1.0.0-beta', running=core.TARGET)
         self.assertIsNone(error); self.assertEqual(stage, 'complete')
@@ -748,6 +767,17 @@ class AlmostDone(unittest.TestCase):
             path.write_text(json.dumps({'stage': 'complete_unconfirmed', 'expected': {'fpga': '18.38', 'mcu': 'v0.13.8'}}))
             with patch.object(core, 'device_ports', return_value=['COM4']), \
                     patch.object(core, 'version', return_value={'mcu': 'v0.13.8', 'fpga': '18.38', 'chromatic': 'v4.6'}):
+                ok, _ = core.recheck(d)
+            self.assertTrue(ok)
+            self.assertEqual(json.loads(path.read_text())['stage'], 'complete')
+
+    def test_check_again_after_install(self):
+        # installation.json keeps the accepted FPGA versions as a JSON list.
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'installation.json'
+            path.write_text(json.dumps({'stage': 'complete_unconfirmed', 'expected': core.INSTALLED}))
+            with patch.object(core, 'device_ports', return_value=['COM4']), \
+                    patch.object(core, 'version', return_value=dict(core.TARGET, fpga='50.3')):
                 ok, _ = core.recheck(d)
             self.assertTrue(ok)
             self.assertEqual(json.loads(path.read_text())['stage'], 'complete')

@@ -551,7 +551,9 @@ CONFIRM_WINDOW = 180   # seconds; Windows may install drivers for a new USB layo
 
 
 def matches(after, expected):
-    return after is not None and all(after.get(k) in (v if isinstance(v, tuple) else (v,)) for k, v in expected.items())
+    # Lists too: installation.json stores the accepted FPGA versions as a JSON list.
+    return after is not None and all(after.get(k) in (tuple(v) if isinstance(v, (tuple, list)) else (v,))
+                                     for k, v in expected.items())
 
 
 def recheck(folder):
@@ -569,6 +571,11 @@ def recheck(folder):
     state.update(stage='complete', confirmed_later=after)
     path.write_text(json.dumps(state, indent=2))
     return True, after
+
+
+class NoVersionAnswer(ValueError):
+    """Everything was written and verified, but the Chromatic never answered the version
+    question after the restart (Windows driver setup, or download mode until a power cycle)."""
 
 
 def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
@@ -600,8 +607,9 @@ def confirm(expected, log, sleep, window=CONFIRM_WINDOW):
             return after
         sleep(3)
         waited += 3
-    raise ValueError('Flash verified, but the running version was not confirmed: ' + json.dumps(after) +
-                     '. Power-cycle and check Status.')
+    message = ('Flash verified, but the running version was not confirmed: ' + json.dumps(after) +
+               '. Power-cycle and check Status.')
+    raise NoVersionAnswer(message) if after is None else ValueError(message)
 
 
 def install(port, backup_dir, log, sleep=time.sleep):
@@ -675,7 +683,15 @@ def install(port, backup_dir, log, sleep=time.sleep):
         write_and_verify(port, TABLE_OFFSET, files['table_three_systems'], log)
     s.checkpoint('all_images_verified')
     log('All images verified. Restarting and checking versions…')
-    confirm(INSTALLED, log, sleep)
+    try:
+        confirm(INSTALLED, log, sleep)
+    except NoVersionAnswer:
+        # No answer is not a failed install: everything is written and verified. The finish
+        # screen asks for a power cycle and CHECK AGAIN. Other versions answering still stop.
+        s.checkpoint('complete_unconfirmed', expected=INSTALLED)
+        log('Install written and verified, but the Chromatic didn\'t answer after restarting. Turn it off and on, '
+            'wait for its menu, then press CHECK AGAIN (or check Status). Backup: ' + str(s.folder))
+        return
     s.checkpoint('complete')
     log('Magic Trick ' + RELEASE + ' is installed. Turn the Chromatic off and on once. Backup: ' + str(s.folder))
 
