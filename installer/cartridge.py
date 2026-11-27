@@ -75,6 +75,11 @@ class Game:
     def system(self):
         return SYSTEMS[Path(self.name).suffix.lower()]
 
+    @property
+    def system_name(self):
+        """Master System games share the Game Gear core (system 1) but keep their own name."""
+        return 'Master System' if Path(self.name).suffix.lower() == '.sms' else SYSTEM_NAMES[self.system]
+
 
 @dataclass
 class Cart:

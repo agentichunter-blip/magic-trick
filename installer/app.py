@@ -1323,12 +1323,12 @@ class App:
                  (info.own_title, info.own_size) if mode == 'keep' else None)
         self.cart_list_offset = 1 if first else 0
         if first:
-            self.cart_list.insert('end', '%-10s %7s  %s  %s' % ('Game Boy', '%d KB' % (first[1] // 1024),
+            self.cart_list.insert('end', '%-13s %7s  %s  %s' % ('Game Boy', '%d KB' % (first[1] // 1024),
                                                               'ART' if state.get('own_art') else '   ',
                                                               '%s  (first on the cart, stays)' % first[0]))
             self.cart_list.itemconfig(0, fg=ACCENT)
         for g in state['games']:
-            self.cart_list.insert('end', '%-10s %7s  %s  %s' % (cartridge.SYSTEM_NAMES[g.system],
+            self.cart_list.insert('end', '%-13s %7s  %s  %s' % (g.system_name,
                                                                 '%d KB' % (len(g.data) // 1024),
                                                                 'ART' if g.art else '   ', g.name))
         own_size = len(own['image']) if mode == 'replace' and own else info.own_size
